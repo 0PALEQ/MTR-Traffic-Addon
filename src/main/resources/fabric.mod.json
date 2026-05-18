@@ -3,13 +3,16 @@
 	"id": "mtr-traffic-addon",
 	"version": "${version}",
 	"name": "MTR Traffic Addon",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Addon for minecraft transit railway featuring car traffic generation",
 	"authors": [
-		"Me!"
+		"cookiecraftmods"
+	],
+	"contributors": [
+		"opaleq"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://cookiecraftmods.com",
+		"sources": "https://github.com/0PALEQ/MTR-Traffic-Addon"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/mtr-traffic-addon/icon.png",
@@ -33,6 +36,7 @@
 		"fabricloader": ">=0.19.2",
 		"minecraft": "~1.20.1",
 		"java": ">=17",
-		"fabric-api": "*"
+		"fabric-api": "*",
+		"mtr": ">=4.0.4"
 	}
 }

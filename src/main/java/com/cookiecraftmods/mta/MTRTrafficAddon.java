@@ -1,24 +1,31 @@
 package com.cookiecraftmods.mta;
 
+import com.cookiecraftmods.mta.init.ModCreativeTabs;
+import com.cookiecraftmods.mta.init.ModItems;
+import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionRegistry;
+import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
+import com.cookiecraftmods.mta.traffic.TrafficManager;
+import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
+import com.cookiecraftmods.mta.traffic.vehicle.TrafficVehicleDefinitionRegistry;
 import net.fabricmc.api.ModInitializer;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MTRTrafficAddon implements ModInitializer {
 	public static final String MOD_ID = "mtr-traffic-addon";
-
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
-
-		LOGGER.info("Hello Fabric world!");
+		ModItems.initialize();
+		ModCreativeTabs.initialize();
+		TrafficVehicleDefinitionRegistry.initialize();
+		TrafficSavedPointRegistry.initialize();
+		TrafficIntersectionRegistry.initialize();
+		TrafficDashboardNetworking.initialize();
+		TrafficNetworking.initialize();
+		TrafficManager.initialize();
+		LOGGER.info("Initialized {}", MOD_ID);
 	}
 }

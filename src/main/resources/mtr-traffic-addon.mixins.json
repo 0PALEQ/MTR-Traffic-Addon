@@ -3,7 +3,7 @@
 	"package": "com.cookiecraftmods.mta.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
-		"ExampleMixin"
+		"RailTypeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

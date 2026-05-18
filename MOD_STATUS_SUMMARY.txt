@@ -1,0 +1,63 @@
+MTR Traffic Addon - Status Summary
+
+What works
+==========
+
+- The mod is set up as a Fabric 1.20.1 addon for Minecraft Transit Railway.
+- The local MTR jar is included as a Gradle dependency.
+- The Traffic Dashboard item opens a client UI with a map view.
+- Traffic connector entries are listed in the dashboard.
+- Spawn and despawn connectors show their position, enabled state, active vehicle count, and route status.
+- Spawn connectors can open the Vehicle Pool screen.
+- The Vehicle Pool screen can display available MTR vehicles and selected vehicles for a spawn connector.
+- Connector routes can be refreshed from the dashboard.
+- Active traffic vehicles can be cleared from the dashboard.
+- Intersection areas can be created from the dashboard by drawing an area on the map.
+- Existing intersections are listed and can be selected.
+- Intersections can be enabled or disabled.
+- Intersection node auto-detection can be toggled.
+- Detected intersection nodes are shown on the map.
+- Node labels are shown on the selected intersection map view, using IN and OUT labels with node numbers.
+- Signal groups are displayed as clickable rows.
+- A signal group can be selected directly from the group list.
+- A signal group can be removed with the small x button next to its row.
+- IN nodes can be assigned to the selected signal group.
+- Multiple IN nodes can be assigned to the same signal group, so two lanes in the same direction can go green together.
+- Selected group nodes are highlighted on the map.
+- The selected node is highlighted on the map.
+- Group green duration can be adjusted.
+- Signal groups can be reordered.
+- The project builds successfully when Gradle is run with Java 23.
+
+What needs improvement or repair
+================================
+
+- The default Java environment points to Java 17, but the current Fabric Loom version requires Java 21 or newer. JAVA_HOME should be updated, or Gradle should be configured to use a Java 21+ toolchain.
+- The dashboard still uses many text buttons. It is clearer than before, but it could benefit from a more compact control layout and stronger visual hierarchy.
+- The group list currently shows only a limited number of rows. If an intersection has many groups, scrolling or pagination should be added.
+- The x button deletes a group immediately. A confirmation step or undo would reduce accidental data loss.
+- Node assignment is functional, but the UI should make it even clearer that only IN nodes can be assigned to signal groups.
+- OUT nodes are displayed and numbered, but their role could be explained better in the UI.
+- The map node labels can overlap when nodes are close together. Label placement should be improved to avoid clutter.
+- The intersection editor still depends on manual clicking and buttons. A drag-and-drop or direct node-to-group interaction would be easier for users.
+- Group names are generated automatically and cannot be renamed from the dashboard yet.
+- The dashboard does not currently show a live signal preview of which group is green at the current server tick.
+- The intersection area drawing workflow works, but it could use clearer visual feedback for the first and second corner.
+- Vehicle pool management works, but search, filtering, and missing vehicle warnings could be made more user-friendly.
+- The connector list could use sorting and filtering, especially for worlds with many connectors.
+- More in-game validation messages are needed when a route is missing, a vehicle pool is empty, or a group has no IN nodes.
+- README documentation is minimal and should be expanded with setup, usage, screenshots, and troubleshooting.
+- The mod should be tested in a larger world with many connectors, intersections, and active vehicles.
+- The mod should be tested in multiplayer to confirm server-client synchronization and permissions.
+- The saved data format should be reviewed before release to avoid breaking worlds later.
+- Automated tests are not present. Core traffic routing and signal group logic would benefit from unit tests.
+- A release build should be checked in a clean Minecraft instance with only Fabric API, MTR, and this addon installed.
+
+Build note
+==========
+
+The project currently builds with:
+
+JAVA_HOME=C:\Program Files\Java\jdk-23
+
+The default Java 17 runtime is not sufficient for the configured Fabric Loom version.

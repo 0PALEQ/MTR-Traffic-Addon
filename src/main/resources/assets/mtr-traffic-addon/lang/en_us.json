@@ -1,0 +1,8 @@
+{
+  "itemGroup.mtr-traffic-addon.main": "MTR Traffic Addon",
+  "item.mtr-traffic-addon.traffic_dashboard": "Traffic Dashboard",
+  "item.mtr-traffic-addon.traffic_spawn_connector": "Traffic Spawn Connector",
+  "item.mtr-traffic-addon.traffic_despawn_connector": "Traffic Despawn Connector",
+  "message.mtr-traffic-addon.state.enabled": "enabled",
+  "message.mtr-traffic-addon.state.disabled": "disabled"
+}

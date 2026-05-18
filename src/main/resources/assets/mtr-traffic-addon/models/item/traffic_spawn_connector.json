@@ -1,0 +1,14 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "mtr-traffic-addon:item/rail_connector_spawn"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "mtr:selected": 1
+      },
+      "model": "mtr-traffic-addon:item/traffic_spawn_connector_selected"
+    }
+  ]
+}
