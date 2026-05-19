@@ -1,5 +1,7 @@
 package com.cookiecraftmods.mta.traffic.runtime;
 
+import com.cookiecraftmods.mta.traffic.TrafficManager;
+
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -42,6 +44,7 @@ public final class TrafficSpacingResolver {
 		}
 
 		applyRouteLookaheadSpacing(vehicles, allowedSpeeds);
+		applyMtrVehicleSpacing(vehicles, allowedSpeeds);
 		applySignalLimits(vehicles, allowedSpeeds);
 		return allowedSpeeds;
 	}
@@ -78,6 +81,16 @@ public final class TrafficSpacingResolver {
 			final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
 			final double limitedSpeed = resolveProjectedFollowingSpeed(obstacle.frontVehicle(), followingVehicle, obstacle.distanceMeters(), currentLimitKph);
 			allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+		}
+	}
+
+	private static void applyMtrVehicleSpacing(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
+		for (TrafficVehicle followingVehicle : vehicles) {
+			TrafficManager.closestMtrVehicleObstacle(followingVehicle).ifPresent(obstacle -> {
+				final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
+				final double limitedSpeed = resolveProjectedFollowingSpeed(obstacle.lengthMeters(), obstacle.speedKph(), followingVehicle, obstacle.distanceMeters(), currentLimitKph);
+				allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+			});
 		}
 	}
 
@@ -122,7 +135,11 @@ public final class TrafficSpacingResolver {
 	}
 
 	private static double resolveProjectedFollowingSpeed(TrafficVehicle frontVehicle, TrafficVehicle followingVehicle, double actualGap, double currentLimitKph) {
-		final double minGap = frontVehicle.definition().lengthMeters() / 2.0D
+		return resolveProjectedFollowingSpeed(frontVehicle.definition().lengthMeters(), frontVehicle.speedKph(), followingVehicle, actualGap, currentLimitKph);
+	}
+
+	private static double resolveProjectedFollowingSpeed(double frontVehicleLengthMeters, double frontVehicleSpeedKph, TrafficVehicle followingVehicle, double actualGap, double currentLimitKph) {
+		final double minGap = frontVehicleLengthMeters / 2.0D
 			+ followingVehicle.definition().lengthMeters() / 2.0D
 			+ MIN_SPACING_BUFFER_METERS;
 		final double clearance = actualGap - minGap;
@@ -137,7 +154,7 @@ public final class TrafficSpacingResolver {
 		}
 
 		final double progress = (actualGap - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
-		final double cappedByFrontSpeed = frontVehicle.speedKph() + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontVehicle.speedKph());
+		final double cappedByFrontSpeed = frontVehicleSpeedKph + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontVehicleSpeedKph);
 		return Math.max(0.0D, Math.min(currentLimitKph, Math.min(cappedByFrontSpeed, brakingCapKph)));
 	}
 

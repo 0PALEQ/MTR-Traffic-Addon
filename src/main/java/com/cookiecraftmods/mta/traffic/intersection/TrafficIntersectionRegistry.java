@@ -24,10 +24,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class TrafficIntersectionRegistry {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -94,13 +96,14 @@ public final class TrafficIntersectionRegistry {
 		final TrafficIntersectionDefinition updated = switch (action) {
 			case "name" -> copyWithName(definition, value);
 			case "enabled" -> copy(definition, !definition.isEnabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
-			case "auto_detect" -> copy(definition, definition.enabled(), !definition.effectiveAutoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+			case "auto_detect", "find_nodes" -> copy(definition, definition.enabled(), true, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+			case "node_add" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), addManualNode(definition, value));
 			case "phase_duration" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), clamp(definition.effectivePhaseDurationTicks() + delta, 20, 2400), definition.phaseOrder(), updateGroupDuration(dashboardGroups(definition), value, delta), definition.nodes());
 			case "node_type" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.TYPE));
 			case "node_number" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.NUMBER));
 			case "phase_toggle" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), togglePhase(definition.phaseOrder(), delta), definition.groups(), definition.nodes());
 			case "phase_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
-			case "phase_assign" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), assignNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
+			case "phase_assign" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
 			case "phase_remove" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), removePhase(definition.phaseOrder(), delta), removeGroupOrNode(dashboardGroups(definition), value, delta), definition.nodes());
 			case "phase_move" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), movePhase(definition.phaseOrder(), value, delta), moveGroup(dashboardGroups(definition), value, delta), definition.nodes());
 			case "group_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), addGroup(dashboardGroups(definition)), definition.nodes());
@@ -113,12 +116,12 @@ public final class TrafficIntersectionRegistry {
 		return true;
 	}
 
-	public static void refreshNodes(String dimensionId, MtrGraph graph) {
+	public static int refreshNodes(String dimensionId, MtrGraph graph) {
 		if (graph == null || graph.isEmpty()) {
-			return;
+			return 0;
 		}
 
-		boolean changed = false;
+		int changed = 0;
 		for (TrafficIntersectionDefinition definition : List.copyOf(DEFINITIONS.values())) {
 			if (!definition.dimensionId().equals(dimensionId) || !definition.effectiveAutoDetectNodes()) {
 				continue;
@@ -127,13 +130,14 @@ public final class TrafficIntersectionRegistry {
 			final List<TrafficIntersectionNode> detectedNodes = detectBoundaryNodes(definition, graph);
 			if (!detectedNodes.equals(definition.nodes())) {
 				DEFINITIONS.put(definition.id(), copyWithNodes(definition, detectedNodes));
-				changed = true;
+				changed++;
 			}
 		}
 
-		if (changed && currentServer != null) {
+		if (changed > 0 && currentServer != null) {
 			save(currentServer);
 		}
+		return changed;
 	}
 
 	public static void applySignalSpeedLimits(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds, long serverTick) {
@@ -162,6 +166,72 @@ public final class TrafficIntersectionRegistry {
 				}
 			}
 		}
+	}
+
+	public static List<MtrRailBlock> mtrBlockedRails(String dimensionId, MtrGraph graph, long serverTick) {
+		if (dimensionId == null || graph == null || graph.isEmpty() || DEFINITIONS.isEmpty()) {
+			return List.of();
+		}
+
+		final Set<MtrRailBlock> rails = new LinkedHashSet<>();
+		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
+			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.nodes().isEmpty()) {
+				continue;
+			}
+
+			final List<Integer> activeInNumbers = activeInNumbers(definition, serverTick);
+			for (MtrGraphEdge edge : graph.edges()) {
+				if (!isEntering(definition, edge)) {
+					continue;
+				}
+
+				final Optional<Integer> inNumber = inNumberForEntry(definition, edge);
+				if (inNumber.isPresent() && !activeInNumbers.contains(inNumber.get())) {
+					rails.add(new MtrRailBlock(
+						edge.railId(),
+						edge.from().x(),
+						edge.from().y(),
+						edge.from().z(),
+						edge.to().x(),
+						edge.to().y(),
+						edge.to().z()
+					));
+				}
+			}
+		}
+		return List.copyOf(rails);
+	}
+
+	public static boolean isRedMtrEntry(String dimensionId, long startX, long startY, long startZ, long endX, long endY, long endZ, long serverTick) {
+		if (dimensionId == null || DEFINITIONS.isEmpty()) {
+			return false;
+		}
+
+		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
+			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.nodes().isEmpty()) {
+				continue;
+			}
+			if (definition.contains(startX, startY, startZ) || !definition.contains(endX, endY, endZ)) {
+				continue;
+			}
+
+			final Optional<Integer> inNumber = inNumberForEntry(definition, endX, endZ);
+			if (inNumber.isPresent() && !activeInNumbers(definition, serverTick).contains(inNumber.get())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public record MtrRailBlock(
+		String railId,
+		long startX,
+		long startY,
+		long startZ,
+		long endX,
+		long endY,
+		long endZ
+	) {
 	}
 
 	private static Optional<Double> distanceToRedEntry(TrafficIntersectionDefinition definition, TrafficVehicle vehicle, long serverTick) {
@@ -226,9 +296,21 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static Optional<Integer> inNumberForEntry(TrafficIntersectionDefinition definition, TrafficRouteSegment segment) {
+		return inNumberForEntry(definition, Math.round(segment.endX()), Math.round(segment.endZ()));
+	}
+
+	private static Optional<Integer> inNumberForEntry(TrafficIntersectionDefinition definition, long endX, long endZ) {
 		return definition.nodes().stream()
 			.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
-			.filter(node -> node.x() == segment.endX() && node.y() == segment.endY() && node.z() == segment.endZ())
+			.filter(node -> node.x() == endX && node.z() == endZ)
+			.map(TrafficIntersectionNode::number)
+			.findFirst();
+	}
+
+	private static Optional<Integer> inNumberForEntry(TrafficIntersectionDefinition definition, MtrGraphEdge edge) {
+		return definition.nodes().stream()
+			.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
+			.filter(node -> node.x() == edge.to().x() && node.z() == edge.to().z())
 			.map(TrafficIntersectionNode::number)
 			.findFirst();
 	}
@@ -288,6 +370,10 @@ public final class TrafficIntersectionRegistry {
 		return !definition.contains(segment.startX(), segment.startY(), segment.startZ()) && definition.contains(segment.endX(), segment.endY(), segment.endZ());
 	}
 
+	private static boolean isEntering(TrafficIntersectionDefinition definition, MtrGraphEdge edge) {
+		return !contains(definition, edge.from()) && contains(definition, edge.to());
+	}
+
 	private static boolean isInside(TrafficIntersectionDefinition definition, TrafficRouteSegment segment) {
 		return definition.contains(segment.startX(), segment.startY(), segment.startZ()) && definition.contains(segment.endX(), segment.endY(), segment.endZ());
 	}
@@ -332,6 +418,29 @@ public final class TrafficIntersectionRegistry {
 				updatedNodes.add(node);
 			}
 		}
+		return updatedNodes;
+	}
+
+	private static List<TrafficIntersectionNode> addManualNode(TrafficIntersectionDefinition definition, String encodedNode) {
+		final MtrNodeKey targetNode = decodeNode(encodedNode);
+		if (targetNode == null) {
+			return definition.nodes();
+		}
+
+		final List<TrafficIntersectionNode> updatedNodes = new ArrayList<>(definition.nodes());
+		for (TrafficIntersectionNode node : updatedNodes) {
+			if (node.x() == targetNode.x() && node.z() == targetNode.z()) {
+				return updatedNodes;
+			}
+		}
+
+		final int nextNumber = updatedNodes.stream()
+			.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
+			.mapToInt(TrafficIntersectionNode::number)
+			.max()
+			.orElse(0) + 1;
+		updatedNodes.add(new TrafficIntersectionNode(targetNode.x(), targetNode.y(), targetNode.z(), TrafficIntersectionNodeType.IN, nextNumber));
+		updatedNodes.sort(nodeComparator());
 		return updatedNodes;
 	}
 
@@ -417,25 +526,6 @@ public final class TrafficIntersectionRegistry {
 			} else {
 				updatedGroups.add(group);
 			}
-		}
-		return updatedGroups;
-	}
-
-	private static List<TrafficIntersectionGroup> assignNodeToGroup(List<TrafficIntersectionGroup> groups, String rawIndex, int nodeNumber) {
-		final int groupIndex = parseIndex(rawIndex);
-		if (groupIndex < 0 || groupIndex >= groups.size() || nodeNumber <= 0) {
-			return groups;
-		}
-
-		final List<TrafficIntersectionGroup> updatedGroups = new ArrayList<>(groups.size());
-		for (int i = 0; i < groups.size(); i++) {
-			final TrafficIntersectionGroup group = groups.get(i);
-			final List<Integer> nodeNumbers = new ArrayList<>(group.nodeNumbers());
-			nodeNumbers.remove(Integer.valueOf(nodeNumber));
-			if (i == groupIndex && !nodeNumbers.contains(nodeNumber)) {
-				nodeNumbers.add(nodeNumber);
-			}
-			updatedGroups.add(new TrafficIntersectionGroup(group.name(), group.effectiveGreenDurationTicks(), nodeNumbers));
 		}
 		return updatedGroups;
 	}

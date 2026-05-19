@@ -42,6 +42,6 @@ public record TrafficIntersectionDefinition(
 	}
 
 	public boolean contains(double x, double y, double z) {
-		return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
+		return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
 	}
 }

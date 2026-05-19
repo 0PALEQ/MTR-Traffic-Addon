@@ -99,7 +99,7 @@ public final class TrafficVehicle {
 		final TrafficRouteSegment currentSegment = segments.get(currentSegmentIndex);
 		final PathSample pathSample = samplePath(currentSegment, distanceOnSegmentMeters);
 		final double x = pathSample.x();
-		final double y = pathSample.y() - 0.25D;
+		final double y = pathSample.y();
 		final double z = pathSample.z();
 		final float yawDegrees = pathSample.yawDegrees();
 		return new TrafficVehiclePosition(x, y, z, yawDegrees);

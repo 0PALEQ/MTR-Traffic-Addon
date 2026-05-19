@@ -2,8 +2,10 @@ package com.cookiecraftmods.mta.client.render;
 
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
 import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.core.BlockPos;
 import org.mtr.core.data.TransportMode;
-import org.mtr.mapping.holder.Box;
 import org.mtr.mapping.mapper.GraphicsHolder;
 import org.mtr.mod.client.CustomResourceLoader;
 import org.mtr.mod.resource.OptimizedModelWrapper;
@@ -48,11 +50,9 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			);
 			context.poseStack().mulPose(Axis.YP.rotationDegrees(90.0F - snapshot.yawDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(180.0F));
-			final ModelOffset modelOffset = modelOffset(vehicleResourceCache);
-			context.poseStack().translate(modelOffset.x(), modelOffset.y(), modelOffset.z());
 
 			GraphicsHolder.createInstanceSafe(context.poseStack(), context.bufferSource(), graphicsHolder -> {
-				queue(graphicsHolder, vehicleResourceCache);
+				queue(graphicsHolder, vehicleResourceCache, lightFor(snapshot));
 				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.render(false);
 			});
 		} catch (Exception e) {
@@ -71,33 +71,26 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		}
 	}
 
-	private static void queue(GraphicsHolder graphicsHolder, VehicleResourceCache vehicleResourceCache) {
+	private static void queue(GraphicsHolder graphicsHolder, VehicleResourceCache vehicleResourceCache, int light) {
 		if (!vehicleResourceCache.optimizedModelsDoorsClosed.isEmpty()) {
-			queueAll(graphicsHolder, vehicleResourceCache.optimizedModelsDoorsClosed.values());
+			queueAll(graphicsHolder, vehicleResourceCache.optimizedModelsDoorsClosed.values(), light);
 		} else {
-			queueAll(graphicsHolder, vehicleResourceCache.optimizedModels.values());
+			queueAll(graphicsHolder, vehicleResourceCache.optimizedModels.values(), light);
 		}
 	}
 
-	private static void queueAll(GraphicsHolder graphicsHolder, Iterable<OptimizedModelWrapper> optimizedModelWrappers) {
+	private static void queueAll(GraphicsHolder graphicsHolder, Iterable<OptimizedModelWrapper> optimizedModelWrappers, int light) {
 		for (OptimizedModelWrapper optimizedModelWrapper : optimizedModelWrappers) {
-			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, GraphicsHolder.getDefaultLight());
+			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, light);
 		}
 	}
 
-	private static ModelOffset modelOffset(VehicleResourceCache vehicleResourceCache) {
-		final Bounds bounds = new Bounds();
-		vehicleResourceCache.floors.forEach(bounds::include);
-		vehicleResourceCache.doorways.forEach(bounds::include);
-		if (!bounds.hasAny()) {
-			return ModelOffset.NONE;
+	private static int lightFor(ClientTrafficDebugRenderState snapshot) {
+		final Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.level == null) {
+			return GraphicsHolder.getDefaultLight();
 		}
-
-		return new ModelOffset(
-			0.0D,
-			-bounds.minY,
-			0.0D
-		);
+		return LevelRenderer.getLightColor(minecraft.level, BlockPos.containing(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 	}
 
 	private static VehicleResource resolveVehicleResource(String visualId) {
@@ -112,21 +105,5 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 
 	private static String remapLegacyVisualId(String visualId) {
 		return LEGACY_SEDAN_VISUAL_ID.equals(visualId) ? MTR_SEDAN_VISUAL_ID : visualId;
-	}
-
-	private record ModelOffset(double x, double y, double z) {
-		private static final ModelOffset NONE = new ModelOffset(0.0D, 0.0D, 0.0D);
-	}
-
-	private static final class Bounds {
-		private double minY = Double.POSITIVE_INFINITY;
-
-		private void include(Box box) {
-			minY = Math.min(minY, box.getMinYMapped());
-		}
-
-		private boolean hasAny() {
-			return Double.isFinite(minY);
-		}
 	}
 }

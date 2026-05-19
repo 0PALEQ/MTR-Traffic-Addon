@@ -262,7 +262,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			refreshButtons();
 		});
 		buttonDeleteIntersection = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Del"), button -> sendIntersectionUpdate("delete", 0, null));
-		buttonAutoDetectIntersection = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Auto"), button -> sendIntersectionUpdate("auto_detect", 0, null));
+		buttonAutoDetectIntersection = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Auto"), button -> sendIntersectionUpdate("find_nodes", 0, null));
 		buttonIntersectionGroupAdd = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("+ Group"), button -> {
 			final ClientTrafficIntersectionEntry intersection = selectedIntersection();
 			selectedPhaseIndex = intersection == null ? 0 : effectiveGroups(intersection).size();
@@ -1225,6 +1225,13 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 				return;
 			}
 		}
+
+		if (nodeX >= intersection.minX() && nodeX <= intersection.maxX() && nodeZ >= intersection.minZ() && nodeZ <= intersection.maxZ()) {
+			final int y = Minecraft.getInstance().player == null ? (int) Math.round((intersection.minY() + intersection.maxY()) / 2.0D) : Minecraft.getInstance().player.blockPosition().getY();
+			selectedIntersectionNode = nodeX + "," + y + "," + nodeZ;
+			sendIntersectionUpdate("node_add", 0, selectedIntersectionNode);
+			refreshButtons();
+		}
 	}
 
 	private String selectedIntersectionNode() {
@@ -1293,13 +1300,14 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		return selectedPhaseIndex >= 0 && selectedPhaseIndex < groups.size() ? groups.get(selectedPhaseIndex) : null;
 	}
 
-	private static int groupIndexForNode(List<TrafficIntersectionGroup> groups, int nodeNumber) {
+	private static List<Integer> groupIndexesForNode(List<TrafficIntersectionGroup> groups, int nodeNumber) {
+		final List<Integer> groupIndexes = new ArrayList<>();
 		for (int i = 0; i < groups.size(); i++) {
 			if (groups.get(i).nodeNumbers().contains(nodeNumber)) {
-				return i;
+				groupIndexes.add(i);
 			}
 		}
-		return -1;
+		return groupIndexes;
 	}
 
 	private static String phaseOrderLabel(List<Integer> phaseOrder) {
@@ -1313,8 +1321,10 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node : intersection.nodes()) {
 			if (selectedIntersectionNode.equals(node.x() + "," + node.y() + "," + node.z())) {
 				final List<TrafficIntersectionGroup> groups = effectiveGroups(intersection);
-				final int groupIndex = groupIndexForNode(groups, node.number());
-				final String groupLabel = groupIndex < 0 ? "not in a group" : "in group " + (groupIndex + 1);
+				final List<Integer> groupIndexes = groupIndexesForNode(groups, node.number());
+				final String groupLabel = groupIndexes.isEmpty()
+					? "not in a group"
+					: "in groups " + groupIndexes.stream().map(index -> String.valueOf(index + 1)).collect(java.util.stream.Collectors.joining(","));
 				return node.type() + " #" + node.number() + " @ " + node.x() + "," + node.z() + "  " + groupLabel;
 			}
 		}

@@ -6,6 +6,7 @@ import com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint;
 import org.mtr.core.data.Position;
 import org.mtr.core.data.Rail;
 import org.mtr.core.data.RailMath;
+import org.mtr.core.data.TwoPositionsBase;
 import org.mtr.core.tool.Angle;
 import org.mtr.core.tool.Vector;
 
@@ -30,26 +31,26 @@ public final class MtrGraphBuilder {
 			final RailPath railPath = createRailPath(rail);
 
 			if (rail.speedLimit1() > 0) {
-				addEdge(adjacency, edges, rail, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), railPath.points());
+				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), rail.effectiveSignalColors(), railPath.points());
 			}
 			if (rail.speedLimit2() > 0) {
 				final List<TrafficPathPoint> reversedPath = new ArrayList<>(railPath.points());
 				java.util.Collections.reverse(reversedPath);
-				addEdge(adjacency, edges, rail, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), reversedPath);
+				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), rail.effectiveSignalColors(), reversedPath);
 			}
 		}
 
 		return new MtrGraph(adjacency, edges);
 	}
 
-	private static void addEdge(Map<MtrNodeKey, List<MtrGraphEdge>> adjacency, List<MtrGraphEdge> edges, MtrRail rail, MtrNodeKey from, MtrNodeKey to, double lengthMeters, double speedLimitKph, List<TrafficPathPoint> path) {
+	private static void addEdge(Map<MtrNodeKey, List<MtrGraphEdge>> adjacency, List<MtrGraphEdge> edges, MtrNodeKey from, MtrNodeKey to, double lengthMeters, double speedLimitKph, List<Long> signalColors, List<TrafficPathPoint> path) {
 		final MtrGraphEdge edge = new MtrGraphEdge(
-			createRailId(rail),
+			createRailId(from, to),
 			from,
 			to,
 			lengthMeters,
 			speedLimitKph,
-			rail.effectiveSignalColors(),
+			signalColors,
 			path
 		);
 		edges.add(edge);
@@ -94,10 +95,11 @@ public final class MtrGraphBuilder {
 		}
 	}
 
-	private static String createRailId(MtrRail rail) {
-		return rail.position1().x() + "," + rail.position1().y() + "," + rail.position1().z()
-			+ "->"
-			+ rail.position2().x() + "," + rail.position2().y() + "," + rail.position2().z();
+	private static String createRailId(MtrNodeKey from, MtrNodeKey to) {
+		return TwoPositionsBase.getHexIdRaw(
+			new Position(from.x(), from.y(), from.z()),
+			new Position(to.x(), to.y(), to.z())
+		);
 	}
 
 	private record RailPath(double lengthMeters, List<TrafficPathPoint> points) {

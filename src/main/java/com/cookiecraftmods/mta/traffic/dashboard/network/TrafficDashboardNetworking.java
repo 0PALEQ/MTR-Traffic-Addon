@@ -87,7 +87,8 @@ public final class TrafficDashboardNetworking {
 			final String value = buffer.readBoolean() ? buffer.readUtf() : null;
 			server.execute(() -> {
 				final boolean changed = TrafficIntersectionRegistry.applyDashboardUpdate(intersectionId, action, delta, value);
-				MTRTrafficAddon.LOGGER.info("Traffic dashboard intersection update from {}: action={} delta={} value={} intersection={} changed={}", player.getGameProfile().getName(), action, delta, value, intersectionId, changed);
+				final int refreshedNodes = "find_nodes".equals(action) || "auto_detect".equals(action) ? TrafficManager.refreshIntersectionNodesNear(player) : 0;
+				MTRTrafficAddon.LOGGER.info("Traffic dashboard intersection update from {}: action={} delta={} value={} intersection={} changed={} refreshedNodes={}", player.getGameProfile().getName(), action, delta, value, intersectionId, changed, refreshedNodes);
 				sendSnapshot(player);
 			});
 		});

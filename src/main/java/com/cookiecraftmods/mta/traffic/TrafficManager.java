@@ -7,7 +7,6 @@ import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphPathFinder;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphRouteResult;
-import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphRouteBuilder;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointDefinition;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
@@ -22,6 +21,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import org.mtr.core.data.PathData;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,7 +40,9 @@ public final class TrafficManager {
 	private static final int MAX_ACTIVE_VEHICLES = 12;
 	private static final int FAILED_SPAWN_RETRY_TICKS = 100;
 	private static final int SPAWN_DIAGNOSTIC_INTERVAL_TICKS = 100;
+	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
+	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new HashMap<>();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
 	private static boolean initialized;
 	private static long lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
@@ -62,7 +64,10 @@ public final class TrafficManager {
 		}
 
 		ServerLifecycleEvents.SERVER_STARTED.register(TrafficManager::onServerStarted);
-		ServerLifecycleEvents.SERVER_STOPPING.register(server -> ACTIVE_VEHICLES.clear());
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			ACTIVE_VEHICLES.clear();
+			MTR_VEHICLE_OCCUPANCY.clear();
+		});
 		ServerTickEvents.END_SERVER_TICK.register(TrafficManager::tick);
 		initialized = true;
 	}
@@ -88,8 +93,131 @@ public final class TrafficManager {
 		return clearedVehicles;
 	}
 
+	public static double mtrVehicleBlockedDistance(List<PathData> path, int startIndex, double railProgress, double additionalDistance, int stoppingSpace) {
+		if (path == null || path.isEmpty() || startIndex < 0 || startIndex >= path.size()) {
+			return -1.0D;
+		}
+
+		final double lookaheadEnd = railProgress + Math.max(0.0D, additionalDistance) + Math.max(0, stoppingSpace);
+		double closestDistance = Double.POSITIVE_INFINITY;
+
+		for (int i = startIndex; i < path.size(); i++) {
+			final PathData pathData = path.get(i);
+			if (pathData.getStartDistance() > lookaheadEnd) {
+				break;
+			}
+
+			if (isRedMtrEntry(pathData)) {
+				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
+			}
+
+			for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
+				final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+				final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
+				if (railDirectionMatch == null) {
+					continue;
+				}
+
+				final double pathStart = pathData.getStartDistance();
+				final double pathEnd = pathData.getEndDistance();
+				final double segmentLength = Math.max(0.001D, segment.lengthMeters());
+				final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
+				final double vehicleCenter = railDirectionMatch.sameDirection()
+					? pathStart + (pathEnd - pathStart) * progress
+					: pathEnd - (pathEnd - pathStart) * progress;
+				final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
+				final double vehicleStart = vehicleCenter - vehicleHalfLength;
+				final double vehicleEnd = vehicleCenter + vehicleHalfLength;
+				if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
+					continue;
+				}
+
+				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, vehicleStart));
+			}
+		}
+
+		return Double.isFinite(closestDistance) ? closestDistance : -1.0D;
+	}
+
+	public static void recordMtrVehicle(long vehicleId, List<PathData> path, double railProgress, double speedMetersPerMillisecond, double lengthMeters) {
+		if (path == null || path.isEmpty()) {
+			MTR_VEHICLE_OCCUPANCY.remove(vehicleId);
+			return;
+		}
+
+		PathData currentPathData = null;
+		for (PathData pathData : path) {
+			if (railProgress + 0.001D >= pathData.getStartDistance() && railProgress - 0.001D <= pathData.getEndDistance()) {
+				currentPathData = pathData;
+				break;
+			}
+		}
+
+		if (currentPathData == null) {
+			MTR_VEHICLE_OCCUPANCY.remove(vehicleId);
+			return;
+		}
+
+		final double segmentLengthMeters = Math.max(0.001D, currentPathData.getEndDistance() - currentPathData.getStartDistance());
+		final double distanceOnSegmentMeters = Math.min(segmentLengthMeters, Math.max(0.0D, railProgress - currentPathData.getStartDistance()));
+		MTR_VEHICLE_OCCUPANCY.put(vehicleId, new MtrVehicleOccupancy(
+			currentPathData.getHexId(false),
+			currentPathData.getHexId(true),
+			distanceOnSegmentMeters,
+			segmentLengthMeters,
+			Math.max(0.0D, lengthMeters),
+			Math.max(0.0D, speedMetersPerMillisecond * 3600000.0D),
+			lastServerTick
+		));
+	}
+
+	public static Optional<MtrVehicleObstacle> closestMtrVehicleObstacle(TrafficVehicle followingVehicle) {
+		final List<TrafficRouteSegment> followingSegments = followingVehicle.route().segments();
+		if (followingSegments.isEmpty() || followingVehicle.segmentIndex() < 0 || followingVehicle.segmentIndex() >= followingSegments.size() || MTR_VEHICLE_OCCUPANCY.isEmpty()) {
+			return Optional.empty();
+		}
+
+		MtrVehicleObstacle closestObstacle = null;
+		double distanceToSegmentStart = -followingVehicle.distanceOnSegmentMeters();
+		for (int segmentIndex = followingVehicle.segmentIndex(); segmentIndex < followingSegments.size(); segmentIndex++) {
+			final TrafficRouteSegment candidateSegment = followingSegments.get(segmentIndex);
+			if (distanceToSegmentStart > 80.0D) {
+				break;
+			}
+
+			for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
+				if (lastServerTick - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
+					continue;
+				}
+
+				final boolean sameDirection = candidateSegment.connectorId().equals(occupancy.connectorId());
+				final boolean oppositeDirection = candidateSegment.connectorId().equals(occupancy.reverseConnectorId());
+				if (!sameDirection && !oppositeDirection) {
+					continue;
+				}
+
+				final double obstacleDistanceOnSegment = sameDirection
+					? occupancy.distanceOnSegmentMeters()
+					: Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
+				final double distanceToObstacle = distanceToSegmentStart + obstacleDistanceOnSegment;
+				if (distanceToObstacle <= 0.0D || distanceToObstacle > 80.0D) {
+					continue;
+				}
+
+				if (closestObstacle == null || distanceToObstacle < closestObstacle.distanceMeters()) {
+					closestObstacle = new MtrVehicleObstacle(distanceToObstacle, occupancy.lengthMeters(), occupancy.speedKph());
+				}
+			}
+
+			distanceToSegmentStart += Math.max(candidateSegment.lengthMeters(), 0.0D);
+		}
+
+		return Optional.ofNullable(closestObstacle);
+	}
+
 	private static void onServerStarted(MinecraftServer server) {
 		ACTIVE_VEHICLES.clear();
+		MTR_VEHICLE_OCCUPANCY.clear();
 		latestGraph = null;
 		latestGraphDimensionId = null;
 		graphRefreshInFlight = false;
@@ -105,6 +233,7 @@ public final class TrafficManager {
 		lastServerTick = server.getTickCount();
 		refreshGraphSnapshot(server);
 		spawnBootstrapVehicleIfPossible();
+		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> lastServerTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 
 		if (ACTIVE_VEHICLES.isEmpty()) {
 			return;
@@ -171,6 +300,17 @@ public final class TrafficManager {
 		return TrafficSavedPointRegistry.refreshConnectorRoutes(dimensionId, latestGraph);
 	}
 
+	public static int refreshIntersectionNodesNear(ServerPlayer player) {
+		if (player == null || latestGraph == null || latestGraph.isEmpty()) {
+			return 0;
+		}
+		final String dimensionId = player.level().dimension().location().toString();
+		if (!dimensionId.equals(latestGraphDimensionId)) {
+			return 0;
+		}
+		return TrafficIntersectionRegistry.refreshNodes(dimensionId, latestGraph);
+	}
+
 	private static void spawnBootstrapVehicleIfPossible() {
 		if (latestGraph == null || latestGraph.isEmpty()) {
 			logSpawnDiagnostic("Spawn blocked: no MTR graph loaded. Make sure MTR TSC/API is running and rails are within the graph query radius.");
@@ -186,11 +326,7 @@ public final class TrafficManager {
 			return;
 		}
 
-		final Optional<SelectedRoutePlan> configuredPlan = createConfiguredRoute(latestGraph);
-		final boolean hasConfiguredConnectors = hasEnabledConfiguredConnectors();
-		final Optional<SelectedRoutePlan> selectedPlan = configuredPlan.isPresent()
-			? configuredPlan
-			: hasConfiguredConnectors ? Optional.empty() : MtrGraphRouteBuilder.createRandomRoute(latestGraph).map(route -> new SelectedRoutePlan(null, null, new MtrGraphRouteResult(route, route.totalLengthMeters())));
+		final Optional<SelectedRoutePlan> selectedPlan = createConfiguredRoute(latestGraph);
 
 		final Optional<TrafficVehicleDefinition> anyDefinition = TrafficVehicleDefinitionRegistry.getAnyDefinition();
 		if (anyDefinition.isEmpty()) {
@@ -198,7 +334,7 @@ public final class TrafficManager {
 			return;
 		}
 		if (selectedPlan.isEmpty()) {
-			logSpawnDiagnostic("Spawn blocked: no route plan found. Graph has {} edges; configured route present: {}.", latestGraph.edges().size(), configuredPlan.isPresent());
+			logSpawnDiagnostic("Spawn blocked: no configured spawn/despawn route plan found. Graph has {} edges.", latestGraph.edges().size());
 			return;
 		}
 
@@ -308,15 +444,6 @@ public final class TrafficManager {
 		}
 
 		return leastUsedSpawnIds.isEmpty() ? List.copyOf(spawnIds) : leastUsedSpawnIds;
-	}
-
-	private static boolean hasEnabledConfiguredConnectors() {
-		if (latestGraphDimensionId == null) {
-			return false;
-		}
-
-		return TrafficSavedPointRegistry.getDefinitions().stream()
-			.anyMatch(definition -> definition.id().startsWith(latestGraphDimensionId + "|") && definition.isEnabled());
 	}
 
 	private static Optional<MtrGraphRouteResult> buildConnectorAwareRoute(MtrGraph graph, TrafficPointDefinition spawn, TrafficPointDefinition despawn) {
@@ -476,6 +603,61 @@ public final class TrafficManager {
 		}
 
 		return Math.min(firstSegment.lengthMeters(), Math.max(0.5D, definition.lengthMeters() * 0.5D));
+	}
+
+	private static double stopDistance(double railProgress, int stoppingSpace, double obstacleDistance) {
+		return Math.max(0.0D, obstacleDistance - railProgress - Math.max(0, stoppingSpace));
+	}
+
+	private static RailDirectionMatch matchRouteRail(PathData pathData, TrafficRouteSegment segment) {
+		if (segment.connectorId().equals(pathData.getHexId(false))) {
+			return new RailDirectionMatch(true);
+		}
+		if (segment.connectorId().equals(pathData.getHexId(true))) {
+			return new RailDirectionMatch(false);
+		}
+		return null;
+	}
+
+	private static boolean isRedMtrEntry(PathData pathData) {
+		if (latestGraphDimensionId == null || latestGraph == null || latestGraph.isEmpty()) {
+			return false;
+		}
+
+		final String routeRailId = pathData.getHexId(false);
+		for (MtrGraphEdge edge : latestGraph.edges()) {
+			if (!edge.railId().equals(routeRailId)) {
+				continue;
+			}
+			return TrafficIntersectionRegistry.isRedMtrEntry(
+				latestGraphDimensionId,
+				edge.from().x(),
+				edge.from().y(),
+				edge.from().z(),
+				edge.to().x(),
+				edge.to().y(),
+				edge.to().z(),
+				lastServerTick
+			);
+		}
+		return false;
+	}
+
+	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {
+	}
+
+	private record MtrVehicleOccupancy(
+		String connectorId,
+		String reverseConnectorId,
+		double distanceOnSegmentMeters,
+		double segmentLengthMeters,
+		double lengthMeters,
+		double speedKph,
+		long lastTick
+	) {
+	}
+
+	private record RailDirectionMatch(boolean sameDirection) {
 	}
 
 	private record SelectedRoutePlan(

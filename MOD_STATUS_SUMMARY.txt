@@ -1,5 +1,6 @@
 MTR Traffic Addon - Status Summary
 Updated: 2026-05-19
+Version covered: 26.5.A02
 
 Current working state
 =====================
@@ -8,6 +9,10 @@ Current working state
 - The local MTR jar is included as a Gradle dependency.
 - The project builds with Java 23 via:
   JAVA_HOME=C:\Program Files\Java\jdk-23
+- The current built jar is:
+  D:\mta\build\libs\mtr-traffic-addon-26.5.A02.jar
+- The latest test/install copy was placed in:
+  C:\Users\opale\AppData\Roaming\ModrinthApp\profiles\CookieCraftModsMTR\mods\mtr-traffic-addon-26.5.A02.jar
 - The Traffic Dashboard item opens the client dashboard UI.
 - Spawn and despawn traffic connectors are listed in the dashboard.
 - Spawn/despawn connectors show position, enabled state, active vehicle count, and route status.
@@ -16,59 +21,72 @@ Current working state
 - Spawn connectors can open the Vehicle Pool screen.
 - Vehicle pools can select available MTR vehicle resources for each spawn connector.
 - The standalone sedan resource pack was stabilized, then embedded into the mod jar.
-- The current jar contains the sedan MTR resources under:
-  assets/mtr/mtr_custom_resources.json
-  assets/mtr_traffic_addon_sedan/...
-  data/mtr_traffic_addon_sedan/traffic_vehicles/...
 - Players no longer need to install the sedan resource pack separately when using the current mod jar.
+- The resourcepack copy under resourcepacks/mtr-traffic-addon-sedan is kept as a source/export/testing copy.
 - Built-in sedan visual IDs:
   mta_sedan
   mta_sedan_white
   mta_sedan_green
   mta_sedan_red
-- The sedan model now renders at the correct vertical offset.
-- The sedan no longer renders the accidental flipped duplicate copy.
-- The MTR vehicle resource renderer queues one MTR render cache at a time instead of mixing normal and doors-closed caches.
-- Normal MTR vehicles should keep their complete parts because the renderer no longer globally drops arbitrary render buckets.
 - Legacy visual ID mtr_traffic_addon_sedan:sedan is remapped to mta_sedan for compatibility with older spawned/debug state.
+- The bundled sedan model properties currently use modelYOffset 0.0.
+- The MTR vehicle resource renderer no longer uses MTR floors/doorways as a universal render-height anchor.
+- The renderer queues one MTR render cache at a time instead of mixing normal and doors-closed caches.
+- Normal MTR vehicles should keep their complete parts because the renderer no longer globally drops arbitrary render buckets.
+- The sedan no longer renders the accidental flipped duplicate copy.
 - Traffic vehicles now look ahead across route segments for occupied track sections.
 - Vehicles should slow down or wait before entering a full next track instead of driving into a queue.
-- Same-segment and route-lookahead spacing now include braking-distance caps.
+- Same-segment and route-lookahead spacing include braking-distance caps.
+- Configured spawning no longer falls back to random bootstrap vehicles when no enabled spawn/despawn connector route exists.
+- New worlds with no Traffic Spawn/Despawn Tracks should not randomly spawn sedans.
 - Intersection areas can be created from the dashboard map.
 - Existing intersections are listed and selectable.
 - Intersections can be enabled or disabled.
 - Intersection node auto-detection can be toggled.
+- Intersection detection and manual node handling use X/Z containment more reliably, avoiding the previous Y-level mismatch.
 - Detected IN and OUT nodes are shown on the dashboard map.
 - Node labels include IN/OUT direction and node numbers.
 - Signal groups are displayed as clickable rows.
 - Signal groups can be selected, removed, reordered, and assigned IN nodes.
-- Multiple IN nodes can belong to the same signal group.
+- Multiple IN nodes can belong to more than one signal group.
 - Selected group nodes and selected nodes are highlighted on the map.
 - Group green duration can be adjusted.
+
+26.5.A02 traffic bridge status
+==============================
+
+- MTR route vehicles now use a transient mixin bridge instead of saved MTR BlockRails/SignalModification state.
+- The rejected visible-signal approach was removed from the active behavior.
+- The bridge injects into MTR Vehicle.railBlockedDistance(...) so MTR route vehicles can see:
+  - red MTA intersection entries
+  - active MTA spawned vehicles on matching route segments
+- MTR route checks now use route-direction rail IDs instead of ordered endpoint pairs.
+- Graph rail IDs are direction-aware via MTR TwoPositionsBase.getHexIdRaw(from, to).
+- This fixes the earlier issue where MTR vehicles stopped one whole track before the actual obstacle/intersection.
+- MTR Vehicle.simulate(...) now records transient vehicle occupancy for the current tick.
+- MTA vehicles now query the transient MTR occupancy cache and treat MTR route vehicles as moving spacing obstacles.
+- The MTR occupancy mixin uses VehicleSchemaAccessor for inherited railProgress/speed fields.
+- This fixes the 19:17 and 19:20 server crashes caused by shadowing inherited fields directly on Vehicle.
+- The occupancy cache is pruned after a short stale window so old MTR positions do not remain as permanent obstacles.
 
 Changes since the previous summary
 ==================================
 
-- Added a dedicated sedan MTR vehicle resource set with model, textures, model properties, and traffic vehicle definitions.
-- Added sedan variants using the same model with different textures:
-  default, white, green, and red.
-- Fixed sedan vertical placement by using modelYOffset -0.75 in the MTR model properties.
-- Removed the old custom renderer path from the active vehicle rendering flow.
-- Restored rendering through MTR vehicle resources instead of drawing custom debug geometry.
-- Fixed blue-box placeholder behavior by using valid MTR visual IDs and keeping a legacy ID remap.
-- Fixed duplicate sedan rendering caused by an invalid position definition:
-  positions: [{}]
-  positionsFlipped: []
-  The previous broken form had [{}] in both arrays, which caused one normal and one flipped render.
-- Removed experimental empty bogie definitions from the sedan resource pack.
-- Confirmed the current sedan definitions have one body model and zero bogie models.
-- Embedded the sedan assets and traffic definitions into src/main/resources so they are part of the mod jar.
-- Kept resourcepacks/mtr-traffic-addon-sedan as a source/export/testing copy, not as a required user install.
-- Added docs/RESOURCE_PACK_AUTHORING.md with practical MTR resource-pack authoring rules.
-- Updated README.md to document that sedan resources are now built in.
-- Updated the sedan pack README to explain its new role and the important authoring constraints.
-- Improved traffic spacing so vehicles scan up to 80 meters ahead across route segments.
-- Added braking-distance speed caps to reduce pileups when the next track is occupied.
+- Updated project version output to 26.5.A02.
+- Added VehicleMixin for MTR route vehicle blocking/occupancy integration.
+- Added VehicleSchemaAccessor to safely read MTR VehicleSchema railProgress and speed.
+- Registered VehicleMixin and VehicleSchemaAccessor in mtr-traffic-addon.mixins.json.
+- Added TrafficManager.mtrVehicleBlockedDistance(...) for MTR vehicles seeing MTA signals and vehicles.
+- Added TrafficManager.recordMtrVehicle(...) and closestMtrVehicleObstacle(...) for MTA vehicles seeing MTR vehicles.
+- Added MTR obstacle spacing to TrafficSpacingResolver.
+- Changed MtrGraphBuilder rail IDs to be direction-aware raw MTR rail IDs.
+- Removed automatic MTR resource floor/doorway Y anchoring from MtrVehicleResourceRenderer.
+- Raised the route render origin back to pathSample.y() by removing the old -0.25 vehicle Y offset.
+- Set bundled sedan modelYOffset to 0.0 in both embedded resources and the resourcepack copy.
+- Kept the sedan resource embedded in src/main/resources so it is part of the mod jar.
+- Preserved the sedan resourcepack copy for authoring/export only.
+- Confirmed build output:
+  D:\mta\build\libs\mtr-traffic-addon-26.5.A02.jar
 
 Resource pack authoring rules learned
 =====================================
@@ -82,11 +100,15 @@ Resource pack authoring rules learned
 - Use condition NORMAL, renderStage EXTERIOR, and type NORMAL for always-visible exterior body geometry.
 - Keep visual IDs in traffic_vehicles/*.json matched to vehicle IDs in mtr_custom_resources.json.
 - After embedding resources in the jar, remove old external copies from .minecraft/resourcepacks to avoid stale overrides.
+- Per-model modelYOffset is safer than deriving road-vehicle height from MTR floor/doorway metadata.
 
 Known limitations and remaining work
 ====================================
 
 - The default Java environment still points to Java 17 on this machine, while the current Fabric Loom setup needs Java 21 or newer. JAVA_HOME is currently set manually to Java 23 for builds.
+- The MTR/MTA vehicle bridge is transient and should be tested more in-game with multiple route vehicles, multiple MTA vehicles, opposite directions, and long rail segments.
+- Existing visible MTR signals created by the rejected signal experiment may remain in MTR saved data; the current code no longer creates new ones through that path.
+- Direction-aware graph IDs may require refreshing or repairing existing connector route metadata near edited roads.
 - The dashboard still has many text-heavy controls and could be made more compact.
 - The group list needs scrolling or pagination for intersections with many signal groups.
 - Removing a signal group is immediate; confirmation or undo would reduce accidental deletion.
@@ -106,6 +128,16 @@ Known limitations and remaining work
 - Automated tests are not present. Core routing, spacing, signal, and resource ID logic would benefit from unit tests.
 - A clean release test should be run with only Fabric API, MTR, and this addon installed.
 
+Modrinth App / launcher notes
+=============================
+
+- The Minecraft profile crashes at 19:17 and 19:20 were caused by the MTR VehicleMixin inherited-field shadow issue and were fixed by VehicleSchemaAccessor.
+- Separate Modrinth App.exe crashes were observed in Windows Error Reporting:
+  Modrinth App.exe 0.13.18.0
+  KERNELBASE.dll
+  exception 0xe0000008
+- Those Modrinth App.exe crashes are separate from the addon jar and should be handled as launcher/WebView2/app issues.
+
 Build verification
 ==================
 
@@ -120,4 +152,4 @@ BUILD SUCCESSFUL
 
 Current jar:
 
-D:\mta\build\libs\mtr-traffic-addon-26.5.ALPHA.jar
+D:\mta\build\libs\mtr-traffic-addon-26.5.A02.jar
