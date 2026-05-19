@@ -19,6 +19,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'microsoft'
+      - name: clear gradle cache
+        run: rm -rf ~/.gradle/caches/modules-2/files-*/com/mojang/minecraft/
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
       - name: build
