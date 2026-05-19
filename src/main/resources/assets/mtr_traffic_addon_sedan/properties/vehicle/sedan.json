@@ -1,0 +1,12 @@
+{
+  "modelYOffset": -0.75,
+  "parts": [
+    {
+      "names": ["main"],
+      "positionDefinitions": ["origin"],
+      "condition": "NORMAL",
+      "renderStage": "EXTERIOR",
+      "type": "NORMAL"
+    }
+  ]
+}

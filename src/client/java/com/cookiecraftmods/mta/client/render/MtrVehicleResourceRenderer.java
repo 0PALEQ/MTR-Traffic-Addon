@@ -7,7 +7,6 @@ import org.mtr.mapping.holder.Box;
 import org.mtr.mapping.mapper.GraphicsHolder;
 import org.mtr.mod.client.CustomResourceLoader;
 import org.mtr.mod.resource.OptimizedModelWrapper;
-import org.mtr.mod.resource.PartCondition;
 import org.mtr.mod.resource.VehicleResource;
 import org.mtr.mod.resource.VehicleResourceCache;
 
@@ -19,10 +18,13 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	private static final ClientTrafficVehicleRenderer FALLBACK_RENDERER = new PlaceholderTrafficVehicleRenderer();
 	private static final int SINGLE_VEHICLE_CAR_COUNT = 1;
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
+	private static final String LEGACY_SEDAN_VISUAL_ID = "mtr_traffic_addon_sedan:sedan";
+	private static final String MTR_SEDAN_VISUAL_ID = "mta_sedan";
 
 	@Override
 	public void render(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
-		final VehicleResource vehicleResource = resolveVehicleResource(snapshot.visualId());
+		final String visualId = remapLegacyVisualId(snapshot.visualId());
+		final VehicleResource vehicleResource = resolveVehicleResource(visualId);
 		if (vehicleResource == null) {
 			FALLBACK_RENDERER.render(context, snapshot, visualProfile);
 			return;
@@ -70,23 +72,16 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	}
 
 	private static void queue(GraphicsHolder graphicsHolder, VehicleResourceCache vehicleResourceCache) {
-		final OptimizedModelWrapper normalModel = vehicleResourceCache.optimizedModels.get(PartCondition.NORMAL);
-		if (normalModel != null) {
-			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(normalModel, graphicsHolder, GraphicsHolder.getDefaultLight());
+		if (!vehicleResourceCache.optimizedModelsDoorsClosed.isEmpty()) {
+			queueAll(graphicsHolder, vehicleResourceCache.optimizedModelsDoorsClosed.values());
+		} else {
+			queueAll(graphicsHolder, vehicleResourceCache.optimizedModels.values());
 		}
+	}
 
-		final OptimizedModelWrapper doorsClosedModel = vehicleResourceCache.optimizedModelsDoorsClosed.get(PartCondition.DOORS_CLOSED);
-		if (doorsClosedModel != null) {
-			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(doorsClosedModel, graphicsHolder, GraphicsHolder.getDefaultLight());
-		}
-
-		if (normalModel == null && doorsClosedModel == null) {
-			for (OptimizedModelWrapper optimizedModelWrapper : vehicleResourceCache.optimizedModels.values()) {
-				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, GraphicsHolder.getDefaultLight());
-			}
-			for (OptimizedModelWrapper optimizedModelWrapper : vehicleResourceCache.optimizedModelsDoorsClosed.values()) {
-				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, GraphicsHolder.getDefaultLight());
-			}
+	private static void queueAll(GraphicsHolder graphicsHolder, Iterable<OptimizedModelWrapper> optimizedModelWrappers) {
+		for (OptimizedModelWrapper optimizedModelWrapper : optimizedModelWrappers) {
+			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, GraphicsHolder.getDefaultLight());
 		}
 	}
 
@@ -113,6 +108,10 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		final AtomicReference<VehicleResource> reference = new AtomicReference<>();
 		CustomResourceLoader.getVehicleById(TransportMode.TRAIN, visualId, pair -> reference.set(pair.left()));
 		return reference.get();
+	}
+
+	private static String remapLegacyVisualId(String visualId) {
+		return LEGACY_SEDAN_VISUAL_ID.equals(visualId) ? MTR_SEDAN_VISUAL_ID : visualId;
 	}
 
 	private record ModelOffset(double x, double y, double z) {

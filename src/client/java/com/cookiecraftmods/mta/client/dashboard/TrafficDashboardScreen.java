@@ -2,8 +2,6 @@ package com.cookiecraftmods.mta.client.dashboard;
 
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
-import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModel;
-import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -1382,9 +1380,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		CustomResourceLoader.iterateVehicles(TransportMode.TRAIN, vehicleResource -> updatedOptionsById.put(vehicleResource.getId(), new VehicleOption(vehicleResource.getId(), formatVehicleLabel(vehicleResource))));
 		for (ClientMtrVehicleResourceRegistry.VisualDefinition visualDefinition : ClientMtrVehicleResourceRegistry.all()) {
 			updatedOptionsById.putIfAbsent(visualDefinition.id(), new VehicleOption(visualDefinition.id(), formatVehicleLabel(visualDefinition)));
-		}
-		for (CustomTrafficModel customTrafficModel : CustomTrafficModelRegistry.all()) {
-			updatedOptionsById.putIfAbsent(customTrafficModel.definition().id(), new VehicleOption(customTrafficModel.definition().id(), "Custom model [" + customTrafficModel.definition().id() + "]"));
 		}
 		final List<VehicleOption> updatedOptions = new ArrayList<>(updatedOptionsById.values());
 		updatedOptions.sort(Comparator.comparing(VehicleOption::label, String.CASE_INSENSITIVE_ORDER));

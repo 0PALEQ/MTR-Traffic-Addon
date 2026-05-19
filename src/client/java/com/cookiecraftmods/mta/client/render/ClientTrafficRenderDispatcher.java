@@ -2,12 +2,11 @@ package com.cookiecraftmods.mta.client.render;
 
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
-import com.cookiecraftmods.mta.client.render.custom.CustomTrafficVehicleRenderer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.renderer.RenderType;
 
 public final class ClientTrafficRenderDispatcher {
-	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new CustomTrafficVehicleRenderer(new MtrVehicleResourceRenderer());
+	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new MtrVehicleResourceRenderer();
 
 	private ClientTrafficRenderDispatcher() {
 	}

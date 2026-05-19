@@ -7,7 +7,6 @@ import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
-import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
@@ -30,7 +29,6 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ClientMtrVehicleResourceRegistry.initialize();
-		CustomTrafficModelRegistry.initialize();
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 

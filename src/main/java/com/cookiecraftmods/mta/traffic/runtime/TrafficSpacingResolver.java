@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 public final class TrafficSpacingResolver {
 	private static final double MIN_SPACING_BUFFER_METERS = 2.0D;
 	private static final double LOOKAHEAD_BUFFER_METERS = 8.0D;
+	private static final double ROUTE_OCCUPANCY_LOOKAHEAD_METERS = 80.0D;
 	private static final double SIGNAL_STOP_BUFFER_METERS = 2.0D;
 	private static final double SIGNAL_APPROACH_LOOKAHEAD_METERS = 10.0D;
 	private static final double TICK_DURATION_SECONDS = 1.0D / 20.0D;
@@ -40,7 +41,7 @@ public final class TrafficSpacingResolver {
 			}
 		}
 
-		applyNextSegmentSpacing(vehicles, allowedSpeeds);
+		applyRouteLookaheadSpacing(vehicles, allowedSpeeds);
 		applySignalLimits(vehicles, allowedSpeeds);
 		return allowedSpeeds;
 	}
@@ -57,21 +58,41 @@ public final class TrafficSpacingResolver {
 		}
 
 		final double lookaheadGap = minGap + LOOKAHEAD_BUFFER_METERS + followingVehicle.definition().lengthMeters();
+		final double brakingCapKph = Math.sqrt(2.0D * followingVehicle.definition().effectiveBrakingMetersPerSecondSquared() * clearance) * 3.6D;
 		if (actualGap >= lookaheadGap) {
-			return currentLimitKph;
+			return Math.max(0.0D, Math.min(currentLimitKph, brakingCapKph));
 		}
 
 		final double progress = (actualGap - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
 		final double cappedByFrontSpeed = frontVehicle.speedKph() + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontVehicle.speedKph());
-		return Math.max(0.0D, Math.min(currentLimitKph, cappedByFrontSpeed));
+		return Math.max(0.0D, Math.min(currentLimitKph, Math.min(cappedByFrontSpeed, brakingCapKph)));
 	}
 
-	private static void applyNextSegmentSpacing(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
+	private static void applyRouteLookaheadSpacing(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
 		for (TrafficVehicle followingVehicle : vehicles) {
-			final TrafficRouteSegment followingSegment = followingVehicle.currentSegment().orElse(null);
-			final TrafficRouteSegment nextSegment = followingVehicle.nextSegment().orElse(null);
-			if (followingSegment == null || nextSegment == null) {
+			final RouteObstacle obstacle = closestRouteObstacle(vehicles, followingVehicle);
+			if (obstacle == null) {
 				continue;
+			}
+
+			final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
+			final double limitedSpeed = resolveProjectedFollowingSpeed(obstacle.frontVehicle(), followingVehicle, obstacle.distanceMeters(), currentLimitKph);
+			allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+		}
+	}
+
+	private static RouteObstacle closestRouteObstacle(Collection<TrafficVehicle> vehicles, TrafficVehicle followingVehicle) {
+		final List<TrafficRouteSegment> followingSegments = followingVehicle.route().segments();
+		if (followingSegments.isEmpty() || followingVehicle.segmentIndex() < 0 || followingVehicle.segmentIndex() >= followingSegments.size()) {
+			return null;
+		}
+
+		RouteObstacle closestObstacle = null;
+		double distanceToSegmentStart = -followingVehicle.distanceOnSegmentMeters();
+		for (int segmentIndex = followingVehicle.segmentIndex(); segmentIndex < followingSegments.size(); segmentIndex++) {
+			final TrafficRouteSegment candidateSegment = followingSegments.get(segmentIndex);
+			if (distanceToSegmentStart > ROUTE_OCCUPANCY_LOOKAHEAD_METERS) {
+				break;
 			}
 
 			for (TrafficVehicle frontVehicle : vehicles) {
@@ -80,32 +101,44 @@ public final class TrafficSpacingResolver {
 				}
 
 				final TrafficRouteSegment frontSegment = frontVehicle.currentSegment().orElse(null);
-				if (frontSegment == null || !sameDirectedSegment(nextSegment, frontSegment)) {
+				if (frontSegment == null || !sameDirectedSegment(candidateSegment, frontSegment)) {
 					continue;
 				}
 
-				final double minGap = frontVehicle.definition().lengthMeters() / 2.0D
-					+ followingVehicle.definition().lengthMeters() / 2.0D
-					+ MIN_SPACING_BUFFER_METERS;
-				final double actualGap = followingVehicle.distanceToEndOfCurrentSegmentMeters() + frontVehicle.distanceOnSegmentMeters();
-				if (actualGap <= minGap) {
-					allowedSpeeds.put(followingVehicle, 0.0D);
-				} else if (actualGap <= minGap + LOOKAHEAD_BUFFER_METERS + followingVehicle.definition().lengthMeters()) {
-					final double limitedSpeed = resolveProjectedFollowingSpeed(frontVehicle, followingVehicle, actualGap, allowedSpeeds.getOrDefault(followingVehicle, 0.0D));
-					allowedSpeeds.put(followingVehicle, limitedSpeed);
+				final double distanceToFrontVehicle = distanceToSegmentStart + frontVehicle.distanceOnSegmentMeters();
+				if (distanceToFrontVehicle <= 0.0D || distanceToFrontVehicle > ROUTE_OCCUPANCY_LOOKAHEAD_METERS) {
+					continue;
+				}
+
+				if (closestObstacle == null || distanceToFrontVehicle < closestObstacle.distanceMeters()) {
+					closestObstacle = new RouteObstacle(frontVehicle, distanceToFrontVehicle);
 				}
 			}
+
+			distanceToSegmentStart += Math.max(candidateSegment.lengthMeters(), 0.0D);
 		}
+
+		return closestObstacle;
 	}
 
 	private static double resolveProjectedFollowingSpeed(TrafficVehicle frontVehicle, TrafficVehicle followingVehicle, double actualGap, double currentLimitKph) {
 		final double minGap = frontVehicle.definition().lengthMeters() / 2.0D
 			+ followingVehicle.definition().lengthMeters() / 2.0D
 			+ MIN_SPACING_BUFFER_METERS;
+		final double clearance = actualGap - minGap;
+		if (clearance <= 0.0D) {
+			return 0.0D;
+		}
+
+		final double brakingCapKph = Math.sqrt(2.0D * followingVehicle.definition().effectiveBrakingMetersPerSecondSquared() * clearance) * 3.6D;
 		final double lookaheadGap = minGap + LOOKAHEAD_BUFFER_METERS + followingVehicle.definition().lengthMeters();
+		if (actualGap >= lookaheadGap) {
+			return Math.max(0.0D, Math.min(currentLimitKph, brakingCapKph));
+		}
+
 		final double progress = (actualGap - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
 		final double cappedByFrontSpeed = frontVehicle.speedKph() + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontVehicle.speedKph());
-		return Math.max(0.0D, Math.min(currentLimitKph, cappedByFrontSpeed));
+		return Math.max(0.0D, Math.min(currentLimitKph, Math.min(cappedByFrontSpeed, brakingCapKph)));
 	}
 
 	private static boolean sameDirectedSegment(TrafficRouteSegment first, TrafficRouteSegment second) {
@@ -164,5 +197,8 @@ public final class TrafficSpacingResolver {
 			}
 		}
 		return false;
+	}
+
+	private record RouteObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
 	}
 }

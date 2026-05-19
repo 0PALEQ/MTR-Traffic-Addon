@@ -1,0 +1,116 @@
+{
+  "vehicles": [
+    {
+      "id": "mta_sedan",
+      "name": "MTA Sedan",
+      "color": "3F4A56",
+      "transportMode": "TRAIN",
+      "length": 5.625,
+      "width": 2.0,
+      "description": "Sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.8,
+      "bogie2Position": 1.8,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_white",
+      "name": "MTA Sedan White",
+      "color": "F2F2F2",
+      "transportMode": "TRAIN",
+      "length": 5.625,
+      "width": 2.0,
+      "description": "White sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:white"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_white.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.8,
+      "bogie2Position": 1.8,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_green",
+      "name": "MTA Sedan Green",
+      "color": "2ECC71",
+      "transportMode": "TRAIN",
+      "length": 5.625,
+      "width": 2.0,
+      "description": "Green sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:green"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_green.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.8,
+      "bogie2Position": 1.8,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_red",
+      "name": "MTA Sedan Red",
+      "color": "A90F0F",
+      "transportMode": "TRAIN",
+      "length": 5.625,
+      "width": 2.0,
+      "description": "Red sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:red"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_red.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.8,
+      "bogie2Position": 1.8,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    }
+  ],
+  "signs": [],
+  "rails": [],
+  "objects": [],
+  "lifts": []
+}

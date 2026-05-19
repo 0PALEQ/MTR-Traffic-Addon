@@ -1,0 +1,10 @@
+{
+  "id": "sedan_green",
+  "type": "car",
+  "lengthMeters": 4.8,
+  "maxSpeedKph": 65.0,
+  "accelerationMetersPerSecondSquared": 1.8,
+  "brakingMetersPerSecondSquared": 3.0,
+  "spawnWeight": 20,
+  "visualId": "mta_sedan_green"
+}
