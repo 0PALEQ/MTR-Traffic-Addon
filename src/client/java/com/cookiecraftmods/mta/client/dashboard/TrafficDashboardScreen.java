@@ -441,8 +441,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 		IDrawing.setPositionAndWidth(buttonMaxVehiclesMinus, 8, y, 92);
 		IDrawing.setPositionAndWidth(buttonMaxVehiclesPlus, 108, y, 92);
-		IDrawing.setPositionAndWidth(buttonSpawnIntervalMinus, 208, y, 92);
-		IDrawing.setPositionAndWidth(buttonSpawnIntervalPlus, 308, y, LEFT_PANEL_WIDTH - 316);
+		IDrawing.setPositionAndWidth(buttonSpawnIntervalMinus, 8, y, 192);
+		IDrawing.setPositionAndWidth(buttonSpawnIntervalPlus, 208, y, LEFT_PANEL_WIDTH - 216);
 		y += 24;
 
 		IDrawing.setPositionAndWidth(buttonTargetGroupMinus, 8, y, 92);
@@ -598,9 +598,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		y += 24;
 		IDrawing.setPositionAndWidth(buttonRefresh, x, y, half);
 		IDrawing.setPositionAndWidth(buttonClearVehicles, x + half + gap, y, width - half - gap);
-		y += 24;
-		IDrawing.setPositionAndWidth(buttonMaxVehiclesMinus, x, y, half);
-		IDrawing.setPositionAndWidth(buttonMaxVehiclesPlus, x + half + gap, y, width - half - gap);
 		y += 24;
 		IDrawing.setPositionAndWidth(buttonSpawnIntervalMinus, x, y, half);
 		IDrawing.setPositionAndWidth(buttonSpawnIntervalPlus, x + half + gap, y, width - half - gap);
@@ -802,7 +799,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			y += 12;
 			graphicsHolder.drawText("Pool: " + entry.effectiveVehiclePool().size() + " selected  Missing: " + missingPoolEntries + "  Loaded: " + vehicleOptions.size(), 8, y, missingPoolEntries == 0 ? ARGB_LIGHT_GRAY : ARGB_WARNING, false, GraphicsHolder.getDefaultLight());
 			y += 12;
-			graphicsHolder.drawText("Spawn limits: max " + entry.maxVehicles() + " vehicles, every " + String.format("%.1f", entry.spawnIntervalTicks() / 20.0D) + "s", 8, y, ARGB_LIGHT_GRAY, false, GraphicsHolder.getDefaultLight());
+			graphicsHolder.drawText("Spawn limits: empty track, every " + String.format("%.1f", entry.spawnIntervalTicks() / 20.0D) + "s", 8, y, ARGB_LIGHT_GRAY, false, GraphicsHolder.getDefaultLight());
 		}
 	}
 
@@ -871,6 +868,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			graphicsHolder.drawText("Green: " + String.format("%.1f", selectedGroup.effectiveGreenDurationTicks() / 20.0D) + "s  IN node numbers: " + shorten(selectedGroup.nodeNumbers().toString(), 22), x, y, ARGB_OK, false, GraphicsHolder.getDefaultLight());
 			y += 12;
 		}
+		graphicsHolder.drawText("Clearance: 10.0s all-red between groups", x, y, ARGB_WARNING, false, GraphicsHolder.getDefaultLight());
+		y += 12;
 		graphicsHolder.drawText("Selected node: " + shorten(selectedNodeLabel(intersection), 34), x, y, ARGB_MUTED_BLUE, false, GraphicsHolder.getDefaultLight());
 		y += 12;
 		graphicsHolder.drawText("Selected group nodes are highlighted on the map.", x, y, ARGB_LIGHT_GRAY, false, GraphicsHolder.getDefaultLight());
@@ -985,8 +984,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonToggleEnabled.active = (connectorMode ? hasEntry : hasIntersection) && !vehiclePoolMode;
 		buttonGroupMinus.active = false;
 		buttonGroupPlus.active = false;
-		buttonMaxVehiclesMinus.active = connectorMode && isSpawn;
-		buttonMaxVehiclesPlus.active = connectorMode && isSpawn;
+		buttonMaxVehiclesMinus.active = false;
+		buttonMaxVehiclesPlus.active = false;
 		buttonSpawnIntervalMinus.active = connectorMode && isSpawn;
 		buttonSpawnIntervalPlus.active = connectorMode && isSpawn;
 		buttonTargetGroupMinus.active = false;
@@ -1018,8 +1017,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonOpenVehiclePool.setMessage(Component.literal("Vehicle Pool"));
 		buttonRefresh.setMessage(Component.literal("Refresh Routes"));
 		buttonClearVehicles.setMessage(Component.literal("Clear Active"));
-		buttonMaxVehiclesMinus.setMessage(Component.literal("Max Vehicles -"));
-		buttonMaxVehiclesPlus.setMessage(Component.literal("Max Vehicles +"));
+		buttonMaxVehiclesMinus.setMessage(Component.literal(""));
+		buttonMaxVehiclesPlus.setMessage(Component.literal(""));
 		buttonSpawnIntervalMinus.setMessage(Component.literal("Interval -1s"));
 		buttonSpawnIntervalPlus.setMessage(Component.literal("Interval +1s"));
 		buttonDeleteIntersection.setMessage(Component.literal("Delete"));
@@ -1089,8 +1088,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonClearVehicles.visible = connectorMode;
 		buttonGroupMinus.visible = false;
 		buttonGroupPlus.visible = false;
-		buttonMaxVehiclesMinus.visible = connectorMode && isSpawn;
-		buttonMaxVehiclesPlus.visible = connectorMode && isSpawn;
+		buttonMaxVehiclesMinus.visible = false;
+		buttonMaxVehiclesPlus.visible = false;
 		buttonSpawnIntervalMinus.visible = connectorMode && isSpawn;
 		buttonSpawnIntervalPlus.visible = connectorMode && isSpawn;
 		buttonDeleteIntersection.visible = intersectionMode;

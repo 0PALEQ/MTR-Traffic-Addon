@@ -37,6 +37,7 @@ public final class TrafficIntersectionRegistry {
 	private static final Map<String, TrafficIntersectionDefinition> DEFINITIONS = new LinkedHashMap<>();
 	private static final double STOP_LOOKAHEAD_METERS = 48.0D;
 	private static final double STOP_BUFFER_METERS = 5.0D;
+	private static final int CLEARANCE_TICKS = 200;
 	private static boolean initialized;
 	private static MinecraftServer currentServer;
 
@@ -335,6 +336,9 @@ public final class TrafficIntersectionRegistry {
 			long cycleTicks = 0;
 			for (TrafficIntersectionGroup group : validGroups) {
 				cycleTicks += group.effectiveGreenDurationTicks();
+				if (validGroups.size() > 1) {
+					cycleTicks += CLEARANCE_TICKS;
+				}
 			}
 			long tickInCycle = cycleTicks <= 0 ? 0 : serverTick % cycleTicks;
 			for (TrafficIntersectionGroup group : validGroups) {
@@ -342,15 +346,28 @@ public final class TrafficIntersectionRegistry {
 				if (tickInCycle < 0) {
 					return group.nodeNumbers();
 				}
+				if (validGroups.size() > 1) {
+					tickInCycle -= CLEARANCE_TICKS;
+					if (tickInCycle < 0) {
+						return List.of();
+					}
+				}
 			}
 		}
 		final List<Integer> phaseOrder = definition.phaseOrder().isEmpty() ? inNumbers : definition.phaseOrder().stream().filter(inNumbers::contains).toList();
 		if (phaseOrder.isEmpty()) {
 			return List.of();
 		}
+		if (phaseOrder.size() == 1) {
+			return List.of(phaseOrder.get(0));
+		}
 
-		final int phase = (int) ((serverTick / definition.effectivePhaseDurationTicks()) % phaseOrder.size());
-		return List.of(phaseOrder.get(phase));
+		final long phaseBlockTicks = definition.effectivePhaseDurationTicks() + CLEARANCE_TICKS;
+		final long tickInCycle = serverTick % (phaseBlockTicks * phaseOrder.size());
+		if (tickInCycle % phaseBlockTicks >= definition.effectivePhaseDurationTicks()) {
+			return List.of();
+		}
+		return List.of(phaseOrder.get((int) (tickInCycle / phaseBlockTicks)));
 	}
 
 	private static List<TrafficIntersectionGroup> effectiveGroups(TrafficIntersectionDefinition definition, List<Integer> inNumbers) {

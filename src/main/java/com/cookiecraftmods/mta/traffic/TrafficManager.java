@@ -35,9 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public final class TrafficManager {
 	private static final int SNAPSHOT_REFRESH_INTERVAL_TICKS = 200;
-	private static final int GRAPH_PRUNE_RADIUS_BLOCKS = 224;
-	private static final int SPAWN_INTERVAL_TICKS = 40;
-	private static final int MAX_ACTIVE_VEHICLES = 12;
+	private static final int GRAPH_PRUNE_RADIUS_BLOCKS = 448;
 	private static final int FAILED_SPAWN_RETRY_TICKS = 100;
 	private static final int SPAWN_DIAGNOSTIC_INTERVAL_TICKS = 100;
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
@@ -46,7 +44,6 @@ public final class TrafficManager {
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
 	private static boolean initialized;
 	private static long lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
-	private static long lastSpawnTick = -SPAWN_INTERVAL_TICKS;
 	private static MtrGraph latestGraph;
 	private static String latestGraphDimensionId;
 	private static long lastServerTick;
@@ -222,7 +219,6 @@ public final class TrafficManager {
 		latestGraphDimensionId = null;
 		graphRefreshInFlight = false;
 		lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
-		lastSpawnTick = -SPAWN_INTERVAL_TICKS;
 		lastServerTick = 0;
 		LAST_SPAWN_TICK_BY_POINT_ID.clear();
 		LAST_FAILED_SPAWN_TICK_BY_POINT_ID.clear();
@@ -282,7 +278,7 @@ public final class TrafficManager {
 					GRAPH_PRUNE_RADIUS_BLOCKS
 				);
 				if (repaired > 0) {
-					MTRTrafficAddon.LOGGER.info("Repaired {} traffic connector route(s)", repaired);
+					MTRTrafficAddon.LOGGER.info("Refreshed {} traffic connector route(s)", repaired);
 				}
 				TrafficIntersectionRegistry.refreshNodes(latestGraphDimensionId, latestGraph);
 			}
@@ -297,7 +293,14 @@ public final class TrafficManager {
 		if (!dimensionId.equals(latestGraphDimensionId)) {
 			return 0;
 		}
-		return TrafficSavedPointRegistry.refreshConnectorRoutes(dimensionId, latestGraph);
+		final net.minecraft.core.BlockPos playerPosition = player.blockPosition();
+		return TrafficSavedPointRegistry.refreshConnectorRoutes(
+			dimensionId,
+			latestGraph,
+			playerPosition.getX(),
+			playerPosition.getZ(),
+			GRAPH_PRUNE_RADIUS_BLOCKS
+		);
 	}
 
 	public static int refreshIntersectionNodesNear(ServerPlayer player) {
@@ -317,15 +320,6 @@ public final class TrafficManager {
 			return;
 		}
 
-		if (ACTIVE_VEHICLES.size() >= MAX_ACTIVE_VEHICLES) {
-			logSpawnDiagnostic("Spawn blocked: global active vehicle cap reached ({}/{}).", ACTIVE_VEHICLES.size(), MAX_ACTIVE_VEHICLES);
-			return;
-		}
-
-		if (lastServerTick - lastSpawnTick < SPAWN_INTERVAL_TICKS) {
-			return;
-		}
-
 		final Optional<SelectedRoutePlan> selectedPlan = createConfiguredRoute(latestGraph);
 
 		final Optional<TrafficVehicleDefinition> anyDefinition = TrafficVehicleDefinitionRegistry.getAnyDefinition();
@@ -340,12 +334,11 @@ public final class TrafficManager {
 
 		anyDefinition.ifPresent(definition -> selectedPlan.ifPresent(plan -> {
 			ACTIVE_VEHICLES.add(createTrafficVehicle(definition, plan));
-			lastSpawnTick = lastServerTick;
 			if (plan.spawn() != null) {
 				LAST_SPAWN_TICK_BY_POINT_ID.put(plan.spawn().id(), lastServerTick);
 				LAST_FAILED_SPAWN_TICK_BY_POINT_ID.remove(plan.spawn().id());
 			}
-			MTRTrafficAddon.LOGGER.debug("Spawned traffic vehicle {} / {} using definition {} visual {} on {} route segments; spawn={}, despawn={}", ACTIVE_VEHICLES.size(), MAX_ACTIVE_VEHICLES, definition.id(), definition.effectiveVisualId(), plan.routeResult().route().segments().size(), pointSummary(plan.spawn()), pointSummary(plan.despawn()));
+			MTRTrafficAddon.LOGGER.debug("Spawned traffic vehicle {} using definition {} visual {} on {} route segments; spawn={}, despawn={}", ACTIVE_VEHICLES.size(), definition.id(), definition.effectiveVisualId(), plan.routeResult().route().segments().size(), pointSummary(plan.spawn()), pointSummary(plan.despawn()));
 		}));
 	}
 
@@ -359,18 +352,10 @@ public final class TrafficManager {
 			return Optional.empty();
 		}
 
-		final Map<String, Long> activeVehicleCountBySpawnPointId = new HashMap<>();
-		for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
-			if (vehicle.spawnPointId() != null) {
-				activeVehicleCountBySpawnPointId.merge(vehicle.spawnPointId(), 1L, Long::sum);
-			}
-		}
-
 		final Map<String, List<WeightedRouteCandidate>> candidatesBySpawnId = new LinkedHashMap<>();
-		final Map<String, TrafficPointDefinition> spawnById = new LinkedHashMap<>();
 
 		for (TrafficPointDefinition spawn : spawns) {
-			if (!canSpawnFromPoint(spawn, activeVehicleCountBySpawnPointId)) {
+			if (!canSpawnFromPoint(spawn)) {
 				continue;
 			}
 			if (spawn.effectiveVehiclePool().isEmpty()) {
@@ -407,7 +392,6 @@ public final class TrafficManager {
 				markSpawnFailure(spawn);
 			} else {
 				candidatesBySpawnId.put(spawn.id(), spawnCandidates);
-				spawnById.put(spawn.id(), spawn);
 			}
 		}
 
@@ -416,34 +400,11 @@ public final class TrafficManager {
 			return Optional.empty();
 		}
 
-		final List<String> leastUsedSpawnIds = leastUsedSpawnIds(candidatesBySpawnId.keySet(), spawnById, activeVehicleCountBySpawnPointId);
-		final String selectedSpawnId = leastUsedSpawnIds.get(ThreadLocalRandom.current().nextInt(leastUsedSpawnIds.size()));
+		final List<String> spawnIds = List.copyOf(candidatesBySpawnId.keySet());
+		final String selectedSpawnId = spawnIds.get(ThreadLocalRandom.current().nextInt(spawnIds.size()));
 		final List<WeightedRouteCandidate> selectedSpawnCandidates = candidatesBySpawnId.getOrDefault(selectedSpawnId, List.of());
 		final WeightedRouteCandidate selectedCandidate = selectedSpawnCandidates.get(ThreadLocalRandom.current().nextInt(selectedSpawnCandidates.size()));
 		return Optional.of(new SelectedRoutePlan(selectedCandidate.spawn(), selectedCandidate.despawn(), selectedCandidate.routeResult()));
-	}
-
-	private static List<String> leastUsedSpawnIds(Collection<String> spawnIds, Map<String, TrafficPointDefinition> spawnById, Map<String, Long> activeVehicleCountBySpawnPointId) {
-		final List<String> leastUsedSpawnIds = new ArrayList<>();
-		double bestUtilization = Double.POSITIVE_INFINITY;
-
-		for (String spawnId : spawnIds) {
-			final TrafficPointDefinition spawn = spawnById.get(spawnId);
-			if (spawn == null) {
-				continue;
-			}
-
-			final double utilization = activeVehicleCountBySpawnPointId.getOrDefault(spawnId, 0L) / Math.max(spawn.effectiveMaxVehicles(), 1.0D);
-			if (utilization < bestUtilization - 0.0001D) {
-				leastUsedSpawnIds.clear();
-				bestUtilization = utilization;
-			}
-			if (Math.abs(utilization - bestUtilization) <= 0.0001D) {
-				leastUsedSpawnIds.add(spawnId);
-			}
-		}
-
-		return leastUsedSpawnIds.isEmpty() ? List.copyOf(spawnIds) : leastUsedSpawnIds;
 	}
 
 	private static Optional<MtrGraphRouteResult> buildConnectorAwareRoute(MtrGraph graph, TrafficPointDefinition spawn, TrafficPointDefinition despawn) {
@@ -485,13 +446,7 @@ public final class TrafficManager {
 		return Optional.ofNullable(bestResult);
 	}
 
-	private static boolean canSpawnFromPoint(TrafficPointDefinition spawn, Map<String, Long> activeVehicleCountBySpawnPointId) {
-		final long activeVehiclesAtSpawn = activeVehicleCountBySpawnPointId.getOrDefault(spawn.id(), 0L);
-		if (activeVehiclesAtSpawn >= spawn.effectiveMaxVehicles()) {
-			logSpawnDiagnostic("Configured spawn {} blocked: active vehicles from this spawn {}/{}.", pointSummary(spawn), activeVehiclesAtSpawn, spawn.effectiveMaxVehicles());
-			return false;
-		}
-
+	private static boolean canSpawnFromPoint(TrafficPointDefinition spawn) {
 		final long lastSpawnTickAtPoint = LAST_SPAWN_TICK_BY_POINT_ID.getOrDefault(spawn.id(), Long.MIN_VALUE / 4);
 		if (lastServerTick - lastSpawnTickAtPoint < spawn.effectiveSpawnIntervalTicks()) {
 			return false;
@@ -502,7 +457,16 @@ public final class TrafficManager {
 		if (!retryReady) {
 			logSpawnDiagnostic("Configured spawn {} waiting after failed route attempt; retry in {} ticks.", pointSummary(spawn), FAILED_SPAWN_RETRY_TICKS - (lastServerTick - lastFailedSpawnTickAtPoint));
 		}
-		return retryReady;
+		if (!retryReady) {
+			return false;
+		}
+
+		if (isSpawnTrackOccupied(spawn)) {
+			logSpawnDiagnostic("Configured spawn {} waiting: spawn connector is occupied.", pointSummary(spawn));
+			return false;
+		}
+
+		return true;
 	}
 
 	private static void markSpawnFailure(TrafficPointDefinition spawn) {
@@ -560,14 +524,78 @@ public final class TrafficManager {
 
 		final MtrNodeKey startNode = new MtrNodeKey(point.connectorStartX(), point.connectorStartY(), point.connectorStartZ());
 		final MtrNodeKey endNode = new MtrNodeKey(point.connectorEndX(), point.connectorEndY(), point.connectorEndZ());
-		final List<ConnectorTraversal> traversals = new ArrayList<>(1);
+		final List<ConnectorTraversal> traversals = new ArrayList<>(2);
+		addConnectorTraversal(traversals, graph, startNode, endNode, point);
+		addConnectorTraversal(traversals, graph, endNode, startNode, point);
+		return traversals;
+	}
+
+	private static void addConnectorTraversal(List<ConnectorTraversal> traversals, MtrGraph graph, MtrNodeKey startNode, MtrNodeKey endNode, TrafficPointDefinition point) {
 		MtrGraphPathFinder.findEdge(graph, startNode, endNode).ifPresent(edge -> traversals.add(new ConnectorTraversal(
 			edge.from(),
 			edge.to(),
 			List.of(toSegment(edge, point.type() == TrafficPointType.SPAWN, point.type() == TrafficPointType.DESPAWN)),
 			edge.travelTimeSeconds()
 		)));
-		return traversals;
+	}
+
+	private static boolean isSpawnTrackOccupied(TrafficPointDefinition spawn) {
+		if (latestGraph == null || latestGraph.isEmpty() || spawn == null || !spawn.hasConnectorRoute()) {
+			return false;
+		}
+
+		final List<String> connectorIds = connectorIdsForPoint(latestGraph, spawn);
+		if (connectorIds.isEmpty()) {
+			return false;
+		}
+
+		for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
+			if (isVehicleOccupyingConnector(vehicle, connectorIds)) {
+				return true;
+			}
+		}
+
+		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
+			if (lastServerTick - occupancy.lastTick() <= MTR_VEHICLE_OCCUPANCY_STALE_TICKS
+				&& (connectorIds.contains(occupancy.connectorId()) || connectorIds.contains(occupancy.reverseConnectorId()))) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static List<String> connectorIdsForPoint(MtrGraph graph, TrafficPointDefinition point) {
+		final MtrNodeKey startNode = new MtrNodeKey(point.connectorStartX(), point.connectorStartY(), point.connectorStartZ());
+		final MtrNodeKey endNode = new MtrNodeKey(point.connectorEndX(), point.connectorEndY(), point.connectorEndZ());
+		final List<String> connectorIds = new ArrayList<>(2);
+		MtrGraphPathFinder.findEdge(graph, startNode, endNode).ifPresent(edge -> connectorIds.add(edge.railId()));
+		MtrGraphPathFinder.findEdge(graph, endNode, startNode).ifPresent(edge -> {
+			if (!connectorIds.contains(edge.railId())) {
+				connectorIds.add(edge.railId());
+			}
+		});
+		return connectorIds;
+	}
+
+	private static boolean isVehicleOccupyingConnector(TrafficVehicle vehicle, List<String> connectorIds) {
+		if (vehicle.currentSegment().map(segment -> connectorIds.contains(segment.connectorId())).orElse(false)) {
+			return true;
+		}
+
+		final int previousSegmentIndex = vehicle.segmentIndex() - 1;
+		final List<TrafficRouteSegment> segments = vehicle.route().segments();
+		if (previousSegmentIndex < 0 || previousSegmentIndex >= segments.size()) {
+			return false;
+		}
+
+		final TrafficRouteSegment previousSegment = segments.get(previousSegmentIndex);
+		if (!connectorIds.contains(previousSegment.connectorId())) {
+			return false;
+		}
+
+		final double rearClearanceMeters = vehicle.definition().lengthMeters() * 0.5D + 2.0D;
+		return vehicle.distanceOnSegmentMeters() <= rearClearanceMeters;
 	}
 
 	private static TrafficRouteSegment toSegment(MtrGraphEdge edge) {

@@ -103,7 +103,7 @@ public final class TrafficSavedPointRegistry {
 		TrafficPointDefinition updated = switch (action) {
 			case "group" -> copy(definition, clamp(definition.group() + delta, 0, 15), definition.enabled(), definition.maxVehicles(), definition.spawnIntervalTicks(), definition.targetGroup(), definition.effectiveVehiclePool());
 			case "enabled" -> copy(definition, definition.group(), !definition.isEnabled(), definition.maxVehicles(), definition.spawnIntervalTicks(), definition.targetGroup(), definition.effectiveVehiclePool());
-			case "max_vehicles" -> definition.type() == TrafficPointType.SPAWN ? copy(definition, definition.group(), definition.enabled(), clamp((definition.maxVehicles() == null ? 1 : definition.maxVehicles()) + delta, 0, 32), definition.spawnIntervalTicks(), definition.targetGroup(), definition.effectiveVehiclePool()) : definition;
+			case "max_vehicles" -> definition;
 			case "spawn_interval" -> definition.type() == TrafficPointType.SPAWN ? copy(definition, definition.group(), definition.enabled(), definition.maxVehicles(), clamp((definition.spawnIntervalTicks() == null ? 40 : definition.spawnIntervalTicks()) + delta, 20, 1200), definition.targetGroup(), definition.effectiveVehiclePool()) : definition;
 			case "target_group" -> definition.type() == TrafficPointType.SPAWN ? copy(definition, definition.group(), definition.enabled(), definition.maxVehicles(), definition.spawnIntervalTicks(), clamp((definition.targetGroup() == null ? definition.group() : definition.targetGroup()) + delta, -1, 15), definition.effectiveVehiclePool()) : definition;
 			default -> definition;
@@ -141,8 +141,9 @@ public final class TrafficSavedPointRegistry {
 			return 0;
 		}
 
-		int repaired = 0;
-		for (TrafficPointDefinition definition : DEFINITIONS.values()) {
+		int changed = 0;
+		final List<String> removedDefinitionIds = new ArrayList<>();
+		for (TrafficPointDefinition definition : List.copyOf(DEFINITIONS.values())) {
 			if (!definition.id().startsWith(dimensionId + "|")) {
 				continue;
 			}
@@ -161,19 +162,30 @@ public final class TrafficSavedPointRegistry {
 				if (existsForward || existsBackward) {
 					continue;
 				}
+				removedDefinitionIds.add(definition.id());
+				continue;
 			}
 
 			final Optional<com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge> nearestEdge = nearestEdge(graph, definition);
 			if (nearestEdge.isPresent()) {
 				DEFINITIONS.put(definition.id(), copyWithConnectorRoute(definition, nearestEdge.get()));
-				repaired++;
+				changed++;
 			}
 		}
 
-		if (repaired > 0 && currentServer != null) {
+		for (String removedDefinitionId : removedDefinitionIds) {
+			DEFINITIONS.remove(removedDefinitionId);
+			changed++;
+		}
+
+		if (!removedDefinitionIds.isEmpty()) {
+			MTRTrafficAddon.LOGGER.info("Removed {} stale traffic connector point(s) whose rails no longer exist", removedDefinitionIds.size());
+		}
+
+		if (changed > 0 && currentServer != null) {
 			save(currentServer);
 		}
-		return repaired;
+		return changed;
 	}
 
 	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph) {
@@ -182,17 +194,13 @@ public final class TrafficSavedPointRegistry {
 		}
 
 		int repaired = 0;
-		for (TrafficPointDefinition definition : DEFINITIONS.values()) {
+		for (TrafficPointDefinition definition : List.copyOf(DEFINITIONS.values())) {
 			if (!definition.id().startsWith(dimensionId + "|")) {
 				continue;
 			}
 
 			if (definition.hasConnectorRoute()) {
-				final MtrNodeKey start = new MtrNodeKey(definition.connectorStartX(), definition.connectorStartY(), definition.connectorStartZ());
-				final MtrNodeKey end = new MtrNodeKey(definition.connectorEndX(), definition.connectorEndY(), definition.connectorEndZ());
-				if (MtrGraphPathFinder.findEdge(graph, start, end).isPresent() || MtrGraphPathFinder.findEdge(graph, end, start).isPresent()) {
-					continue;
-				}
+				continue;
 			}
 
 			final Optional<com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge> nearestEdge = nearestEdge(graph, definition);

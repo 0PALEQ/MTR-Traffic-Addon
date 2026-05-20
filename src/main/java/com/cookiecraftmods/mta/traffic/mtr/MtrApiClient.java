@@ -29,7 +29,7 @@ import java.util.function.Consumer;
 public final class MtrApiClient {
 	private static final Gson GSON = new GsonBuilder().create();
 	private static final long WARNING_INTERVAL_MILLIS = 5000;
-	private static final long REQUEST_RADIUS_BLOCKS = 192;
+	private static final long REQUEST_RADIUS_BLOCKS = 512;
 	private static long lastWarningMillis;
 
 	//Delete log spam later when everything works fine
