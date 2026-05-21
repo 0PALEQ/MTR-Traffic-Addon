@@ -1,5 +1,6 @@
 package com.cookiecraftmods.mta.mixin;
 
+import com.cookiecraftmods.mta.compat.MagicCompat;
 import com.cookiecraftmods.mta.traffic.TrafficManager;
 import org.mtr.core.data.PathData;
 import org.mtr.core.data.Position;
@@ -35,6 +36,10 @@ public abstract class VehicleMixin {
 		boolean doNotReserve,
 		CallbackInfoReturnable<Double> cir
 	) {
+		if (MagicCompat.shouldSuppressMtrTrafficBlockersForCurrentCall(additionalDistance, preReserve, doNotReserve)) {
+			return;
+		}
+
 		final List<PathData> path = vehicleExtraData == null ? List.of() : vehicleExtraData.immutablePath;
 		final double mtaBlockedDistance = TrafficManager.mtrVehicleBlockedDistance(path, startIndex, railProgress, additionalDistance, 4);
 		if (mtaBlockedDistance < 0.0D) {

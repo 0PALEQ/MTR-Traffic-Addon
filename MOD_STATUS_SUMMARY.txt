@@ -1,183 +1,118 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-05-20
-Version covered: 26.5.A03
+Updated: 2026-05-21
+Version covered: 26.5.A04
 
 Current working state
 =====================
 
 - The mod builds successfully as a Fabric 1.20.1 addon for Minecraft Transit Railway 4.0.4.
-- The local MTR jar is included as a Gradle dependency.
-- The project builds with Java 21+ via:
-  JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
-- The current built jar is:
-  D:\mta\build\libs\mtr-traffic-addon-26.5.A03.jar
-- The latest confirmed build output is A03; no separate A03 install-copy step is recorded in this summary.
-- The Traffic Dashboard item opens the client dashboard UI.
-- Spawn and despawn traffic connectors are listed in the dashboard.
-- Spawn/despawn connectors show position, enabled state, active vehicle count, and route status.
-- Connector routes can be refreshed from the dashboard.
-- Active traffic vehicles can be cleared from the dashboard.
-- Spawn connectors can open the Vehicle Pool screen.
-- Vehicle pools can select available MTR vehicle resources for each spawn connector.
-- The standalone sedan resource pack was stabilized, then embedded into the mod jar.
-- Players no longer need to install the sedan resource pack separately when using the current mod jar.
-- The resourcepack copy under resourcepacks/mtr-traffic-addon-sedan is kept as a source/export/testing copy.
-- Built-in sedan visual IDs:
-  mta_sedan
-  mta_sedan_white
-  mta_sedan_green
-  mta_sedan_red
-- Legacy visual ID mtr_traffic_addon_sedan:sedan is remapped to mta_sedan for compatibility with older spawned/debug state.
-- The bundled sedan model properties currently use modelYOffset 0.0.
-- The MTR vehicle resource renderer no longer uses MTR floors/doorways as a universal render-height anchor.
-- The renderer queues one MTR render cache at a time instead of mixing normal and doors-closed caches.
-- Normal MTR vehicles should keep their complete parts because the renderer no longer globally drops arbitrary render buckets.
-- The sedan no longer renders the accidental flipped duplicate copy.
-- Traffic vehicles now look ahead across route segments for occupied track sections.
-- Vehicles should slow down or wait before entering a full next track instead of driving into a queue.
-- Same-segment and route-lookahead spacing include braking-distance caps.
-- Configured spawning no longer falls back to random bootstrap vehicles when no enabled spawn/despawn connector route exists.
-- New worlds with no Traffic Spawn/Despawn Tracks should not randomly spawn sedans.
-- Stale spawn/despawn connector points near refreshed graph data are removed when their rails no longer exist, instead of snapping to random nearby tracks.
-- Spawn connectors now wait until their spawn connector track is clear before spawning another vehicle.
-- Traffic spawning no longer has a global active vehicle cap or per-spawn max vehicle cap.
-- Spawn interval and empty spawn-track checks are now the intended spawn-rate limits.
-- Connector route building now tries both saved connector directions, fixing valid tracks that only route through the reverse MTR edge.
-- MTR graph requests now use a larger radius so farther spawn/despawn pairs are more likely to route in one graph snapshot.
-- Intersection areas can be created from the dashboard map.
-- Existing intersections are listed and selectable.
-- Intersections can be enabled or disabled.
-- Intersection node auto-detection can be toggled.
-- Intersection detection and manual node handling use X/Z containment more reliably, avoiding the previous Y-level mismatch.
-- Detected IN and OUT nodes are shown on the dashboard map.
-- Node labels include IN/OUT direction and node numbers.
-- Signal groups are displayed as clickable rows.
-- Signal groups can be selected, removed, reordered, and assigned IN nodes.
-- Multiple IN nodes can belong to more than one signal group.
-- Selected group nodes and selected nodes are highlighted on the map.
-- Group green duration can be adjusted.
-- Signal groups now have a 10 second all-red clearance period between green phases to let intersections clear.
+- The current confirmed build output is:
+  D:\mta\build\libs\mtr-traffic-addon-26.5.A04.jar
+- The current standalone sedan resource pack export is:
+  D:\mta\resourcepacks\mtr-traffic-addon-sedan.zip
+- The default Java environment on this machine may still point to Java 17, while the current Fabric Loom setup needs Java 21 or newer.
+- The latest verified build used JDK 23:
+  JAVA_HOME=C:\Program Files\Java\jdk-23
+  .\gradlew.bat build --no-daemon
+- In-game testing confirmed that the new sedan vehicles render, use the expected orientation, and no longer drive backwards.
+- In-game testing confirmed that the new Auto/Manual traffic signal mode work is usable, with follow-up fixes applied for yellow/all-red transitions and stuck stop-line vehicles.
 
-26.5.A03 changes since the 26.5.A02 summary
-===========================================
+26.5.A04 changes since 26.5.A03
+===============================
 
-- Updated project version output to 26.5.A03.
-- Fixed destroyed spawn/despawn tracks staying in saved connector lists and later spawning vehicles on unrelated nearby graph edges.
-- Changed near-player connector refresh to delete stale connector points only when their saved rail edge is missing from the refreshed local graph.
-- Scoped dashboard connector refresh to the same near-player pruning radius to avoid treating unloaded far-away connectors as deleted.
-- Reworded connector refresh logs because refresh can now include stale connector removals, not only repairs.
-- Added spawn-track occupancy gating so a spawn waits while a traffic vehicle or recent MTR route vehicle occupies the spawn connector.
-- Added rear-clearance handling so a vehicle's tail has to clear the spawn connector before another vehicle can spawn there.
-- Removed the hard global active vehicle cap.
-- Removed the per-spawn active vehicle cap from the spawn decision.
-- Removed the hidden global spawn throttle; spawn timing is controlled by each spawn connector interval.
-- Disabled the dashboard max-vehicles action and hid the Max Vehicles controls because max vehicles are no longer a spawn limit.
-- Updated dashboard spawn-limit text to show that spawning is limited by an empty track and the configured interval.
-- Increased the internal MTR graph request radius from 192 to 512 blocks.
-- Increased connector stale-prune radius to match the larger graph query.
-- Made connector-aware route building try both directions of a saved connector rail.
-- Added a 10 second all-red intersection clearance period between signal groups.
-- Updated the dashboard intersection details to show the 10 second all-red clearance.
-- Verified the build successfully with Java 21:
-  JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
-  .\gradlew.bat build
-- Confirmed build output:
-  D:\mta\build\libs\mtr-traffic-addon-26.5.A03.jar
+- Updated project version output from 26.5.A03 to 26.5.A04.
+- Added traffic light signal modes:
+  - Manual
+  - Auto
+- Manual mode keeps the previous phase-order based traffic light behavior.
+- Auto mode detects waiting vehicles before IN nodes assigned to an intersection.
+- Auto mode queues the group containing the demanded IN node.
+- Auto mode switches the currently green group to red after a delay when another group is waiting.
+- Auto mode waits for the intersection to clear before giving green to the next queued group.
+- Auto mode keeps the current group green while no other group has demand.
+- Green light duration now has a minimum of 15 seconds.
+- A green phase can end early if the current group has no cars left and another demanded group is queued.
+- Yellow/all-red clearance is applied before giving green to the next group, even when the current group is already empty.
+- Fixed unrealistic instant green-to-green changes when an empty group hands off to another group.
+- Fixed a case where vehicles could stop permanently because a vehicle standing near an IN node or stop line was treated as blocking intersection clearance forever.
+- Added dashboard/network snapshot support for the signal mode value.
+- Added dashboard controls for switching an intersection between Manual and Auto.
+- Updated intersection signal timing text and dashboard state to reflect the newer signal behavior.
+- Added a signal clock based on wall time/server tick synchronization so signal checks remain stable during pauses or tick gaps.
+- Limited stale MTA traffic vehicle obstacle checks after long pauses so old positions do not indefinitely block MTR route vehicles.
 
-26.5.A02 traffic bridge status
+Sedan asset replacement
+=======================
+
+- Removed the old broken sedan resource set from the embedded mod assets and resourcepack source copy.
+- Replaced the sedan with the supplied mesh assets.
+- Added the supplied OBJ mesh as the actual traffic rendering model:
+  assets/mtr_traffic_addon_sedan/models/vehicle/sedan.obj
+- Kept the supplied BBModel copy for resource metadata/future compatibility:
+  assets/mtr_traffic_addon_sedan/models/vehicle/sedan.bbmodel
+- Rebuilt the sedan resource registration under:
+  assets/mtr/mtr_custom_resources.json
+- Added eight sedan visual IDs:
+  - mta_sedan
+  - mta_sedan_white
+  - mta_sedan_black
+  - mta_sedan_green
+  - mta_sedan_red
+  - mta_sedan_blue
+  - mta_sedan_brown
+  - mta_sedan_orange
+- Added eight matching traffic vehicle definitions:
+  - sedan_01
+  - sedan_white
+  - sedan_black
+  - sedan_green
+  - sedan_red
+  - sedan_blue
+  - sedan_brown
+  - sedan_orange
+- Added eight 256x256 texture variants:
+  - sedan.png
+  - sedan_white.png
+  - sedan_black.png
+  - sedan_green.png
+  - sedan_red.png
+  - sedan_blue.png
+  - sedan_brown.png
+  - sedan_orange.png
+- Updated the standalone resourcepack copy under:
+  resourcepacks/mtr-traffic-addon-sedan
+- Regenerated:
+  resourcepacks/mtr-traffic-addon-sedan.zip
+
+Custom model rendering changes
 ==============================
 
-- MTR route vehicles now use a transient mixin bridge instead of saved MTR BlockRails/SignalModification state.
-- The rejected visible-signal approach was removed from the active behavior.
-- The bridge injects into MTR Vehicle.railBlockedDistance(...) so MTR route vehicles can see:
-  - red MTA intersection entries
-  - active MTA spawned vehicles on matching route segments
-- MTR route checks now use route-direction rail IDs instead of ordered endpoint pairs.
-- Graph rail IDs are direction-aware via MTR TwoPositionsBase.getHexIdRaw(from, to).
-- This fixes the earlier issue where MTR vehicles stopped one whole track before the actual obstacle/intersection.
-- MTR Vehicle.simulate(...) now records transient vehicle occupancy for the current tick.
-- MTA vehicles now query the transient MTR occupancy cache and treat MTR route vehicles as moving spacing obstacles.
-- The MTR occupancy mixin uses VehicleSchemaAccessor for inherited railProgress/speed fields.
-- This fixes the 19:17 and 19:20 server crashes caused by shadowing inherited fields directly on Vehicle.
-- The occupancy cache is pruned after a short stale window so old MTR positions do not remain as permanent obstacles.
+- Enabled the custom traffic model registry on the client.
+- Changed traffic rendering to try the custom traffic model renderer first, then fall back to the MTR vehicle resource renderer.
+- Added OBJ traffic model definitions under:
+  assets/mtr_traffic_addon_sedan/traffic_models/*.json
+- Fixed the supplied mesh not rendering through the MTR BBModel renderer by using the existing OBJ renderer path.
+- Fixed OBJ triangle rendering with Minecraft quad-based RenderType output by emitting triangle faces as degenerate quads.
+- Removed forced FULL_BRIGHT lighting from the custom OBJ renderer.
+- Custom traffic models now sample world lighting with LevelRenderer.getLightColor at the vehicle position.
+- Fixed sedan orientation by changing the OBJ model rotation from +90 degrees to -90 degrees around Y.
+- Added safer fallback behavior if a custom model render fails.
 
-Changes since the previous summary
-==================================
+Documentation updates
+=====================
 
-- Updated project version output to 26.5.A02.
-- Added VehicleMixin for MTR route vehicle blocking/occupancy integration.
-- Added VehicleSchemaAccessor to safely read MTR VehicleSchema railProgress and speed.
-- Registered VehicleMixin and VehicleSchemaAccessor in mtr-traffic-addon.mixins.json.
-- Added TrafficManager.mtrVehicleBlockedDistance(...) for MTR vehicles seeing MTA signals and vehicles.
-- Added TrafficManager.recordMtrVehicle(...) and closestMtrVehicleObstacle(...) for MTA vehicles seeing MTR vehicles.
-- Added MTR obstacle spacing to TrafficSpacingResolver.
-- Changed MtrGraphBuilder rail IDs to be direction-aware raw MTR rail IDs.
-- Removed automatic MTR resource floor/doorway Y anchoring from MtrVehicleResourceRenderer.
-- Raised the route render origin back to pathSample.y() by removing the old -0.25 vehicle Y offset.
-- Set bundled sedan modelYOffset to 0.0 in both embedded resources and the resourcepack copy.
-- Kept the sedan resource embedded in src/main/resources so it is part of the mod jar.
-- Preserved the sedan resourcepack copy for authoring/export only.
-- Confirmed build output:
-  D:\mta\build\libs\mtr-traffic-addon-26.5.A02.jar
-
-Resource pack authoring rules learned
-=====================================
-
-- Road vehicles should usually have exactly one body model in models.
-- Do not add bogie1Models or bogie2Models for road cars unless they are real separate visible bogie/wheel models.
-- Do not point bogie models at the full vehicle body.
-- Do not use an empty bogie properties file as a hiding mechanism.
-- For a normal body part, use positions and leave positionsFlipped empty.
-- Do not put [{}] in both positions and positionsFlipped for the same part.
-- Use condition NORMAL, renderStage EXTERIOR, and type NORMAL for always-visible exterior body geometry.
-- Keep visual IDs in traffic_vehicles/*.json matched to vehicle IDs in mtr_custom_resources.json.
-- After embedding resources in the jar, remove old external copies from .minecraft/resourcepacks to avoid stale overrides.
-- Per-model modelYOffset is safer than deriving road-vehicle height from MTR floor/doorway metadata.
-
-Known limitations and remaining work
-====================================
-
-- The default Java environment still points to Java 17 on this machine, while the current Fabric Loom setup needs Java 21 or newer. JAVA_HOME is currently set manually to C:\Users\opale\.jdks\ms-21.0.8 for builds.
-- The MTR/MTA vehicle bridge is transient and should be tested more in-game with multiple route vehicles, multiple MTA vehicles, opposite directions, and long rail segments.
-- Existing visible MTR signals created by the rejected signal experiment may remain in MTR saved data; the current code no longer creates new ones through that path.
-- Direction-aware graph IDs may require refreshing existing connector route metadata near edited roads.
-- The dashboard still has many text-heavy controls and could be made more compact.
-- Intersection all-red clearance is currently fixed at 10 seconds and is not configurable per intersection from the dashboard.
-- The group list needs scrolling or pagination for intersections with many signal groups.
-- Removing a signal group is immediate; confirmation or undo would reduce accidental deletion.
-- Node assignment works, but the UI could make the IN-node-only rule clearer.
-- OUT nodes are shown and numbered, but their role could be clearer in the UI.
-- Map labels can overlap when nodes are close together.
-- The intersection editor could be improved with more direct drag/drop or node-to-group interactions.
-- Signal group names are generated and still cannot be renamed from the dashboard.
-- The dashboard does not show a live preview of the currently green signal group.
-- Intersection area drawing works, but first/second corner feedback could be clearer.
-- Vehicle pool management still needs better search, filtering, and missing-resource warnings.
-- Connector lists need sorting and filtering for larger worlds.
-- More in-game validation messages are needed for missing routes, empty vehicle pools, and signal groups without IN nodes.
-- The mod should be tested in a larger world with many connectors, intersections, and active vehicles.
-- Multiplayer synchronization and permissions still need dedicated testing.
-- The saved data format should be reviewed before release to reduce future world-breaking changes.
-- Automated tests are not present. Core routing, spacing, signal, and resource ID logic would benefit from unit tests.
-- A clean release test should be run with only Fabric API, MTR, and this addon installed.
-
-Modrinth App / launcher notes
-=============================
-
-- The Minecraft profile crashes at 19:17 and 19:20 were caused by the MTR VehicleMixin inherited-field shadow issue and were fixed by VehicleSchemaAccessor.
-- Separate Modrinth App.exe crashes were observed in Windows Error Reporting:
-  Modrinth App.exe 0.13.18.0
-  KERNELBASE.dll
-  exception 0xe0000008
-- Those Modrinth App.exe crashes are separate from the addon jar and should be handled as launcher/WebView2/app issues.
+- Updated README.md to list all current built-in sedan visual IDs and traffic vehicle definitions.
+- Updated CUSTOM_TRAFFIC_MODELS.md to describe the OBJ-based sedan rendering path.
+- Updated docs/RESOURCE_PACK_AUTHORING.md with the current sedan variants and resource authoring notes.
+- Updated resourcepacks/mtr-traffic-addon-sedan/README.md to describe the current exported resourcepack contents.
 
 Build verification
 ==================
 
 Last verified command:
 
-JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
-.\gradlew.bat build
+JAVA_HOME=C:\Program Files\Java\jdk-23
+.\gradlew.bat build --no-daemon
 
 Result:
 
@@ -185,4 +120,17 @@ BUILD SUCCESSFUL
 
 Current jar:
 
-D:\mta\build\libs\mtr-traffic-addon-26.5.A03.jar
+D:\mta\build\libs\mtr-traffic-addon-26.5.A04.jar
+
+Current resourcepack export:
+
+D:\mta\resourcepacks\mtr-traffic-addon-sedan.zip
+
+Known notes and remaining work
+==============================
+
+- The default Java on this machine should be checked before release builds; Fabric Loom requires Java 21+.
+- Auto signal behavior has been tested interactively, but larger intersections with many groups should still be tested in-game.
+- The new sedan mesh now renders correctly in-game after the OBJ renderer fixes, but other future mesh formats may need separate loader support.
+- The external resourcepack copy should not be enabled alongside the mod jar unless intentionally overriding embedded resources.
+- Existing worlds or spawn connector pools that referenced removed/old sedan IDs should be checked and refreshed if needed.

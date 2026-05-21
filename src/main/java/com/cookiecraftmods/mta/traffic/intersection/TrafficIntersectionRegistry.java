@@ -1,6 +1,7 @@
 package com.cookiecraftmods.mta.traffic.intersection;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
+import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
@@ -24,6 +25,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +39,12 @@ public final class TrafficIntersectionRegistry {
 	private static final Map<String, TrafficIntersectionDefinition> DEFINITIONS = new LinkedHashMap<>();
 	private static final double STOP_LOOKAHEAD_METERS = 48.0D;
 	private static final double STOP_BUFFER_METERS = 5.0D;
+	private static final double AUTO_DEMAND_LOOKAHEAD_METERS = STOP_LOOKAHEAD_METERS + STOP_BUFFER_METERS;
 	private static final int CLEARANCE_TICKS = 200;
+	private static final int AUTO_SWITCH_DELAY_TICKS = 60;
+	private static final int AUTO_YELLOW_TICKS = 60;
+	private static final int MIN_GREEN_TICKS = 300;
+	private static final Map<String, AutoSignalState> AUTO_SIGNAL_STATES = new HashMap<>();
 	private static boolean initialized;
 	private static MinecraftServer currentServer;
 
@@ -57,6 +64,7 @@ public final class TrafficIntersectionRegistry {
 			save(server);
 			currentServer = null;
 			DEFINITIONS.clear();
+			AUTO_SIGNAL_STATES.clear();
 		});
 		initialized = true;
 	}
@@ -74,7 +82,7 @@ public final class TrafficIntersectionRegistry {
 		final long maxY = Math.max(firstCorner.getY(), secondCorner.getY());
 		final long maxZ = Math.max(firstCorner.getZ(), secondCorner.getZ());
 		final String id = dimensionId + "|intersection|" + firstCorner.asLong() + "|" + secondCorner.asLong();
-		final TrafficIntersectionDefinition definition = new TrafficIntersectionDefinition(id, null, dimensionId, minX, minY, minZ, maxX, maxY, maxZ, true, true, 100, List.of(), List.of(), List.of());
+		final TrafficIntersectionDefinition definition = new TrafficIntersectionDefinition(id, null, dimensionId, minX, minY, minZ, maxX, maxY, maxZ, true, true, TrafficIntersectionSignalMode.MANUAL, MIN_GREEN_TICKS, List.of(), List.of(), List.of());
 		DEFINITIONS.put(id, definition);
 		save(level.getServer());
 		return definition;
@@ -83,6 +91,7 @@ public final class TrafficIntersectionRegistry {
 	public static boolean applyDashboardUpdate(String intersectionId, String action, int delta, String value) {
 		if ("delete".equals(action)) {
 			final boolean removed = DEFINITIONS.remove(intersectionId) != null;
+			AUTO_SIGNAL_STATES.remove(intersectionId);
 			if (removed && currentServer != null) {
 				save(currentServer);
 			}
@@ -96,21 +105,26 @@ public final class TrafficIntersectionRegistry {
 
 		final TrafficIntersectionDefinition updated = switch (action) {
 			case "name" -> copyWithName(definition, value);
-			case "enabled" -> copy(definition, !definition.isEnabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
-			case "auto_detect", "find_nodes" -> copy(definition, definition.enabled(), true, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
-			case "node_add" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), addManualNode(definition, value));
-			case "phase_duration" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), clamp(definition.effectivePhaseDurationTicks() + delta, 20, 2400), definition.phaseOrder(), updateGroupDuration(dashboardGroups(definition), value, delta), definition.nodes());
-			case "node_type" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.TYPE));
-			case "node_number" -> copy(definition, definition.enabled(), false, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.NUMBER));
-			case "phase_toggle" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), togglePhase(definition.phaseOrder(), delta), definition.groups(), definition.nodes());
-			case "phase_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
-			case "phase_assign" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
-			case "phase_remove" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), removePhase(definition.phaseOrder(), delta), removeGroupOrNode(dashboardGroups(definition), value, delta), definition.nodes());
-			case "phase_move" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), movePhase(definition.phaseOrder(), value, delta), moveGroup(dashboardGroups(definition), value, delta), definition.nodes());
-			case "group_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), addGroup(dashboardGroups(definition)), definition.nodes());
+			case "enabled" -> copy(definition, !definition.isEnabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+			case "signal_mode" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO ? TrafficIntersectionSignalMode.MANUAL : TrafficIntersectionSignalMode.AUTO, definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+			case "auto_detect", "find_nodes" -> copy(definition, definition.enabled(), true, definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+			case "node_add" -> copy(definition, definition.enabled(), false, definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), addManualNode(definition, value));
+			case "node_delete" -> deleteNode(definition, value);
+			case "phase_duration" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), clamp(definition.effectivePhaseDurationTicks() + delta, MIN_GREEN_TICKS, 2400), definition.phaseOrder(), updateGroupDuration(dashboardGroups(definition), value, delta), definition.nodes());
+			case "node_type" -> copy(definition, definition.enabled(), false, definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.TYPE));
+			case "node_number" -> copy(definition, definition.enabled(), false, definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), updateNearestNode(definition, value, delta, NodeUpdateMode.NUMBER));
+			case "phase_toggle" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), togglePhase(definition.phaseOrder(), delta), definition.groups(), definition.nodes());
+			case "phase_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
+			case "phase_assign" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), addPhase(definition.phaseOrder(), delta), addNodeToGroup(dashboardGroups(definition), value, delta), definition.nodes());
+			case "phase_remove" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), removePhase(definition.phaseOrder(), delta), removeGroupOrNode(dashboardGroups(definition), value, delta), definition.nodes());
+			case "phase_move" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), movePhase(definition.phaseOrder(), value, delta), moveGroup(dashboardGroups(definition), value, delta), definition.nodes());
+			case "group_add" -> copy(definition, definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), addGroup(dashboardGroups(definition)), definition.nodes());
 			default -> definition;
 		};
 		DEFINITIONS.put(intersectionId, updated);
+		if (!updated.isEnabled() || updated.effectiveSignalMode() != TrafficIntersectionSignalMode.AUTO) {
+			AUTO_SIGNAL_STATES.remove(intersectionId);
+		}
 		if (currentServer != null) {
 			save(currentServer);
 		}
@@ -167,6 +181,69 @@ public final class TrafficIntersectionRegistry {
 				}
 			}
 		}
+	}
+
+	public static void tickAutoSignals(String dimensionId, MtrGraph graph, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
+		if (dimensionId == null || DEFINITIONS.isEmpty()) {
+			AUTO_SIGNAL_STATES.clear();
+			return;
+		}
+
+		final Set<String> activeAutoIntersectionIds = new LinkedHashSet<>();
+		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
+			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.effectiveSignalMode() != TrafficIntersectionSignalMode.AUTO || definition.nodes().isEmpty()) {
+				continue;
+			}
+
+			final List<TrafficIntersectionGroup> groups = validGroups(definition);
+			if (groups.isEmpty()) {
+				AUTO_SIGNAL_STATES.remove(definition.id());
+				continue;
+			}
+
+			activeAutoIntersectionIds.add(definition.id());
+			final AutoSignalState state = AUTO_SIGNAL_STATES.computeIfAbsent(definition.id(), ignored -> new AutoSignalState());
+			if (state.activeGroupIndex >= groups.size()) {
+				state.activeGroupIndex = -1;
+				state.switchAtTick = Long.MAX_VALUE;
+				state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
+			}
+			state.queue.removeIf(index -> index < 0 || index >= groups.size());
+
+			final Set<Integer> demandedGroups = demandedGroupIndexes(definition, groups, graph, vehicles, mtrVehicles, serverTick);
+			for (Integer demandedGroup : demandedGroups) {
+				if (demandedGroup != state.activeGroupIndex) {
+					state.queue.add(demandedGroup);
+				}
+			}
+
+			if (state.activeGroupIndex < 0) {
+				activateNextQueuedGroup(definition, groups, state, demandedGroups, vehicles, mtrVehicles, graph, serverTick);
+				continue;
+			}
+
+			final boolean otherDemandQueued = !state.queue.isEmpty();
+			if (!otherDemandQueued) {
+				state.switchAtTick = Long.MAX_VALUE;
+				continue;
+			}
+
+			final boolean currentGroupHasVehicles = groupHasVehicles(definition, groups.get(state.activeGroupIndex), graph, vehicles, mtrVehicles, serverTick);
+			final boolean minimumGreenElapsed = serverTick - state.greenSinceTick >= MIN_GREEN_TICKS;
+			if (!currentGroupHasVehicles || minimumGreenElapsed) {
+				if (!currentGroupHasVehicles || state.switchAtTick == Long.MAX_VALUE) {
+					state.switchAtTick = currentGroupHasVehicles ? serverTick + AUTO_SWITCH_DELAY_TICKS : serverTick;
+				}
+				if (serverTick >= state.switchAtTick) {
+					beginAutoYellow(state, serverTick);
+					activateNextQueuedGroup(definition, groups, state, demandedGroups, vehicles, mtrVehicles, graph, serverTick);
+				}
+			} else {
+				state.switchAtTick = Long.MAX_VALUE;
+			}
+		}
+
+		AUTO_SIGNAL_STATES.keySet().removeIf(id -> !activeAutoIntersectionIds.contains(id));
 	}
 
 	public static List<MtrRailBlock> mtrBlockedRails(String dimensionId, MtrGraph graph, long serverTick) {
@@ -260,6 +337,179 @@ public final class TrafficIntersectionRegistry {
 		return Optional.empty();
 	}
 
+	private static void activateNextQueuedGroup(TrafficIntersectionDefinition definition, List<TrafficIntersectionGroup> groups, AutoSignalState state, Set<Integer> demandedGroups, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, MtrGraph graph, long serverTick) {
+		if (serverTick < state.yellowUntilTick) {
+			return;
+		}
+		if (!intersectionIsEmpty(definition, vehicles, mtrVehicles, graph, serverTick)) {
+			return;
+		}
+
+		Integer nextGroupIndex = pollNextGroupWithDemand(state, demandedGroups);
+		if (nextGroupIndex == null && state.activeGroupIndex < 0) {
+			for (int i = 0; i < groups.size(); i++) {
+				if (demandedGroups.contains(i)) {
+					nextGroupIndex = i;
+					break;
+				}
+			}
+		}
+		if (nextGroupIndex == null) {
+			return;
+		}
+
+		state.activeGroupIndex = nextGroupIndex;
+		state.greenSinceTick = serverTick;
+		state.switchAtTick = Long.MAX_VALUE;
+		state.yellowUntilTick = 0L;
+	}
+
+	private static void beginAutoYellow(AutoSignalState state, long serverTick) {
+		state.activeGroupIndex = -1;
+		state.switchAtTick = Long.MAX_VALUE;
+		state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
+	}
+
+	private static Integer pollNextGroupWithDemand(AutoSignalState state, Set<Integer> demandedGroups) {
+		while (!state.queue.isEmpty()) {
+			final Integer nextGroupIndex = state.queue.iterator().next();
+			state.queue.remove(nextGroupIndex);
+			if (demandedGroups.contains(nextGroupIndex)) {
+				return nextGroupIndex;
+			}
+		}
+		return null;
+	}
+
+	private static Set<Integer> demandedGroupIndexes(TrafficIntersectionDefinition definition, List<TrafficIntersectionGroup> groups, MtrGraph graph, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
+		final Set<Integer> demandedGroups = new LinkedHashSet<>();
+		for (TrafficVehicle vehicle : vehicles) {
+			approachingInNumber(definition, vehicle).ifPresent(inNumber -> addGroupsForNodeNumber(groups, inNumber, demandedGroups));
+		}
+		if (graph != null && !graph.isEmpty()) {
+			for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
+				if (serverTick - mtrVehicle.lastTick() <= 5) {
+					approachingInNumber(definition, graph, mtrVehicle).ifPresent(inNumber -> addGroupsForNodeNumber(groups, inNumber, demandedGroups));
+				}
+			}
+		}
+		return demandedGroups;
+	}
+
+	private static Optional<Integer> approachingInNumber(TrafficIntersectionDefinition definition, TrafficVehicle vehicle) {
+		final List<TrafficRouteSegment> segments = vehicle.route().segments();
+		if (segments.isEmpty() || vehicle.segmentIndex() < 0 || vehicle.segmentIndex() >= segments.size()) {
+			return Optional.empty();
+		}
+
+		double distanceFromVehicle = -vehicle.distanceOnSegmentMeters();
+		for (int i = vehicle.segmentIndex(); i < segments.size(); i++) {
+			final TrafficRouteSegment segment = segments.get(i);
+			distanceFromVehicle += segment.lengthMeters();
+			if (distanceFromVehicle > AUTO_DEMAND_LOOKAHEAD_METERS) {
+				return Optional.empty();
+			}
+			if (isEntering(definition, segment)) {
+				return inNumberForEntry(definition, segment);
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<Integer> approachingInNumber(TrafficIntersectionDefinition definition, MtrGraph graph, TrafficManager.MtrSignalVehicle mtrVehicle) {
+		for (MtrGraphEdge edge : graph.edges()) {
+			if (!edge.railId().equals(mtrVehicle.connectorId()) || !isEntering(definition, edge)) {
+				continue;
+			}
+
+			final double distanceToEntry = Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters());
+			if (distanceToEntry <= AUTO_DEMAND_LOOKAHEAD_METERS) {
+				return inNumberForEntry(definition, edge);
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static boolean groupHasVehicles(TrafficIntersectionDefinition definition, TrafficIntersectionGroup group, MtrGraph graph, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
+		for (TrafficVehicle vehicle : vehicles) {
+			final Optional<Integer> inNumber = approachingInNumber(definition, vehicle);
+			if (inNumber.isPresent() && group.nodeNumbers().contains(inNumber.get())) {
+				return true;
+			}
+		}
+		if (graph != null && !graph.isEmpty()) {
+			for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
+				final Optional<Integer> inNumber = serverTick - mtrVehicle.lastTick() <= 5 ? approachingInNumber(definition, graph, mtrVehicle) : Optional.empty();
+				if (inNumber.isPresent() && group.nodeNumbers().contains(inNumber.get())) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private static boolean intersectionIsEmpty(TrafficIntersectionDefinition definition, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, MtrGraph graph, long serverTick) {
+		for (TrafficVehicle vehicle : vehicles) {
+			if (vehicleBlocksIntersectionClearance(definition, vehicle)) {
+				return false;
+			}
+		}
+
+		if (graph == null || graph.isEmpty()) {
+			return true;
+		}
+		for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
+			if (serverTick - mtrVehicle.lastTick() > 5) {
+				continue;
+			}
+			for (MtrGraphEdge edge : graph.edges()) {
+				if (edge.railId().equals(mtrVehicle.connectorId()) && mtrVehicleBlocksIntersectionClearance(definition, edge, mtrVehicle)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private static boolean vehicleBlocksIntersectionClearance(TrafficIntersectionDefinition definition, TrafficVehicle vehicle) {
+		final com.cookiecraftmods.mta.traffic.runtime.TrafficVehiclePosition position = vehicle.currentPosition();
+		if (!definition.contains(position.x(), position.y(), position.z())) {
+			return false;
+		}
+
+		final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+		if (segment == null || !isEntering(definition, segment)) {
+			return true;
+		}
+
+		final double stopLineTolerance = STOP_BUFFER_METERS + vehicle.definition().lengthMeters() * 0.5D + 1.0D;
+		return vehicle.distanceToEndOfCurrentSegmentMeters() > stopLineTolerance;
+	}
+
+	private static boolean mtrVehicleBlocksIntersectionClearance(TrafficIntersectionDefinition definition, MtrGraphEdge edge, TrafficManager.MtrSignalVehicle mtrVehicle) {
+		final double progress = edge.lengthMeters() <= 0.0D ? 0.0D : Math.min(1.0D, Math.max(0.0D, mtrVehicle.distanceOnSegmentMeters() / edge.lengthMeters()));
+		final double x = edge.from().x() + (edge.to().x() - edge.from().x()) * progress;
+		final double y = edge.from().y() + (edge.to().y() - edge.from().y()) * progress;
+		final double z = edge.from().z() + (edge.to().z() - edge.from().z()) * progress;
+		if (!definition.contains(x, y, z)) {
+			return false;
+		}
+		if (!isEntering(definition, edge)) {
+			return true;
+		}
+
+		final double stopLineTolerance = STOP_BUFFER_METERS + mtrVehicle.lengthMeters() * 0.5D + 1.0D;
+		return Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters()) > stopLineTolerance;
+	}
+
+	private static void addGroupsForNodeNumber(List<TrafficIntersectionGroup> groups, int nodeNumber, Set<Integer> demandedGroups) {
+		for (int i = 0; i < groups.size(); i++) {
+			if (groups.get(i).nodeNumbers().contains(nodeNumber)) {
+				demandedGroups.add(i);
+			}
+		}
+	}
+
 	private static List<TrafficIntersectionNode> detectBoundaryNodes(TrafficIntersectionDefinition definition, MtrGraph graph) {
 		final Map<String, TrafficIntersectionNode> nodesByKey = new LinkedHashMap<>();
 		for (MtrGraphEdge edge : graph.edges()) {
@@ -323,6 +573,14 @@ public final class TrafficIntersectionRegistry {
 			.distinct()
 			.sorted()
 			.toList();
+		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
+			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
+			final List<TrafficIntersectionGroup> validGroups = validGroups(definition, inNumbers);
+			if (state == null || state.activeGroupIndex < 0 || state.activeGroupIndex >= validGroups.size()) {
+				return List.of();
+			}
+			return validGroups.get(state.activeGroupIndex).nodeNumbers();
+		}
 		final List<TrafficIntersectionGroup> groups = effectiveGroups(definition, inNumbers);
 		if (!groups.isEmpty()) {
 			final List<TrafficIntersectionGroup> validGroups = groups.stream()
@@ -383,6 +641,23 @@ public final class TrafficIntersectionRegistry {
 			.toList();
 	}
 
+	private static List<TrafficIntersectionGroup> validGroups(TrafficIntersectionDefinition definition) {
+		final List<Integer> inNumbers = definition.nodes().stream()
+			.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
+			.map(TrafficIntersectionNode::number)
+			.distinct()
+			.sorted()
+			.toList();
+		return validGroups(definition, inNumbers);
+	}
+
+	private static List<TrafficIntersectionGroup> validGroups(TrafficIntersectionDefinition definition, List<Integer> inNumbers) {
+		return effectiveGroups(definition, inNumbers).stream()
+			.map(group -> new TrafficIntersectionGroup(group.name(), group.effectiveGreenDurationTicks(), group.nodeNumbers().stream().filter(inNumbers::contains).distinct().toList()))
+			.filter(group -> !group.nodeNumbers().isEmpty())
+			.toList();
+	}
+
 	private static boolean isEntering(TrafficIntersectionDefinition definition, TrafficRouteSegment segment) {
 		return !definition.contains(segment.startX(), segment.startY(), segment.startZ()) && definition.contains(segment.endX(), segment.endY(), segment.endZ());
 	}
@@ -404,16 +679,16 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static TrafficIntersectionDefinition copyWithNodes(TrafficIntersectionDefinition definition, List<TrafficIntersectionNode> nodes) {
-		return new TrafficIntersectionDefinition(definition.id(), definition.name(), definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), nodes);
+		return new TrafficIntersectionDefinition(definition.id(), definition.name(), definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), nodes);
 	}
 
-	private static TrafficIntersectionDefinition copy(TrafficIntersectionDefinition definition, Boolean enabled, Boolean autoDetectNodes, Integer phaseDurationTicks, List<Integer> phaseOrder, List<TrafficIntersectionGroup> groups, List<TrafficIntersectionNode> nodes) {
-		return new TrafficIntersectionDefinition(definition.id(), definition.name(), definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), enabled, autoDetectNodes, phaseDurationTicks, phaseOrder, groups, nodes);
+	private static TrafficIntersectionDefinition copy(TrafficIntersectionDefinition definition, Boolean enabled, Boolean autoDetectNodes, TrafficIntersectionSignalMode signalMode, Integer phaseDurationTicks, List<Integer> phaseOrder, List<TrafficIntersectionGroup> groups, List<TrafficIntersectionNode> nodes) {
+		return new TrafficIntersectionDefinition(definition.id(), definition.name(), definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), enabled, autoDetectNodes, signalMode, phaseDurationTicks, phaseOrder, groups, nodes);
 	}
 
 	private static TrafficIntersectionDefinition copyWithName(TrafficIntersectionDefinition definition, String name) {
 		final String trimmedName = name == null ? null : name.trim();
-		return new TrafficIntersectionDefinition(definition.id(), trimmedName == null || trimmedName.isBlank() ? null : trimmedName, definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), definition.enabled(), definition.autoDetectNodes(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
+		return new TrafficIntersectionDefinition(definition.id(), trimmedName == null || trimmedName.isBlank() ? null : trimmedName, definition.dimensionId(), definition.minX(), definition.minY(), definition.minZ(), definition.maxX(), definition.maxY(), definition.maxZ(), definition.enabled(), definition.autoDetectNodes(), definition.signalMode(), definition.phaseDurationTicks(), definition.phaseOrder(), definition.groups(), definition.nodes());
 	}
 
 	private static List<TrafficIntersectionNode> updateNearestNode(TrafficIntersectionDefinition definition, String encodedNode, int delta, NodeUpdateMode mode) {
@@ -459,6 +734,34 @@ public final class TrafficIntersectionRegistry {
 		updatedNodes.add(new TrafficIntersectionNode(targetNode.x(), targetNode.y(), targetNode.z(), TrafficIntersectionNodeType.IN, nextNumber));
 		updatedNodes.sort(nodeComparator());
 		return updatedNodes;
+	}
+
+	private static TrafficIntersectionDefinition deleteNode(TrafficIntersectionDefinition definition, String encodedNode) {
+		final MtrNodeKey targetNode = decodeNode(encodedNode);
+		if (targetNode == null) {
+			return definition;
+		}
+
+		TrafficIntersectionNode removedNode = null;
+		final List<TrafficIntersectionNode> updatedNodes = new ArrayList<>(definition.nodes().size());
+		for (TrafficIntersectionNode node : definition.nodes()) {
+			if (node.x() == targetNode.x() && node.y() == targetNode.y() && node.z() == targetNode.z()) {
+				removedNode = node;
+			} else {
+				updatedNodes.add(node);
+			}
+		}
+		if (removedNode == null) {
+			return definition;
+		}
+
+		List<Integer> updatedPhaseOrder = definition.phaseOrder();
+		List<TrafficIntersectionGroup> updatedGroups = definition.groups();
+		if (removedNode.type() == TrafficIntersectionNodeType.IN && !hasInNodeNumber(updatedNodes, removedNode.number())) {
+			updatedPhaseOrder = removePhase(definition.phaseOrder(), removedNode.number());
+			updatedGroups = removeNodeFromGroups(definition.groups(), removedNode.number());
+		}
+		return copy(definition, definition.enabled(), false, definition.signalMode(), definition.phaseDurationTicks(), updatedPhaseOrder, updatedGroups, updatedNodes);
 	}
 
 	private static List<Integer> togglePhase(List<Integer> phaseOrder, int number) {
@@ -566,6 +869,25 @@ public final class TrafficIntersectionRegistry {
 		return updatedGroups;
 	}
 
+	private static List<TrafficIntersectionGroup> removeNodeFromGroups(List<TrafficIntersectionGroup> groups, int nodeNumber) {
+		final List<TrafficIntersectionGroup> updatedGroups = new ArrayList<>(groups.size());
+		for (TrafficIntersectionGroup group : groups) {
+			final List<Integer> nodeNumbers = new ArrayList<>(group.nodeNumbers());
+			nodeNumbers.remove(Integer.valueOf(nodeNumber));
+			updatedGroups.add(new TrafficIntersectionGroup(group.name(), group.effectiveGreenDurationTicks(), nodeNumbers));
+		}
+		return updatedGroups;
+	}
+
+	private static boolean hasInNodeNumber(List<TrafficIntersectionNode> nodes, int number) {
+		for (TrafficIntersectionNode node : nodes) {
+			if (node.type() == TrafficIntersectionNodeType.IN && node.number() == number) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static List<TrafficIntersectionGroup> moveGroup(List<TrafficIntersectionGroup> groups, String rawIndex, int delta) {
 		final int index = parseIndex(rawIndex);
 		final List<TrafficIntersectionGroup> updatedGroups = new ArrayList<>(groups);
@@ -623,6 +945,14 @@ public final class TrafficIntersectionRegistry {
 
 	private static int clamp(int value, int min, int max) {
 		return Math.max(min, Math.min(max, value));
+	}
+
+	private static final class AutoSignalState {
+		private int activeGroupIndex = -1;
+		private long greenSinceTick;
+		private long switchAtTick = Long.MAX_VALUE;
+		private long yellowUntilTick;
+		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
 	}
 
 	private enum NodeUpdateMode {

@@ -62,4 +62,4 @@ src/main/resources/assets/mtr_traffic_addon_sedan/
 src/main/resources/data/mtr_traffic_addon_sedan/
 ```
 
-The sample registers `mta_sedan`, `mta_sedan_white`, `mta_sedan_green`, and `mta_sedan_red` for the Traffic Dashboard vehicle pool.
+The sample registers eight `mta_sedan*` variants for the Traffic Dashboard vehicle pool and uses OBJ traffic model definitions for the supplied mesh renderer.

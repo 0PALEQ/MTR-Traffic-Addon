@@ -138,6 +138,7 @@ public final class TrafficDashboardNetworking {
 			buffer.writeLong(intersection.maxZ());
 			buffer.writeBoolean(intersection.enabled());
 			buffer.writeBoolean(intersection.autoDetectNodes());
+			buffer.writeEnum(intersection.signalMode());
 			buffer.writeVarInt(intersection.phaseDurationTicks());
 			buffer.writeVarInt(intersection.phaseOrder().size());
 			for (Integer phase : intersection.phaseOrder()) {
@@ -211,6 +212,7 @@ public final class TrafficDashboardNetworking {
 				definition.maxZ(),
 				definition.isEnabled(),
 				definition.effectiveAutoDetectNodes(),
+				definition.effectiveSignalMode(),
 				definition.effectivePhaseDurationTicks(),
 				definition.phaseOrder(),
 				definition.groups(),

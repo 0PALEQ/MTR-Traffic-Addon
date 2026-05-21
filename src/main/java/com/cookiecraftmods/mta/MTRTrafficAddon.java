@@ -1,5 +1,6 @@
 package com.cookiecraftmods.mta;
 
+import com.cookiecraftmods.mta.compat.MagicCompat;
 import com.cookiecraftmods.mta.init.ModCreativeTabs;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
@@ -26,6 +27,9 @@ public class MTRTrafficAddon implements ModInitializer {
 		TrafficDashboardNetworking.initialize();
 		TrafficNetworking.initialize();
 		TrafficManager.initialize();
+		if (MagicCompat.isMagicLoaded()) {
+			LOGGER.info("MAGIC addon detected; enabling compatibility guard for MTR traffic blocker probes.");
+		}
 		LOGGER.info("Initialized {}", MOD_ID);
 	}
 }

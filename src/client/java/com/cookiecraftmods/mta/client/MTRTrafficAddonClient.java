@@ -7,11 +7,13 @@ import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
+import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -29,6 +31,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		ClientMtrVehicleResourceRegistry.initialize();
+		CustomTrafficModelRegistry.initialize();
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 
@@ -108,6 +111,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				final long maxZ = buffer.readLong();
 				final boolean enabled = buffer.readBoolean();
 				final boolean autoDetectNodes = buffer.readBoolean();
+				final TrafficIntersectionSignalMode signalMode = buffer.readEnum(TrafficIntersectionSignalMode.class);
 				final int phaseDurationTicks = buffer.readVarInt();
 				final int phaseOrderSize = buffer.readVarInt();
 				final List<Integer> phaseOrder = new ArrayList<>(phaseOrderSize);
@@ -137,7 +141,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 						buffer.readVarInt()
 					));
 				}
-				intersections.add(new ClientTrafficIntersectionEntry(id, name, minX, minY, minZ, maxX, maxY, maxZ, enabled, autoDetectNodes, phaseDurationTicks, phaseOrder, groups, nodes));
+				intersections.add(new ClientTrafficIntersectionEntry(id, name, minX, minY, minZ, maxX, maxY, maxZ, enabled, autoDetectNodes, signalMode, phaseDurationTicks, phaseOrder, groups, nodes));
 			}
 
 			client.execute(() -> TrafficDashboardClient.openOrUpdate(entries, intersections));

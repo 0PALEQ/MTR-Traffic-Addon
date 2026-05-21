@@ -39,6 +39,8 @@ public final class TrafficManager {
 	private static final int FAILED_SPAWN_RETRY_TICKS = 100;
 	private static final int SPAWN_DIAGNOSTIC_INTERVAL_TICKS = 100;
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
+	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;
+	private static final long SIGNAL_TICK_MILLIS = 50L;
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
 	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new HashMap<>();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
@@ -47,6 +49,8 @@ public final class TrafficManager {
 	private static MtrGraph latestGraph;
 	private static String latestGraphDimensionId;
 	private static long lastServerTick;
+	private static long signalClockTick;
+	private static long signalClockWallMillis;
 	private static boolean graphRefreshInFlight;
 	private static final Map<String, Long> LAST_SPAWN_TICK_BY_POINT_ID = new HashMap<>();
 	private static final Map<String, Long> LAST_FAILED_SPAWN_TICK_BY_POINT_ID = new HashMap<>();
@@ -97,6 +101,8 @@ public final class TrafficManager {
 
 		final double lookaheadEnd = railProgress + Math.max(0.0D, additionalDistance) + Math.max(0, stoppingSpace);
 		double closestDistance = Double.POSITIVE_INFINITY;
+		final long signalTick = currentSignalTick();
+		final boolean includeTrafficVehicleObstacles = signalTick - lastServerTick <= PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS;
 
 		for (int i = startIndex; i < path.size(); i++) {
 			final PathData pathData = path.get(i);
@@ -104,32 +110,34 @@ public final class TrafficManager {
 				break;
 			}
 
-			if (isRedMtrEntry(pathData)) {
+			if (isRedMtrEntry(pathData, signalTick)) {
 				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
 			}
 
-			for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
-				final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
-				final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
-				if (railDirectionMatch == null) {
-					continue;
-				}
+			if (includeTrafficVehicleObstacles) {
+				for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
+					final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+					final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
+					if (railDirectionMatch == null) {
+						continue;
+					}
 
-				final double pathStart = pathData.getStartDistance();
-				final double pathEnd = pathData.getEndDistance();
-				final double segmentLength = Math.max(0.001D, segment.lengthMeters());
-				final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
-				final double vehicleCenter = railDirectionMatch.sameDirection()
-					? pathStart + (pathEnd - pathStart) * progress
-					: pathEnd - (pathEnd - pathStart) * progress;
-				final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
-				final double vehicleStart = vehicleCenter - vehicleHalfLength;
-				final double vehicleEnd = vehicleCenter + vehicleHalfLength;
-				if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
-					continue;
-				}
+					final double pathStart = pathData.getStartDistance();
+					final double pathEnd = pathData.getEndDistance();
+					final double segmentLength = Math.max(0.001D, segment.lengthMeters());
+					final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
+					final double vehicleCenter = railDirectionMatch.sameDirection()
+						? pathStart + (pathEnd - pathStart) * progress
+						: pathEnd - (pathEnd - pathStart) * progress;
+					final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
+					final double vehicleStart = vehicleCenter - vehicleHalfLength;
+					final double vehicleEnd = vehicleCenter + vehicleHalfLength;
+					if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
+						continue;
+					}
 
-				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, vehicleStart));
+					closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, vehicleStart));
+				}
 			}
 		}
 
@@ -212,6 +220,23 @@ public final class TrafficManager {
 		return Optional.ofNullable(closestObstacle);
 	}
 
+	private static List<MtrSignalVehicle> mtrSignalVehicles() {
+		if (MTR_VEHICLE_OCCUPANCY.isEmpty()) {
+			return List.of();
+		}
+
+		return MTR_VEHICLE_OCCUPANCY.values().stream()
+			.map(occupancy -> new MtrSignalVehicle(
+				occupancy.connectorId(),
+				occupancy.reverseConnectorId(),
+				occupancy.distanceOnSegmentMeters(),
+				occupancy.segmentLengthMeters(),
+				occupancy.lengthMeters(),
+				occupancy.lastTick()
+			))
+			.toList();
+	}
+
 	private static void onServerStarted(MinecraftServer server) {
 		ACTIVE_VEHICLES.clear();
 		MTR_VEHICLE_OCCUPANCY.clear();
@@ -220,6 +245,8 @@ public final class TrafficManager {
 		graphRefreshInFlight = false;
 		lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
 		lastServerTick = 0;
+		signalClockTick = 0;
+		signalClockWallMillis = System.currentTimeMillis();
 		LAST_SPAWN_TICK_BY_POINT_ID.clear();
 		LAST_FAILED_SPAWN_TICK_BY_POINT_ID.clear();
 		lastSpawnDiagnosticTick = Long.MIN_VALUE / 4;
@@ -227,9 +254,12 @@ public final class TrafficManager {
 
 	private static void tick(MinecraftServer server) {
 		lastServerTick = server.getTickCount();
+		syncSignalClockToServerTick(lastServerTick);
 		refreshGraphSnapshot(server);
 		spawnBootstrapVehicleIfPossible();
 		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> lastServerTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
+		final long signalTick = currentSignalTick();
+		TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 		if (ACTIVE_VEHICLES.isEmpty()) {
 			return;
@@ -237,7 +267,7 @@ public final class TrafficManager {
 
 		final double tickDurationSeconds = 1.0D / 20.0D;
 		final Map<TrafficVehicle, Double> allowedSpeeds = TrafficSpacingResolver.resolveAllowedSpeeds(ACTIVE_VEHICLES);
-		TrafficIntersectionRegistry.applySignalSpeedLimits(ACTIVE_VEHICLES, allowedSpeeds, lastServerTick);
+		TrafficIntersectionRegistry.applySignalSpeedLimits(ACTIVE_VEHICLES, allowedSpeeds, signalTick);
 		ACTIVE_VEHICLES.removeIf(vehicle -> vehicle.tick(tickDurationSeconds, allowedSpeeds.getOrDefault(vehicle, 0.0D)));
 	}
 
@@ -647,7 +677,7 @@ public final class TrafficManager {
 		return null;
 	}
 
-	private static boolean isRedMtrEntry(PathData pathData) {
+	private static boolean isRedMtrEntry(PathData pathData, long signalTick) {
 		if (latestGraphDimensionId == null || latestGraph == null || latestGraph.isEmpty()) {
 			return false;
 		}
@@ -665,13 +695,46 @@ public final class TrafficManager {
 				edge.to().x(),
 				edge.to().y(),
 				edge.to().z(),
-				lastServerTick
+				signalTick
 			);
 		}
 		return false;
 	}
 
+	private static synchronized long currentSignalTick() {
+		final long nowMillis = System.currentTimeMillis();
+		if (signalClockWallMillis <= 0L) {
+			signalClockWallMillis = nowMillis;
+			return signalClockTick;
+		}
+
+		final long elapsedTicks = Math.max(0L, (nowMillis - signalClockWallMillis) / SIGNAL_TICK_MILLIS);
+		if (elapsedTicks > 0L) {
+			signalClockTick += elapsedTicks;
+			signalClockWallMillis += elapsedTicks * SIGNAL_TICK_MILLIS;
+		}
+		return signalClockTick;
+	}
+
+	private static synchronized void syncSignalClockToServerTick(long serverTick) {
+		currentSignalTick();
+		if (serverTick > signalClockTick) {
+			signalClockTick = serverTick;
+			signalClockWallMillis = System.currentTimeMillis();
+		}
+	}
+
 	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {
+	}
+
+	public record MtrSignalVehicle(
+		String connectorId,
+		String reverseConnectorId,
+		double distanceOnSegmentMeters,
+		double segmentLengthMeters,
+		double lengthMeters,
+		long lastTick
+	) {
 	}
 
 	private record MtrVehicleOccupancy(

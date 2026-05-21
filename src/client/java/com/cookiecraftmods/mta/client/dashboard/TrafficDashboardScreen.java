@@ -3,6 +3,7 @@ package com.cookiecraftmods.mta.client.dashboard;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
@@ -104,6 +105,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private final ButtonWidgetExtension buttonSectionIntersections;
 	private final ButtonWidgetExtension buttonAddIntersection;
 	private final ButtonWidgetExtension buttonDeleteIntersection;
+	private final ButtonWidgetExtension buttonIntersectionSignalMode;
 	private final ButtonWidgetExtension buttonAutoDetectIntersection;
 	private final ButtonWidgetExtension buttonIntersectionGroupAdd;
 	private final ButtonWidgetExtension buttonIntersectionGroupPrevious;
@@ -111,6 +113,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private final ButtonWidgetExtension buttonToggleIntersectionNodeType;
 	private final ButtonWidgetExtension buttonIntersectionNodeMinus;
 	private final ButtonWidgetExtension buttonIntersectionNodePlus;
+	private final ButtonWidgetExtension buttonIntersectionNodeDelete;
 	private final ButtonWidgetExtension buttonIntersectionPhaseMinus;
 	private final ButtonWidgetExtension buttonIntersectionPhasePlus;
 	private final ButtonWidgetExtension buttonIntersectionPhaseAdd;
@@ -262,6 +265,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			refreshButtons();
 		});
 		buttonDeleteIntersection = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Del"), button -> sendIntersectionUpdate("delete", 0, null));
+		buttonIntersectionSignalMode = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Mode"), button -> sendIntersectionUpdate("signal_mode", 0, null));
 		buttonAutoDetectIntersection = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Auto"), button -> sendIntersectionUpdate("find_nodes", 0, null));
 		buttonIntersectionGroupAdd = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("+ Group"), button -> {
 			final ClientTrafficIntersectionEntry intersection = selectedIntersection();
@@ -284,6 +288,11 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonToggleIntersectionNodeType = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("IN/OUT"), button -> sendIntersectionUpdate("node_type", 0, selectedIntersectionNode));
 		buttonIntersectionNodeMinus = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("# -"), button -> sendIntersectionUpdate("node_number", -1, selectedIntersectionNode));
 		buttonIntersectionNodePlus = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("# +"), button -> sendIntersectionUpdate("node_number", 1, selectedIntersectionNode));
+		buttonIntersectionNodeDelete = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("Delete Node"), button -> {
+			sendIntersectionUpdate("node_delete", 0, selectedIntersectionNode);
+			selectedIntersectionNode = null;
+			refreshButtons();
+		});
 		buttonIntersectionPhaseMinus = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("-1s"), button -> sendIntersectionUpdate("phase_duration", -20, String.valueOf(selectedPhaseIndex)));
 		buttonIntersectionPhasePlus = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("+1s"), button -> sendIntersectionUpdate("phase_duration", 20, String.valueOf(selectedPhaseIndex)));
 		buttonIntersectionPhaseAdd = new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal("+ Node"), button -> {
@@ -400,6 +409,11 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			if (groupCount > 0 && (selectedPhaseIndex < 0 || selectedPhaseIndex >= groupCount)) {
 				selectedPhaseIndex = 0;
 			}
+			if (selectedIntersectionNode != null && !containsNode(selectedIntersection, selectedIntersectionNode)) {
+				selectedIntersectionNode = null;
+			}
+		} else {
+			selectedIntersectionNode = null;
 		}
 		entryPage = Math.min(entryPage, maxEntryPage());
 		vehiclePage = Math.min(vehiclePage, maxVehiclePage());
@@ -509,6 +523,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		addChild(new ClickableWidget(buttonSectionIntersections));
 		addChild(new ClickableWidget(buttonAddIntersection));
 		addChild(new ClickableWidget(buttonDeleteIntersection));
+		addChild(new ClickableWidget(buttonIntersectionSignalMode));
 		addChild(new ClickableWidget(buttonAutoDetectIntersection));
 		addChild(new ClickableWidget(buttonIntersectionGroupAdd));
 		addChild(new ClickableWidget(buttonIntersectionGroupPrevious));
@@ -516,6 +531,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		addChild(new ClickableWidget(buttonToggleIntersectionNodeType));
 		addChild(new ClickableWidget(buttonIntersectionNodeMinus));
 		addChild(new ClickableWidget(buttonIntersectionNodePlus));
+		addChild(new ClickableWidget(buttonIntersectionNodeDelete));
 		addChild(new ClickableWidget(buttonIntersectionPhaseMinus));
 		addChild(new ClickableWidget(buttonIntersectionPhasePlus));
 		addChild(new ClickableWidget(buttonIntersectionPhaseAdd));
@@ -622,8 +638,9 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		IDrawing.setPositionAndWidth(buttonDeleteIntersection, x + (third + gap) * 2, y, width - (third + gap) * 2);
 		y += 24;
 
-		IDrawing.setPositionAndWidth(buttonAutoDetectIntersection, x, y, half);
-		IDrawing.setPositionAndWidth(buttonIntersectionGroupAdd, x + half + gap, y, width - half - gap);
+		IDrawing.setPositionAndWidth(buttonIntersectionSignalMode, x, y, third);
+		IDrawing.setPositionAndWidth(buttonAutoDetectIntersection, x + third + gap, y, third);
+		IDrawing.setPositionAndWidth(buttonIntersectionGroupAdd, x + (third + gap) * 2, y, width - (third + gap) * 2);
 		y += 24;
 
 		IDrawing.setPositionAndWidth(buttonIntersectionPhaseUp, x, y, third);
@@ -636,9 +653,11 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		IDrawing.setPositionAndWidth(buttonIntersectionPhaseRemove, x + (third + gap) * 2, y, width - (third + gap) * 2);
 		y += 24;
 
-		IDrawing.setPositionAndWidth(buttonToggleIntersectionNodeType, x, y, third);
-		IDrawing.setPositionAndWidth(buttonIntersectionNodeMinus, x + third + gap, y, third);
-		IDrawing.setPositionAndWidth(buttonIntersectionNodePlus, x + (third + gap) * 2, y, width - (third + gap) * 2);
+		final int quarter = (width - gap * 3) / 4;
+		IDrawing.setPositionAndWidth(buttonToggleIntersectionNodeType, x, y, quarter);
+		IDrawing.setPositionAndWidth(buttonIntersectionNodeDelete, x + quarter + gap, y, quarter);
+		IDrawing.setPositionAndWidth(buttonIntersectionNodeMinus, x + (quarter + gap) * 2, y, quarter);
+		IDrawing.setPositionAndWidth(buttonIntersectionNodePlus, x + (quarter + gap) * 3, y, width - (quarter + gap) * 3);
 	}
 
 	private int connectorControlsStartY() {
@@ -859,7 +878,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		y = LIST_START_Y + 66;
 		final List<TrafficIntersectionGroup> groups = effectiveGroups(intersection);
 		final TrafficIntersectionGroup selectedGroup = selectedGroup(intersection);
-		graphicsHolder.drawText("Nodes: " + intersection.nodes().size() + "  Active group: " + (selectedGroup == null ? "none" : selectedGroup.name() + " (" + (selectedPhaseIndex + 1) + "/" + groups.size() + ")"), x, y, ARGB_WHITE, false, GraphicsHolder.getDefaultLight());
+		graphicsHolder.drawText("Mode: " + modeLabel(intersection) + "  Nodes: " + intersection.nodes().size() + "  Active group: " + (selectedGroup == null ? "none" : selectedGroup.name() + " (" + (selectedPhaseIndex + 1) + "/" + groups.size() + ")"), x, y, ARGB_WHITE, false, GraphicsHolder.getDefaultLight());
 		y += 12;
 		if (selectedGroup == null) {
 			graphicsHolder.drawText("Create a group to control green phases.", x, y, ARGB_WARNING, false, GraphicsHolder.getDefaultLight());
@@ -868,7 +887,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			graphicsHolder.drawText("Green: " + String.format("%.1f", selectedGroup.effectiveGreenDurationTicks() / 20.0D) + "s  IN node numbers: " + shorten(selectedGroup.nodeNumbers().toString(), 22), x, y, ARGB_OK, false, GraphicsHolder.getDefaultLight());
 			y += 12;
 		}
-		graphicsHolder.drawText("Clearance: 10.0s all-red between groups", x, y, ARGB_WARNING, false, GraphicsHolder.getDefaultLight());
+		graphicsHolder.drawText(intersection.signalMode() == TrafficIntersectionSignalMode.AUTO ? "Auto: queued demand, 3.0s delay, 3.0s yellow minimum" : "Manual: fixed cycle, 10.0s all-red between groups", x, y, ARGB_WARNING, false, GraphicsHolder.getDefaultLight());
 		y += 12;
 		graphicsHolder.drawText("Selected node: " + shorten(selectedNodeLabel(intersection), 34), x, y, ARGB_MUTED_BLUE, false, GraphicsHolder.getDefaultLight());
 		y += 12;
@@ -880,7 +899,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		final String hint = panelMode == PanelMode.VEHICLE_POOL
 			? "Vehicle pool edits apply to the selected spawn connector."
 			: dashboardSection == DashboardSection.INTERSECTIONS
-				? "Draw areas, inspect detected nodes, and tune signal groups."
+				? "Draw areas, choose Manual or Auto, and tune signal groups."
 				: "Review connector health, spawn limits, and vehicle pools.";
 		graphicsHolder.drawText(hint, 8, TITLE_Y + 12, ARGB_LIGHT_GRAY, false, GraphicsHolder.getDefaultLight());
 	}
@@ -934,7 +953,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 				final int sourceIndex = intersections.indexOf(listEntry);
 				button.visible = true;
 				button.active = true;
-				button.setMessage(Component.literal((sourceIndex == selectedIntersectionIndex ? "> " : "") + shorten(listEntry.effectiveName(), 24) + " | " + (listEntry.enabled() ? "on" : "off") + " | " + listEntry.nodes().size() + " nodes"));
+				button.setMessage(Component.literal((sourceIndex == selectedIntersectionIndex ? "> " : "") + shorten(listEntry.effectiveName(), 21) + " | " + modeLabel(listEntry) + " | " + (listEntry.enabled() ? "on" : "off") + " | " + listEntry.nodes().size() + " nodes"));
 			} else if (!vehiclePoolMode && dashboardSection == DashboardSection.CONNECTORS && entryIndex < entries.size()) {
 				final ClientTrafficDashboardEntry listEntry = entries.get(entryIndex);
 				button.visible = true;
@@ -994,6 +1013,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonOpenVehiclePool.active = connectorMode && isSpawn;
 		buttonClearVehicles.active = connectorMode;
 		buttonDeleteIntersection.active = intersectionMode && hasIntersection;
+		buttonIntersectionSignalMode.active = intersectionMode && hasIntersection;
 		buttonAutoDetectIntersection.active = intersectionMode && hasIntersection;
 		buttonIntersectionGroupAdd.active = intersectionMode && hasIntersection;
 		buttonIntersectionGroupPrevious.active = false;
@@ -1001,6 +1021,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonToggleIntersectionNodeType.active = intersectionMode && hasSelectedNode;
 		buttonIntersectionNodeMinus.active = intersectionMode && hasSelectedNode;
 		buttonIntersectionNodePlus.active = intersectionMode && hasSelectedNode;
+		buttonIntersectionNodeDelete.active = intersectionMode && hasSelectedNode;
 		buttonIntersectionPhaseMinus.active = intersectionMode && hasSelectedGroup;
 		buttonIntersectionPhasePlus.active = intersectionMode && hasSelectedGroup;
 		buttonIntersectionPhaseAdd.active = intersectionMode && hasSelectedGroup && selectedNodeNumber() != null && selectedNodeIsIn();
@@ -1022,11 +1043,13 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonSpawnIntervalMinus.setMessage(Component.literal("Interval -1s"));
 		buttonSpawnIntervalPlus.setMessage(Component.literal("Interval +1s"));
 		buttonDeleteIntersection.setMessage(Component.literal("Delete"));
+		buttonIntersectionSignalMode.setMessage(Component.literal(intersection != null && intersection.signalMode() == TrafficIntersectionSignalMode.AUTO ? "Mode: Auto" : "Mode: Manual"));
 		buttonAutoDetectIntersection.setMessage(Component.literal("Find Nodes"));
 		buttonIntersectionGroupAdd.setMessage(Component.literal("Add Group"));
 		buttonIntersectionGroupPrevious.setMessage(Component.literal(""));
 		buttonIntersectionGroupNext.setMessage(Component.literal(""));
 		buttonToggleIntersectionNodeType.setMessage(Component.literal("Node Type"));
+		buttonIntersectionNodeDelete.setMessage(Component.literal("Delete Node"));
 		buttonIntersectionNodeMinus.setMessage(Component.literal("Node # -"));
 		buttonIntersectionNodePlus.setMessage(Component.literal("Node # +"));
 		buttonIntersectionPhaseMinus.setMessage(Component.literal("Green -1s"));
@@ -1093,6 +1116,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonSpawnIntervalMinus.visible = connectorMode && isSpawn;
 		buttonSpawnIntervalPlus.visible = connectorMode && isSpawn;
 		buttonDeleteIntersection.visible = intersectionMode;
+		buttonIntersectionSignalMode.visible = intersectionMode;
 		buttonAutoDetectIntersection.visible = intersectionMode;
 		buttonIntersectionGroupAdd.visible = intersectionMode;
 		buttonIntersectionGroupPrevious.visible = false;
@@ -1100,6 +1124,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonToggleIntersectionNodeType.visible = intersectionMode;
 		buttonIntersectionNodeMinus.visible = intersectionMode;
 		buttonIntersectionNodePlus.visible = intersectionMode;
+		buttonIntersectionNodeDelete.visible = intersectionMode;
 		buttonIntersectionPhaseMinus.visible = intersectionMode;
 		buttonIntersectionPhasePlus.visible = intersectionMode;
 		buttonIntersectionPhaseAdd.visible = intersectionMode;
@@ -1225,12 +1250,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			}
 		}
 
-		if (nodeX >= intersection.minX() && nodeX <= intersection.maxX() && nodeZ >= intersection.minZ() && nodeZ <= intersection.maxZ()) {
-			final int y = Minecraft.getInstance().player == null ? (int) Math.round((intersection.minY() + intersection.maxY()) / 2.0D) : Minecraft.getInstance().player.blockPosition().getY();
-			selectedIntersectionNode = nodeX + "," + y + "," + nodeZ;
-			sendIntersectionUpdate("node_add", 0, selectedIntersectionNode);
-			refreshButtons();
-		}
 	}
 
 	private String selectedIntersectionNode() {
@@ -1254,6 +1273,15 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			}
 		}
 		return null;
+	}
+
+	private static boolean containsNode(ClientTrafficIntersectionEntry intersection, String encodedNode) {
+		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node : intersection.nodes()) {
+			if (encodedNode.equals(node.x() + "," + node.y() + "," + node.z())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean selectedNodeIsIn() {
@@ -1311,6 +1339,10 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 	private static String phaseOrderLabel(List<Integer> phaseOrder) {
 		return phaseOrder.isEmpty() ? "none" : phaseOrder.stream().map(value -> "#" + value).collect(java.util.stream.Collectors.joining(" -> "));
+	}
+
+	private static String modeLabel(ClientTrafficIntersectionEntry intersection) {
+		return intersection.signalMode() == TrafficIntersectionSignalMode.AUTO ? "Auto" : "Manual";
 	}
 
 	private String selectedNodeLabel(ClientTrafficIntersectionEntry intersection) {

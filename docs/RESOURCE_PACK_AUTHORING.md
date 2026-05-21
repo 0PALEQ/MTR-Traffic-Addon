@@ -39,11 +39,11 @@ Do not copy `pack.mcmeta` into the mod resources. The mod jar is already a resou
   "vehicles": [
     {
       "id": "mta_sedan",
-      "name": "MTA Sedan",
-      "color": "F2F2F2",
+      "name": "MTA Mesh Sedan",
+      "color": "5E5E5E",
       "transportMode": "TRAIN",
-      "length": 5.625,
-      "width": 2.0,
+      "length": 4.2,
+      "width": 1.8,
       "models": [
         {
           "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
@@ -53,8 +53,8 @@ Do not copy `pack.mcmeta` into the mod resources. The mod jar is already a resou
           "flipTextureV": false
         }
       ],
-      "bogie1Position": -1.8,
-      "bogie2Position": 1.8,
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
       "couplingPadding1": 0.0,
       "couplingPadding2": 0.0,
       "hasGangway1": false,
@@ -78,7 +78,7 @@ For a single Blockbench group named `main`:
 
 ```json
 {
-  "modelYOffset": -0.75,
+  "modelYOffset": 0.0,
   "parts": [
     {
       "names": ["main"],
@@ -97,7 +97,7 @@ Rules:
 - Use `condition: "NORMAL"` for always-visible exterior road vehicles.
 - Use `renderStage: "EXTERIOR"` for the body.
 - Include `type: "NORMAL"` for normal static geometry.
-- Tune vertical placement with `modelYOffset`; for the current sedan, `-0.75` places it correctly on the road.
+- Tune vertical placement with `modelYOffset`; for the current mesh sedan, `0.0` places it correctly on the road.
 
 ## Position Definitions
 
@@ -123,7 +123,7 @@ Use `positionsFlipped` only for parts that are intentionally mirrored/flipped, a
 
 For multiple colors using the same model:
 
-1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_green`, and `mta_sedan_red`.
+1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_black`, `mta_sedan_green`, `mta_sedan_red`, `mta_sedan_blue`, `mta_sedan_brown`, and `mta_sedan_orange`.
 2. Reuse the same `.bbmodel`, model properties, and position definitions.
 3. Change only `textureResource`, `id`, `name`, `color`, and optional tags.
 4. Add matching traffic vehicle definitions under `data/<namespace>/traffic_vehicles/*.json`.
@@ -132,14 +132,14 @@ Example traffic definition:
 
 ```json
 {
-  "id": "sedan_white",
+  "id": "sedan_red",
   "type": "car",
-  "lengthMeters": 4.8,
-  "maxSpeedKph": 65.0,
+  "lengthMeters": 4.2,
+  "maxSpeedKph": 70.0,
   "accelerationMetersPerSecondSquared": 1.8,
   "brakingMetersPerSecondSquared": 3.0,
-  "spawnWeight": 20,
-  "visualId": "mta_sedan_white"
+  "spawnWeight": 10,
+  "visualId": "mta_sedan_red"
 }
 ```
 
@@ -187,5 +187,9 @@ Parts missing from normal MTR vehicles:
 
 - `mta_sedan`
 - `mta_sedan_white`
+- `mta_sedan_black`
 - `mta_sedan_green`
 - `mta_sedan_red`
+- `mta_sedan_blue`
+- `mta_sedan_brown`
+- `mta_sedan_orange`

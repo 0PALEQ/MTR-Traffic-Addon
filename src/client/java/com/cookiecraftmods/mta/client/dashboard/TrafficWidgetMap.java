@@ -185,7 +185,6 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 				return true;
 			}
 			if (worldPos.leftDouble() >= selectedIntersection.minX() && worldPos.leftDouble() <= selectedIntersection.maxX() && worldPos.rightDouble() >= selectedIntersection.minZ() && worldPos.rightDouble() <= selectedIntersection.maxZ()) {
-				nodeClickConsumer.accept(selectedIntersection, (long) Math.floor(worldPos.leftDouble()), (long) Math.floor(worldPos.rightDouble()));
 				return true;
 			}
 		}

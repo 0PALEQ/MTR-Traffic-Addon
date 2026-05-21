@@ -10,6 +10,7 @@ public record ClientTrafficRenderContext(
 	MultiBufferSource bufferSource,
 	VertexConsumer lineConsumer,
 	VertexConsumer fillConsumer,
-	Vec3 cameraPosition
+	Vec3 cameraPosition,
+	double maxRenderDistanceBlocks
 ) {
 }

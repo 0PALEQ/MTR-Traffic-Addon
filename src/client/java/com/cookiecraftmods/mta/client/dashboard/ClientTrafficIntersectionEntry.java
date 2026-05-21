@@ -2,6 +2,7 @@ package com.cookiecraftmods.mta.client.dashboard;
 
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
 
 import java.util.List;
 
@@ -16,6 +17,7 @@ public record ClientTrafficIntersectionEntry(
 	long maxZ,
 	boolean enabled,
 	boolean autoDetectNodes,
+	TrafficIntersectionSignalMode signalMode,
 	int phaseDurationTicks,
 	List<Integer> phaseOrder,
 	List<TrafficIntersectionGroup> groups,

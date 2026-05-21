@@ -9,11 +9,11 @@ public record TrafficIntersectionGroup(
 ) {
 	public TrafficIntersectionGroup {
 		name = name == null || name.isBlank() ? "Group" : name;
-		greenDurationTicks = greenDurationTicks == null || greenDurationTicks <= 0 ? 100 : greenDurationTicks;
+		greenDurationTicks = greenDurationTicks == null || greenDurationTicks <= 0 ? 300 : Math.max(300, greenDurationTicks);
 		nodeNumbers = nodeNumbers == null ? List.of() : List.copyOf(nodeNumbers);
 	}
 
 	public int effectiveGreenDurationTicks() {
-		return greenDurationTicks == null || greenDurationTicks <= 0 ? 100 : greenDurationTicks;
+		return greenDurationTicks == null || greenDurationTicks <= 0 ? 300 : Math.max(300, greenDurationTicks);
 	}
 }

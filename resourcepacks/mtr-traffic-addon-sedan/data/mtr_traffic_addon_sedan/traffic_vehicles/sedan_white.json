@@ -1,10 +1,10 @@
 {
   "id": "sedan_white",
   "type": "car",
-  "lengthMeters": 4.8,
-  "maxSpeedKph": 65.0,
+  "lengthMeters": 4.2,
+  "maxSpeedKph": 70.0,
   "accelerationMetersPerSecondSquared": 1.8,
   "brakingMetersPerSecondSquared": 3.0,
-  "spawnWeight": 20,
+  "spawnWeight": 8,
   "visualId": "mta_sedan_white"
 }

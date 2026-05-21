@@ -10,8 +10,23 @@ Current built-in sedan visuals:
 
 - `mta_sedan`
 - `mta_sedan_white`
+- `mta_sedan_black`
 - `mta_sedan_green`
 - `mta_sedan_red`
+- `mta_sedan_blue`
+- `mta_sedan_brown`
+- `mta_sedan_orange`
+
+Current built-in traffic vehicle definitions:
+
+- `sedan_01`
+- `sedan_white`
+- `sedan_black`
+- `sedan_green`
+- `sedan_red`
+- `sedan_blue`
+- `sedan_brown`
+- `sedan_orange`
 
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
 

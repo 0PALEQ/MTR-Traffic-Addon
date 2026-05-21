@@ -14,6 +14,7 @@ public record TrafficIntersectionDefinition(
 	long maxZ,
 	Boolean enabled,
 	Boolean autoDetectNodes,
+	TrafficIntersectionSignalMode signalMode,
 	Integer phaseDurationTicks,
 	List<Integer> phaseOrder,
 	List<TrafficIntersectionGroup> groups,
@@ -34,11 +35,15 @@ public record TrafficIntersectionDefinition(
 	}
 
 	public int effectivePhaseDurationTicks() {
-		return phaseDurationTicks == null || phaseDurationTicks <= 0 ? 100 : phaseDurationTicks;
+		return phaseDurationTicks == null || phaseDurationTicks <= 0 ? 300 : Math.max(300, phaseDurationTicks);
 	}
 
 	public boolean effectiveAutoDetectNodes() {
 		return autoDetectNodes == null || autoDetectNodes;
+	}
+
+	public TrafficIntersectionSignalMode effectiveSignalMode() {
+		return signalMode == null ? TrafficIntersectionSignalMode.MANUAL : signalMode;
 	}
 
 	public boolean contains(double x, double y, double z) {

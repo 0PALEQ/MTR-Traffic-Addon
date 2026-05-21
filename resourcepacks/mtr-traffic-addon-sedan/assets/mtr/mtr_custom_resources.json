@@ -2,13 +2,13 @@
   "vehicles": [
     {
       "id": "mta_sedan",
-      "name": "MTA Sedan",
-      "color": "3F4A56",
+      "name": "MTA Mesh Sedan",
+      "color": "796F6C",
       "transportMode": "TRAIN",
-      "length": 5.625,
-      "width": 2.0,
-      "description": "Sedan model for MTR Traffic Addon road traffic.",
-      "tags": ["family:mtr_traffic_addon_sedan", "type:road"],
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:gray", "model:mesh"],
       "models": [
         {
           "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
@@ -18,8 +18,8 @@
           "flipTextureV": false
         }
       ],
-      "bogie1Position": -1.8,
-      "bogie2Position": 1.8,
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
       "couplingPadding1": 0.0,
       "couplingPadding2": 0.0,
       "hasGangway1": false,
@@ -29,13 +29,13 @@
     },
     {
       "id": "mta_sedan_white",
-      "name": "MTA Sedan White",
-      "color": "F2F2F2",
+      "name": "MTA Mesh Sedan White",
+      "color": "796F6C",
       "transportMode": "TRAIN",
-      "length": 5.625,
-      "width": 2.0,
-      "description": "White sedan model for MTR Traffic Addon road traffic.",
-      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:white"],
+      "length": 4.2,
+      "width": 1.8,
+      "description": "White mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:white", "model:mesh"],
       "models": [
         {
           "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
@@ -45,8 +45,35 @@
           "flipTextureV": false
         }
       ],
-      "bogie1Position": -1.8,
-      "bogie2Position": 1.8,
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_black",
+      "name": "MTA Mesh Sedan Black",
+      "color": "4E4441",
+      "transportMode": "TRAIN",
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Black mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:black", "model:mesh"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_black.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
       "couplingPadding1": 0.0,
       "couplingPadding2": 0.0,
       "hasGangway1": false,
@@ -56,13 +83,13 @@
     },
     {
       "id": "mta_sedan_green",
-      "name": "MTA Sedan Green",
-      "color": "2ECC71",
+      "name": "MTA Mesh Sedan Green",
+      "color": "75855E",
       "transportMode": "TRAIN",
-      "length": 5.625,
-      "width": 2.0,
-      "description": "Green sedan model for MTR Traffic Addon road traffic.",
-      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:green"],
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Green mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:green", "model:mesh"],
       "models": [
         {
           "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
@@ -72,8 +99,8 @@
           "flipTextureV": false
         }
       ],
-      "bogie1Position": -1.8,
-      "bogie2Position": 1.8,
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
       "couplingPadding1": 0.0,
       "couplingPadding2": 0.0,
       "hasGangway1": false,
@@ -83,13 +110,13 @@
     },
     {
       "id": "mta_sedan_red",
-      "name": "MTA Sedan Red",
-      "color": "A90F0F",
+      "name": "MTA Mesh Sedan Red",
+      "color": "8D625F",
       "transportMode": "TRAIN",
-      "length": 5.625,
-      "width": 2.0,
-      "description": "Red sedan model for MTR Traffic Addon road traffic.",
-      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:red"],
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Red mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:red", "model:mesh"],
       "models": [
         {
           "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
@@ -99,8 +126,89 @@
           "flipTextureV": false
         }
       ],
-      "bogie1Position": -1.8,
-      "bogie2Position": 1.8,
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_blue",
+      "name": "MTA Mesh Sedan Blue",
+      "color": "6D7080",
+      "transportMode": "TRAIN",
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Blue mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:blue", "model:mesh"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_blue.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_brown",
+      "name": "MTA Mesh Sedan Brown",
+      "color": "8E7664",
+      "transportMode": "TRAIN",
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Brown mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:brown", "model:mesh"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_brown.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_orange",
+      "name": "MTA Mesh Sedan Orange",
+      "color": "786574",
+      "transportMode": "TRAIN",
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Orange mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:orange", "model:mesh"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_orange.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
       "couplingPadding1": 0.0,
       "couplingPadding2": 0.0,
       "hasGangway1": false,
