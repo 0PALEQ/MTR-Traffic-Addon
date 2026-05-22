@@ -41,6 +41,7 @@ public final class TrafficManager {
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
 	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;
 	private static final long SIGNAL_TICK_MILLIS = 50L;
+	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
 	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new HashMap<>();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
@@ -49,6 +50,7 @@ public final class TrafficManager {
 	private static MtrGraph latestGraph;
 	private static String latestGraphDimensionId;
 	private static long lastServerTick;
+	private static long lastTrafficTickWallMillis;
 	private static long signalClockTick;
 	private static long signalClockWallMillis;
 	private static boolean graphRefreshInFlight;
@@ -96,6 +98,9 @@ public final class TrafficManager {
 
 	public static double mtrVehicleBlockedDistance(List<PathData> path, int startIndex, double railProgress, double additionalDistance, int stoppingSpace) {
 		if (path == null || path.isEmpty() || startIndex < 0 || startIndex >= path.size()) {
+			return -1.0D;
+		}
+		if (!trafficTicksAreFreshForMtr()) {
 			return -1.0D;
 		}
 
@@ -245,6 +250,7 @@ public final class TrafficManager {
 		graphRefreshInFlight = false;
 		lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
 		lastServerTick = 0;
+		lastTrafficTickWallMillis = System.currentTimeMillis();
 		signalClockTick = 0;
 		signalClockWallMillis = System.currentTimeMillis();
 		LAST_SPAWN_TICK_BY_POINT_ID.clear();
@@ -254,6 +260,7 @@ public final class TrafficManager {
 
 	private static void tick(MinecraftServer server) {
 		lastServerTick = server.getTickCount();
+		lastTrafficTickWallMillis = System.currentTimeMillis();
 		syncSignalClockToServerTick(lastServerTick);
 		refreshGraphSnapshot(server);
 		spawnBootstrapVehicleIfPossible();
@@ -726,6 +733,11 @@ public final class TrafficManager {
 
 	public static long signalTick() {
 		return currentSignalTick();
+	}
+
+	public static boolean trafficTicksAreFreshForMtr() {
+		final long lastTickMillis = lastTrafficTickWallMillis;
+		return lastTickMillis > 0L && System.currentTimeMillis() - lastTickMillis <= MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS;
 	}
 
 	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {

@@ -45,6 +45,7 @@ public final class TrafficIntersectionRegistry {
 	private static final int AUTO_SWITCH_DELAY_TICKS = 60;
 	private static final int AUTO_YELLOW_TICKS = 60;
 	private static final int MIN_GREEN_TICKS = 300;
+	private static final long AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS = 1500L;
 	private static final Map<String, AutoSignalState> AUTO_SIGNAL_STATES = new HashMap<>();
 	private static boolean initialized;
 	private static MinecraftServer currentServer;
@@ -226,6 +227,7 @@ public final class TrafficIntersectionRegistry {
 
 			activeAutoIntersectionIds.add(definition.id());
 			final AutoSignalState state = AUTO_SIGNAL_STATES.computeIfAbsent(definition.id(), ignored -> new AutoSignalState());
+			state.lastTickWallMillis = System.currentTimeMillis();
 			if (state.activeGroupIndex >= groups.size()) {
 				state.activeGroupIndex = -1;
 				state.switchAtTick = Long.MAX_VALUE;
@@ -270,42 +272,8 @@ public final class TrafficIntersectionRegistry {
 		AUTO_SIGNAL_STATES.keySet().removeIf(id -> !activeAutoIntersectionIds.contains(id));
 	}
 
-	public static List<MtrRailBlock> mtrBlockedRails(String dimensionId, MtrGraph graph, long serverTick) {
-		if (dimensionId == null || graph == null || graph.isEmpty() || DEFINITIONS.isEmpty()) {
-			return List.of();
-		}
-
-		final Set<MtrRailBlock> rails = new LinkedHashSet<>();
-		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
-			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.nodes().isEmpty()) {
-				continue;
-			}
-
-			final List<Integer> activeInNumbers = activeInNumbers(definition, serverTick);
-			for (MtrGraphEdge edge : graph.edges()) {
-				if (!isEntering(definition, edge)) {
-					continue;
-				}
-
-				final Optional<Integer> inNumber = inNumberForEntry(definition, edge);
-				if (inNumber.isPresent() && !activeInNumbers.contains(inNumber.get())) {
-					rails.add(new MtrRailBlock(
-						edge.railId(),
-						edge.from().x(),
-						edge.from().y(),
-						edge.from().z(),
-						edge.to().x(),
-						edge.to().y(),
-						edge.to().z()
-					));
-				}
-			}
-		}
-		return List.copyOf(rails);
-	}
-
 	public static boolean isRedMtrEntry(String dimensionId, long startX, long startY, long startZ, long endX, long endY, long endZ, long serverTick) {
-		if (dimensionId == null || DEFINITIONS.isEmpty()) {
+		if (dimensionId == null || DEFINITIONS.isEmpty() || !TrafficManager.trafficTicksAreFreshForMtr()) {
 			return false;
 		}
 
@@ -323,17 +291,6 @@ public final class TrafficIntersectionRegistry {
 			}
 		}
 		return false;
-	}
-
-	public record MtrRailBlock(
-		String railId,
-		long startX,
-		long startY,
-		long startZ,
-		long endX,
-		long endY,
-		long endZ
-	) {
 	}
 
 	private static Optional<Double> distanceToRedEntry(TrafficIntersectionDefinition definition, TrafficVehicle vehicle, long serverTick) {
@@ -605,7 +562,10 @@ public final class TrafficIntersectionRegistry {
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
 			final List<TrafficIntersectionGroup> validGroups = validGroups(definition, inNumbers);
-			if (state == null || state.activeGroupIndex < 0 || state.activeGroupIndex >= validGroups.size()) {
+			if (state == null || !autoSignalStateIsFresh(state)) {
+				return inNumbers;
+			}
+			if (state.activeGroupIndex < 0 || state.activeGroupIndex >= validGroups.size()) {
 				return List.of();
 			}
 			return validGroups.get(state.activeGroupIndex).nodeNumbers();
@@ -669,7 +629,7 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
-			if (state == null || serverTick >= state.yellowUntilTick) {
+			if (state == null || !autoSignalStateIsFresh(state) || serverTick >= state.yellowUntilTick) {
 				return List.of();
 			}
 			return state.yellowNodeNumbers.stream()
@@ -714,6 +674,10 @@ public final class TrafficIntersectionRegistry {
 			return List.of();
 		}
 		return List.of(phaseOrder.get((int) (tickInCycle / phaseBlockTicks)));
+	}
+
+	private static boolean autoSignalStateIsFresh(AutoSignalState state) {
+		return state.lastTickWallMillis > 0L && System.currentTimeMillis() - state.lastTickWallMillis <= AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS;
 	}
 
 	private static List<TrafficIntersectionGroup> effectiveGroups(TrafficIntersectionDefinition definition, List<Integer> inNumbers) {
@@ -1040,6 +1004,7 @@ public final class TrafficIntersectionRegistry {
 		private long greenSinceTick;
 		private long switchAtTick = Long.MAX_VALUE;
 		private long yellowUntilTick;
+		private long lastTickWallMillis;
 		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
 		private final LinkedHashSet<Integer> yellowNodeNumbers = new LinkedHashSet<>();
 	}

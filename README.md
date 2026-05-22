@@ -2,6 +2,24 @@
 
 Addon for minecraft transit railway featuring car traffic generation.
 
+## Beta Status
+
+Current beta line: `26.5.B01`.
+
+This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, traffic light blocks, manual/auto intersection signals, bundled sedan vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+
+## Build
+
+Fabric Loom `1.16.1` requires Gradle to run on JDK 21 or newer. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+
+Example local build:
+
+```powershell
+$env:JAVA_HOME='C:\Users\opale\.jdks\ms-21.0.8'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat build
+```
+
 ## Built-In Vehicle Resources
 
 The sedan vehicle resources are bundled inside the mod jar. Players do not need to install the old standalone sedan resource pack when using a current build.

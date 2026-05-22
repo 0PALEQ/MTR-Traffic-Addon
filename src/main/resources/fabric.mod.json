@@ -26,11 +26,7 @@
 		]
 	},
 	"mixins": [
-		"mtr-traffic-addon.mixins.json",
-		{
-			"config": "mtr-traffic-addon.client.mixins.json",
-			"environment": "client"
-		}
+		"mtr-traffic-addon.mixins.json"
 	],
 	"depends": {
 		"fabricloader": ">=0.19.2",
