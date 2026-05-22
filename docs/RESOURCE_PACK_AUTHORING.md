@@ -154,7 +154,7 @@ Once a pack is stable, embed it:
 5. Verify the jar contains the embedded files:
 
 ```powershell
-jar tf build\libs\mtr-traffic-addon-26.5.B01.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan"
+jar tf build\libs\mta-26.5.B01-fabric-1.20.1.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan"
 ```
 
 After embedding, remove old external copies of the same pack from `.minecraft/resourcepacks`; stale external packs can override the embedded resources.
