@@ -1,5 +1,9 @@
 {
   "itemGroup.mtr-traffic-addon.main": "MTR Traffic Addon",
+  "block.mtr-traffic-addon.traffic_lights_pole_bottom": "Traffic Lights Pole Bottom",
+  "block.mtr-traffic-addon.traffic_lights_pole": "Traffic Lights Pole",
+  "block.mtr-traffic-addon.traffic_lights_vertical_pole": "Traffic Lights Vertical Pole",
+  "block.mtr-traffic-addon.traffic_lights_primary": "Traffic Lights Primary",
   "item.mtr-traffic-addon.traffic_dashboard": "Traffic Dashboard",
   "item.mtr-traffic-addon.traffic_spawn_connector": "Traffic Spawn Connector",
   "item.mtr-traffic-addon.traffic_despawn_connector": "Traffic Despawn Connector",

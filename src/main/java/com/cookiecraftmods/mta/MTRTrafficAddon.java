@@ -1,10 +1,14 @@
 package com.cookiecraftmods.mta;
 
 import com.cookiecraftmods.mta.compat.MagicCompat;
+import com.cookiecraftmods.mta.init.ModBlockEntities;
+import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.init.ModCreativeTabs;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionRegistry;
+import com.cookiecraftmods.mta.traffic.lights.TrafficLightBindingRegistry;
+import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
 import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
@@ -19,11 +23,15 @@ public class MTRTrafficAddon implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		ModBlocks.initialize();
+		ModBlockEntities.initialize();
 		ModItems.initialize();
 		ModCreativeTabs.initialize();
 		TrafficVehicleDefinitionRegistry.initialize();
 		TrafficSavedPointRegistry.initialize();
 		TrafficIntersectionRegistry.initialize();
+		TrafficLightBindingNetworking.initialize();
+		TrafficLightBindingRegistry.initialize();
 		TrafficDashboardNetworking.initialize();
 		TrafficNetworking.initialize();
 		TrafficManager.initialize();

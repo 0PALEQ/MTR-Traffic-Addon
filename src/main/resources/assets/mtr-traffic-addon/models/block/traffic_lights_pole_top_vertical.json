@@ -1,0 +1,40 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made by opaleq with Blockbench",
+	"texture_size": [64, 64],
+	"textures": {
+		"0": "mtr-traffic-addon:block/traffic_lights_pole",
+		"particle": "mtr-traffic-addon:block/traffic_lights_pole"
+	},
+	"elements": [
+		{
+			"from": [0, 9, 6],
+			"to": [16, 13, 10],
+			"rotation": {"angle": 0, "axis": "y", "origin": [12, -2, 7]},
+			"faces": {
+				"north": {"uv": [6, 0, 10, 1], "texture": "#0"},
+				"east": {"uv": [6, 6, 7, 7], "texture": "#0"},
+				"south": {"uv": [6, 1, 10, 2], "texture": "#0"},
+				"west": {"uv": [6, 7, 7, 8], "texture": "#0"},
+				"up": {"uv": [10, 3, 6, 2], "texture": "#0"},
+				"down": {"uv": [10, 3, 6, 4], "texture": "#0"}
+			}
+		}
+	],
+	"display": {
+		"gui": {
+			"rotation": [15, 157, 0],
+			"translation": [0, 0.25, 0],
+			"scale": [0.8, 0.8, 0.8]
+		}
+	},
+	"groups": [
+		{
+			"name": "group",
+			"origin": [7, 0, 7],
+			"scope": 0,
+			"color": 0,
+			"children": [0]
+		}
+	]
+}

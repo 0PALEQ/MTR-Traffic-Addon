@@ -5,23 +5,29 @@ import com.cookiecraftmods.mta.client.dashboard.ClientTrafficIntersectionEntry;
 import com.cookiecraftmods.mta.client.dashboard.TrafficDashboardClient;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
+import com.cookiecraftmods.mta.client.lights.TrafficLightBindingScreen;
+import com.cookiecraftmods.mta.client.lights.TrafficLightEmissiveRenderer;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
 import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
+import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
+import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
 import net.minecraft.client.renderer.item.ItemProperties;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -32,6 +38,14 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		ClientMtrVehicleResourceRegistry.initialize();
 		CustomTrafficModelRegistry.initialize();
+		TrafficLightEmissiveRenderer.initialize();
+		BlockRenderLayerMap.INSTANCE.putBlocks(
+			RenderType.cutout(),
+			ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM,
+			ModBlocks.TRAFFIC_LIGHTS_POLE,
+			ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE,
+			ModBlocks.TRAFFIC_LIGHTS_PRIMARY
+		);
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 
@@ -145,6 +159,29 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			}
 
 			client.execute(() -> TrafficDashboardClient.openOrUpdate(entries, intersections));
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(TrafficLightBindingNetworking.OPEN_MENU_PACKET_ID, (client, handler, buffer, responseSender) -> {
+			final BlockPos blockPos = buffer.readBlockPos();
+			final int intersectionCount = buffer.readVarInt();
+			final List<TrafficLightBindingScreen.IntersectionOption> intersections = new ArrayList<>(intersectionCount);
+			for (int i = 0; i < intersectionCount; i++) {
+				final String id = buffer.readUtf();
+				final String name = buffer.readUtf();
+				final int nodeCount = buffer.readVarInt();
+				final List<TrafficIntersectionNode> nodes = new ArrayList<>(nodeCount);
+				for (int j = 0; j < nodeCount; j++) {
+					nodes.add(new TrafficIntersectionNode(
+						buffer.readLong(),
+						buffer.readLong(),
+						buffer.readLong(),
+						buffer.readEnum(TrafficIntersectionNodeType.class),
+						buffer.readVarInt()
+					));
+				}
+				intersections.add(new TrafficLightBindingScreen.IntersectionOption(id, name, nodes));
+			}
+			client.execute(() -> client.setScreen(new TrafficLightBindingScreen(blockPos, intersections)));
 		});
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {

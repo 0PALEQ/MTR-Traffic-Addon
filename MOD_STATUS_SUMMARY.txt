@@ -1,5 +1,5 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-05-21
+Updated: 2026-05-22
 Version covered: 26.5.A04
 
 Current working state
@@ -16,6 +16,73 @@ Current working state
   .\gradlew.bat build --no-daemon
 - In-game testing confirmed that the new sedan vehicles render, use the expected orientation, and no longer drive backwards.
 - In-game testing confirmed that the new Auto/Manual traffic signal mode work is usable, with follow-up fixes applied for yellow/all-red transitions and stuck stop-line vehicles.
+- Traffic light block work is implemented and the project currently builds successfully after the latest placement/glow fixes.
+
+Traffic dashboard item
+======================
+
+- Updated the traffic dashboard item model to use the supplied traffic_dashboard texture.
+- Replaced the old layer1 texture reference with:
+  assets/mtr-traffic-addon/textures/item/traffic_dashboard.png
+
+Traffic light blocks and assets
+===============================
+
+- Added traffic light pole block set:
+  - traffic_lights_pole_bottom
+  - traffic_lights_pole
+  - traffic_lights_vertical_pole
+  - traffic_lights_primary
+- Added block models and textures for the supplied traffic light assets.
+- Added traffic_lights_primary as the creative-tab traffic light block.
+- Added four signal variants for traffic light models:
+  - off
+  - red
+  - yellow
+  - green
+- Added matching variants for:
+  - standalone primary traffic lights
+  - traffic lights attached to the normal pole
+  - traffic lights attached to the vertical pole
+- Added model switching so attaching a traffic light to a pole changes the pole model into the with-lights variant.
+- Removed the unnecessary separate top/middle creative variants for attached lights; the normal pole switches model through blockstate instead.
+- Traffic light pole top still uses the connected top model only when it is connected to a vertical pole.
+- Restored the original/default full block hitboxes for pole blocks after the temporary custom shape experiment was reverted.
+- Updated vertical pole placement so it always faces the player when placed, regardless of which block face was clicked.
+
+Traffic light binding and signal behavior
+=========================================
+
+- Added brush interaction support for traffic lights.
+- Right-clicking a traffic light with the MTR brush inside an intersection opens a node selection screen.
+- The selection screen lists valid intersection node IDs for binding a traffic light.
+- OUT nodes are filtered out and cannot be selected for traffic light binding.
+- Bound traffic lights read the current intersection signal state and update their blockstate/model to match:
+  - red
+  - yellow
+  - green
+  - off
+- Added the same binding behavior for traffic lights attached to vertical poles.
+- Fixed yellow signal behavior so only the node/group currently transitioning becomes yellow, instead of every node turning yellow.
+
+Traffic light rendering fixes
+=============================
+
+- Added client-side emissive overlay rendering for lit traffic light lenses.
+- Added glow overlays for red, yellow, and green states.
+- Fixed black/opaque invisible model faces by putting traffic light blocks on the cutout render layer.
+- Fixed earlier issues where the entire traffic light model became emissive instead of only the active lens.
+- Fixed several incorrect glow overlay placements.
+- Latest fix changes the emissive overlay rotation for east/west facing models so the glowing element renders on the front of the traffic light instead of the back.
+- Traffic light blocks also emit block light while lit.
+
+License update
+==============
+
+- Changed the mod license away from CC0/public-domain style terms.
+- The current license reserves all rights.
+- Redistribution for commercial use is not allowed.
+- Free use in modpacks, showcases, videos, and similar content is allowed with proper credit.
 
 26.5.A04 changes since 26.5.A03
 ===============================
@@ -118,6 +185,10 @@ Result:
 
 BUILD SUCCESSFUL
 
+Last verified date:
+
+2026-05-22
+
 Current jar:
 
 D:\mta\build\libs\mtr-traffic-addon-26.5.A04.jar
@@ -134,3 +205,5 @@ Known notes and remaining work
 - The new sedan mesh now renders correctly in-game after the OBJ renderer fixes, but other future mesh formats may need separate loader support.
 - The external resourcepack copy should not be enabled alongside the mod jar unless intentionally overriding embedded resources.
 - Existing worlds or spawn connector pools that referenced removed/old sedan IDs should be checked and refreshed if needed.
+- Traffic light phase mechanics are intentionally still basic; more model/state variants are expected before implementing richer light-changing behavior.
+- Traffic light glow placement should still be checked in-game from all four facings after the latest east/west overlay rotation fix.

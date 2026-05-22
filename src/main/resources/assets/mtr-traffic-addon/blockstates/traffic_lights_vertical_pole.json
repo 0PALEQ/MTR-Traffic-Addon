@@ -1,0 +1,124 @@
+{
+    "variants":  {
+                     "facing=east,has_lights=false,signal=green":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                       "y":  90
+                                                                   },
+                     "facing=east,has_lights=false,signal=off":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                     "y":  90
+                                                                 },
+                     "facing=east,has_lights=false,signal=red":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                     "y":  90
+                                                                 },
+                     "facing=east,has_lights=false,signal=yellow":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                        "y":  90
+                                                                    },
+                     "facing=east,has_lights=true,signal=green":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_green",
+                                                                      "y":  90
+                                                                  },
+                     "facing=east,has_lights=true,signal=off":  {
+                                                                    "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights",
+                                                                    "y":  90
+                                                                },
+                     "facing=east,has_lights=true,signal=red":  {
+                                                                    "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_red",
+                                                                    "y":  90
+                                                                },
+                     "facing=east,has_lights=true,signal=yellow":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_yellow",
+                                                                       "y":  90
+                                                                   },
+                     "facing=north,has_lights=false,signal=green":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical"
+                                                                    },
+                     "facing=north,has_lights=false,signal=off":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical"
+                                                                  },
+                     "facing=north,has_lights=false,signal=red":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical"
+                                                                  },
+                     "facing=north,has_lights=false,signal=yellow":  {
+                                                                         "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical"
+                                                                     },
+                     "facing=north,has_lights=true,signal=green":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_green"
+                                                                   },
+                     "facing=north,has_lights=true,signal=off":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights"
+                                                                 },
+                     "facing=north,has_lights=true,signal=red":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_red"
+                                                                 },
+                     "facing=north,has_lights=true,signal=yellow":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_yellow"
+                                                                    },
+                     "facing=south,has_lights=false,signal=green":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                        "y":  180
+                                                                    },
+                     "facing=south,has_lights=false,signal=off":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                      "y":  180
+                                                                  },
+                     "facing=south,has_lights=false,signal=red":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                      "y":  180
+                                                                  },
+                     "facing=south,has_lights=false,signal=yellow":  {
+                                                                         "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                         "y":  180
+                                                                     },
+                     "facing=south,has_lights=true,signal=green":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_green",
+                                                                       "y":  180
+                                                                   },
+                     "facing=south,has_lights=true,signal=off":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights",
+                                                                     "y":  180
+                                                                 },
+                     "facing=south,has_lights=true,signal=red":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_red",
+                                                                     "y":  180
+                                                                 },
+                     "facing=south,has_lights=true,signal=yellow":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_yellow",
+                                                                        "y":  180
+                                                                    },
+                     "facing=west,has_lights=false,signal=green":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                       "y":  270
+                                                                   },
+                     "facing=west,has_lights=false,signal=off":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                     "y":  270
+                                                                 },
+                     "facing=west,has_lights=false,signal=red":  {
+                                                                     "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                     "y":  270
+                                                                 },
+                     "facing=west,has_lights=false,signal=yellow":  {
+                                                                        "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical",
+                                                                        "y":  270
+                                                                    },
+                     "facing=west,has_lights=true,signal=green":  {
+                                                                      "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_green",
+                                                                      "y":  270
+                                                                  },
+                     "facing=west,has_lights=true,signal=off":  {
+                                                                    "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights",
+                                                                    "y":  270
+                                                                },
+                     "facing=west,has_lights=true,signal=red":  {
+                                                                    "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_red",
+                                                                    "y":  270
+                                                                },
+                     "facing=west,has_lights=true,signal=yellow":  {
+                                                                       "model":  "mtr-traffic-addon:block/traffic_lights_pole_top_vertical_with_lights_yellow",
+                                                                       "y":  270
+                                                                   }
+                 }
+}

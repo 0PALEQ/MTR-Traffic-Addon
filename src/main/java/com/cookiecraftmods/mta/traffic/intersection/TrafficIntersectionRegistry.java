@@ -5,6 +5,7 @@ import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
+import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightSignalState;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficRouteSegment;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficVehicle;
 import com.google.gson.Gson;
@@ -71,6 +72,28 @@ public final class TrafficIntersectionRegistry {
 
 	public static Collection<TrafficIntersectionDefinition> getDefinitions() {
 		return List.copyOf(DEFINITIONS.values());
+	}
+
+	public static Optional<TrafficIntersectionDefinition> getDefinition(String intersectionId) {
+		return Optional.ofNullable(DEFINITIONS.get(intersectionId));
+	}
+
+	public static Optional<TrafficLightSignalState> signalState(String intersectionId, int nodeNumber, long serverTick) {
+		final TrafficIntersectionDefinition definition = DEFINITIONS.get(intersectionId);
+		if (definition == null || !definition.isEnabled() || definition.nodes().isEmpty() || nodeNumber <= 0) {
+			return Optional.empty();
+		}
+		final boolean knownNode = definition.nodes().stream().anyMatch(node -> node.type() == TrafficIntersectionNodeType.IN && node.number() == nodeNumber);
+		if (!knownNode) {
+			return Optional.empty();
+		}
+		if (activeInNumbers(definition, serverTick).contains(nodeNumber)) {
+			return Optional.of(TrafficLightSignalState.GREEN);
+		}
+		if (yellowInNumbers(definition, serverTick).contains(nodeNumber)) {
+			return Optional.of(TrafficLightSignalState.YELLOW);
+		}
+		return Optional.of(TrafficLightSignalState.RED);
 	}
 
 	public static TrafficIntersectionDefinition createIntersection(ServerLevel level, BlockPos firstCorner, BlockPos secondCorner) {
@@ -206,6 +229,7 @@ public final class TrafficIntersectionRegistry {
 			if (state.activeGroupIndex >= groups.size()) {
 				state.activeGroupIndex = -1;
 				state.switchAtTick = Long.MAX_VALUE;
+				state.yellowNodeNumbers.clear();
 				state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
 			}
 			state.queue.removeIf(index -> index < 0 || index >= groups.size());
@@ -235,7 +259,7 @@ public final class TrafficIntersectionRegistry {
 					state.switchAtTick = currentGroupHasVehicles ? serverTick + AUTO_SWITCH_DELAY_TICKS : serverTick;
 				}
 				if (serverTick >= state.switchAtTick) {
-					beginAutoYellow(state, serverTick);
+					beginAutoYellow(groups, state, serverTick);
 					activateNextQueuedGroup(definition, groups, state, demandedGroups, vehicles, mtrVehicles, graph, serverTick);
 				}
 			} else {
@@ -361,10 +385,15 @@ public final class TrafficIntersectionRegistry {
 		state.activeGroupIndex = nextGroupIndex;
 		state.greenSinceTick = serverTick;
 		state.switchAtTick = Long.MAX_VALUE;
+		state.yellowNodeNumbers.clear();
 		state.yellowUntilTick = 0L;
 	}
 
-	private static void beginAutoYellow(AutoSignalState state, long serverTick) {
+	private static void beginAutoYellow(List<TrafficIntersectionGroup> groups, AutoSignalState state, long serverTick) {
+		state.yellowNodeNumbers.clear();
+		if (state.activeGroupIndex >= 0 && state.activeGroupIndex < groups.size()) {
+			state.yellowNodeNumbers.addAll(groups.get(state.activeGroupIndex).nodeNumbers());
+		}
 		state.activeGroupIndex = -1;
 		state.switchAtTick = Long.MAX_VALUE;
 		state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
@@ -623,6 +652,65 @@ public final class TrafficIntersectionRegistry {
 		final long phaseBlockTicks = definition.effectivePhaseDurationTicks() + CLEARANCE_TICKS;
 		final long tickInCycle = serverTick % (phaseBlockTicks * phaseOrder.size());
 		if (tickInCycle % phaseBlockTicks >= definition.effectivePhaseDurationTicks()) {
+			return List.of();
+		}
+		return List.of(phaseOrder.get((int) (tickInCycle / phaseBlockTicks)));
+	}
+
+	private static List<Integer> yellowInNumbers(TrafficIntersectionDefinition definition, long serverTick) {
+		final List<Integer> inNumbers = definition.nodes().stream()
+			.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
+			.map(TrafficIntersectionNode::number)
+			.distinct()
+			.sorted()
+			.toList();
+		if (inNumbers.isEmpty()) {
+			return List.of();
+		}
+		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
+			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
+			if (state == null || serverTick >= state.yellowUntilTick) {
+				return List.of();
+			}
+			return state.yellowNodeNumbers.stream()
+				.filter(inNumbers::contains)
+				.distinct()
+				.sorted()
+				.toList();
+		}
+		final List<TrafficIntersectionGroup> groups = effectiveGroups(definition, inNumbers);
+		if (!groups.isEmpty()) {
+			final List<TrafficIntersectionGroup> validGroups = groups.stream()
+				.map(group -> new TrafficIntersectionGroup(group.name(), group.effectiveGreenDurationTicks(), group.nodeNumbers().stream().filter(inNumbers::contains).distinct().toList()))
+				.filter(group -> !group.nodeNumbers().isEmpty())
+				.toList();
+			if (validGroups.size() <= 1) {
+				return List.of();
+			}
+			long cycleTicks = 0;
+			for (TrafficIntersectionGroup group : validGroups) {
+				cycleTicks += group.effectiveGreenDurationTicks() + CLEARANCE_TICKS;
+			}
+			long tickInCycle = cycleTicks <= 0 ? 0 : serverTick % cycleTicks;
+			for (TrafficIntersectionGroup group : validGroups) {
+				tickInCycle -= group.effectiveGreenDurationTicks();
+				if (tickInCycle < 0) {
+					return List.of();
+				}
+				tickInCycle -= CLEARANCE_TICKS;
+				if (tickInCycle < 0) {
+					return group.nodeNumbers();
+				}
+			}
+			return List.of();
+		}
+		final List<Integer> phaseOrder = definition.phaseOrder().isEmpty() ? inNumbers : definition.phaseOrder().stream().filter(inNumbers::contains).toList();
+		if (phaseOrder.size() <= 1) {
+			return List.of();
+		}
+		final long phaseBlockTicks = definition.effectivePhaseDurationTicks() + CLEARANCE_TICKS;
+		final long tickInCycle = serverTick % (phaseBlockTicks * phaseOrder.size());
+		if (tickInCycle % phaseBlockTicks < definition.effectivePhaseDurationTicks()) {
 			return List.of();
 		}
 		return List.of(phaseOrder.get((int) (tickInCycle / phaseBlockTicks)));
@@ -953,6 +1041,7 @@ public final class TrafficIntersectionRegistry {
 		private long switchAtTick = Long.MAX_VALUE;
 		private long yellowUntilTick;
 		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
+		private final LinkedHashSet<Integer> yellowNodeNumbers = new LinkedHashSet<>();
 	}
 
 	private enum NodeUpdateMode {

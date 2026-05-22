@@ -724,6 +724,10 @@ public final class TrafficManager {
 		}
 	}
 
+	public static long signalTick() {
+		return currentSignalTick();
+	}
+
 	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {
 	}
 

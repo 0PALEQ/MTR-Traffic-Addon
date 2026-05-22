@@ -1,0 +1,114 @@
+{
+    "format_version":  "1.9.0",
+    "credit":  "Made by opaleq with Blockbench",
+    "texture_size":  [
+                         32,
+                         32
+                     ],
+    "textures":  {
+                     "core":  "mtr-traffic-addon:block/traffic_lights_yellow_glow_core",
+                     "halo":  "mtr-traffic-addon:block/traffic_lights_yellow_glow_halo",
+                     "particle":  "mtr-traffic-addon:block/traffic_lights_yellow_glow_core"
+                 },
+    "elements":  [
+                     {
+                         "from":  [
+                                      5.9,
+                                      5.85,
+                                      6.188
+                                  ],
+                         "to":  [
+                                    10.1,
+                                    10.05,
+                                    6.198
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                5.5,
+                                                                8.5,
+                                                                7,
+                                                                10
+                                                            ],
+                                                     "texture":  "#halo"
+                                                 }
+                                   },
+                         "rotation":  {
+                                          "angle":  0,
+                                          "axis":  "y",
+                                          "origin":  [
+                                                         6.6,
+                                                         7.25,
+                                                         4.1
+                                                     ]
+                                      }
+                     },
+                     {
+                         "from":  [
+                                      5.9,
+                                      5.85,
+                                      6.18
+                                  ],
+                         "to":  [
+                                    10.1,
+                                    10.05,
+                                    6.19
+                                ],
+                         "faces":  {
+                                       "north":  {
+                                                     "uv":  [
+                                                                5.5,
+                                                                8.5,
+                                                                7,
+                                                                10
+                                                            ],
+                                                     "texture":  "#core"
+                                                 }
+                                   },
+                         "rotation":  {
+                                          "angle":  0,
+                                          "axis":  "y",
+                                          "origin":  [
+                                                         6.6,
+                                                         7.25,
+                                                         4.1
+                                                     ]
+                                      }
+                     }
+                 ],
+    "display":  {
+                    "gui":  {
+                                "rotation":  [
+                                                 15,
+                                                 157,
+                                                 0
+                                             ],
+                                "translation":  [
+                                                    0,
+                                                    0.25,
+                                                    0
+                                                ],
+                                "scale":  [
+                                              0.8,
+                                              0.8,
+                                              0.8
+                                          ]
+                            }
+                },
+    "groups":  [
+                   {
+                       "name":  "yellow_glow",
+                       "origin":  [
+                                      7,
+                                      10.25,
+                                      1
+                                  ],
+                       "scope":  0,
+                       "color":  0,
+                       "children":  [
+                                        0,
+                                        1
+                                    ]
+                   }
+               ]
+}

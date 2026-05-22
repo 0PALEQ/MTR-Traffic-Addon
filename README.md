@@ -35,3 +35,7 @@ Website: https://cookiecraftmods.com
 Github: https://github.com/0PALEQ/MTR-Traffic-Addon
 
 Credits: opaleq, cookiecraftmods
+
+## License
+
+All rights reserved. Modpacks, showcases, videos, streams, articles, and similar media are allowed with proper credit. Commercial redistribution of the mod is not allowed. See [LICENSE](LICENSE).

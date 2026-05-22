@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "mtr-traffic-addon:traffic_lights_pole_bottom",
+    "mtr-traffic-addon:traffic_lights_pole",
+    "mtr-traffic-addon:traffic_lights_vertical_pole",
+    "mtr-traffic-addon:traffic_lights_primary"
+  ]
+}

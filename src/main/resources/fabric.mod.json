@@ -14,7 +14,7 @@
 		"homepage": "https://cookiecraftmods.com",
 		"sources": "https://github.com/0PALEQ/MTR-Traffic-Addon"
 	},
-	"license": "CC0-1.0",
+	"license": "All Rights Reserved; modpacks and media allowed with credit",
 	"icon": "assets/mtr-traffic-addon/icon.png",
 	"environment": "*",
 	"entrypoints": {
