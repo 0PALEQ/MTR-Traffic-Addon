@@ -48,6 +48,8 @@ Current built-in traffic vehicle definitions:
 
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
 
+For full addon usage, setup, world data, beta limitations, and release notes, see [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md).
+
 Author: opaleq
 Website: https://cookiecraftmods.com
 Github: https://github.com/0PALEQ/MTR-Traffic-Addon
