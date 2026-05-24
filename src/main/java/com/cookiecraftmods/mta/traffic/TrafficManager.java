@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class TrafficManager {
@@ -43,7 +44,7 @@ public final class TrafficManager {
 	private static final long SIGNAL_TICK_MILLIS = 50L;
 	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
-	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new HashMap<>();
+	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new ConcurrentHashMap<>();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
 	private static boolean initialized;
 	private static long lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
@@ -230,16 +231,18 @@ public final class TrafficManager {
 			return List.of();
 		}
 
-		return MTR_VEHICLE_OCCUPANCY.values().stream()
-			.map(occupancy -> new MtrSignalVehicle(
+		final List<MtrSignalVehicle> signalVehicles = new ArrayList<>(MTR_VEHICLE_OCCUPANCY.size());
+		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
+			signalVehicles.add(new MtrSignalVehicle(
 				occupancy.connectorId(),
 				occupancy.reverseConnectorId(),
 				occupancy.distanceOnSegmentMeters(),
 				occupancy.segmentLengthMeters(),
 				occupancy.lengthMeters(),
 				occupancy.lastTick()
-			))
-			.toList();
+			));
+		}
+		return signalVehicles;
 	}
 
 	private static void onServerStarted(MinecraftServer server) {
@@ -302,7 +305,7 @@ public final class TrafficManager {
 			latestGraph = refreshedGraph.orElse(latestGraph);
 			latestGraphDimensionId = requestedDimensionId;
 			if (refreshedGraph.isPresent()) {
-				MTRTrafficAddon.LOGGER.info("MTR traffic graph refreshed for {} near {}: {} nodes, {} edges", latestGraphDimensionId, requestedPosition, refreshedGraph.get().adjacency().size(), refreshedGraph.get().edges().size());
+				MTRTrafficAddon.LOGGER.debug("MTR traffic graph refreshed for {} near {}: {} nodes, {} edges", latestGraphDimensionId, requestedPosition, refreshedGraph.get().adjacency().size(), refreshedGraph.get().edges().size());
 			} else {
 				logSpawnDiagnostic("MTR graph refresh returned no rails near {} in dimension {}; keeping previous graph: {}", requestedPosition, latestGraphDimensionId, latestGraph == null ? "none" : latestGraph.edges().size() + " edges");
 			}
@@ -353,7 +356,6 @@ public final class TrafficManager {
 
 	private static void spawnBootstrapVehicleIfPossible() {
 		if (latestGraph == null || latestGraph.isEmpty()) {
-			logSpawnDiagnostic("Spawn blocked: no MTR graph loaded. Make sure MTR TSC/API is running and rails are within the graph query radius.");
 			return;
 		}
 
@@ -797,7 +799,7 @@ public final class TrafficManager {
 			return;
 		}
 		lastSpawnDiagnosticTick = lastServerTick;
-		MTRTrafficAddon.LOGGER.info(message, args);
+		MTRTrafficAddon.LOGGER.debug(message, args);
 	}
 
 	private static String pointSummary(TrafficPointDefinition point) {

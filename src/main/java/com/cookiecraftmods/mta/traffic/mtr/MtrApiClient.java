@@ -76,6 +76,6 @@ public final class MtrApiClient {
 			return;
 		}
 		lastWarningMillis = now;
-		MTRTrafficAddon.LOGGER.warn(message, args);
+		MTRTrafficAddon.LOGGER.debug(message, args);
 	}
 }

@@ -1,24 +1,39 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-05-22
-Version covered: 26.5.B01
+Updated: 2026-05-24
+Version covered: 26.5.B01a
 
 Current working state
 =====================
 
 - The mod builds successfully as a Fabric 1.20.1 addon for Minecraft Transit Railway 4.0.4.
 - The current confirmed build output is:
-  D:\mta\build\libs\mtr-traffic-addon-26.5.B01.jar
+  D:\mta\build\libs\mta-26.5.B01a-fabric-1.20.1.jar
 - The current standalone sedan resource pack export is:
   D:\mta\resourcepacks\mtr-traffic-addon-sedan.zip
 - The default Java environment on this machine may still point to Java 17, while the current Fabric Loom setup needs Java 21 or newer.
-- The latest verified build used JDK 21:
-  JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
+- The latest verified build used JDK 23:
+  JAVA_HOME=C:\Program Files\Java\jdk-23
   .\gradlew.bat build
+- Version 26.5.B01a fixes the dedicated-server crash reported in issue #1 by making the MTR vehicle occupancy cache safe for concurrent MTR vehicle updates.
+- Version 26.5.B01a removes or downgrades repeated traffic graph/spawn diagnostics so normal dedicated-server logs are no longer spammed every few seconds.
 - In-game testing confirmed that the new sedan vehicles render, use the expected orientation, and no longer drive backwards.
 - In-game testing confirmed that the new Auto/Manual traffic signal mode work is usable, with follow-up fixes applied for yellow/all-red transitions and stuck stop-line vehicles.
 - Traffic light block work is implemented and the project currently builds successfully after the latest placement/glow fixes.
 - Beta cleanup removed the unused example client mixin and old unused MTR update/block-rail DTO/API stubs.
 - MTR signal blocking now fails open when MTA traffic ticks are stale, preventing paused or unloaded intersection state from indefinitely blocking MTR vehicles.
+
+26.5.B01a changelog
+===================
+
+- Fixed a dedicated-server crash in the traffic signal tick path:
+  java.lang.IllegalStateException: End size ... is less than fixed size ...
+- Replaced the shared MTR vehicle occupancy HashMap with a ConcurrentHashMap because MTR vehicle simulation can update the cache while the server tick is reading it.
+- Changed MTR signal vehicle snapshot creation from Stream.toList() to a plain loop over the concurrent map values.
+- Removed the repeated "Spawn blocked: no MTR graph loaded" INFO log that appeared every 5 seconds on empty dedicated servers.
+- Moved repeated MTR graph refresh, no-rails, in-flight, spawn-planning, and graph-request diagnostics to debug logging.
+- Kept real load/save failures and explicit player dashboard actions in normal logs.
+- Verified build output for this changelog:
+  D:\mta\build\libs\mta-26.5.B01a-fabric-1.20.1.jar
 
 26.5.B01 beta changes since 26.5.A05
 ====================================
@@ -190,7 +205,7 @@ Build verification
 
 Last verified command:
 
-JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
+JAVA_HOME=C:\Program Files\Java\jdk-23
 .\gradlew.bat build
 
 Result:
@@ -199,11 +214,11 @@ BUILD SUCCESSFUL
 
 Last verified date:
 
-2026-05-22
+2026-05-24
 
 Current jar:
 
-D:\mta\build\libs\mtr-traffic-addon-26.5.B01.jar
+D:\mta\build\libs\mta-26.5.B01a-fabric-1.20.1.jar
 
 Current resourcepack export:
 
@@ -213,6 +228,7 @@ Known notes and remaining work
 ==============================
 
 - The default Java on this machine currently points to Java 17; set JAVA_HOME to Java 21+ before release builds because Fabric Loom requires Java 21+.
+- The latest verified local release build used JDK 23 at C:\Program Files\Java\jdk-23.
 - Auto signal behavior has been tested interactively, but larger intersections with many groups should still be tested in-game.
 - The new sedan mesh now renders correctly in-game after the OBJ renderer fixes, but other future mesh formats may need separate loader support.
 - The external resourcepack copy should not be enabled alongside the mod jar unless intentionally overriding embedded resources.
