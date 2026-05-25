@@ -17,11 +17,16 @@ public final class TrafficVehicle {
 	private double speedKph;
 
 	public TrafficVehicle(UUID id, TrafficVehicleDefinition definition, TrafficRoute route, String spawnPointId, String despawnPointId, double distanceOnSegmentMeters, double speedKph) {
+		this(id, definition, route, spawnPointId, despawnPointId, 0, distanceOnSegmentMeters, speedKph);
+	}
+
+	public TrafficVehicle(UUID id, TrafficVehicleDefinition definition, TrafficRoute route, String spawnPointId, String despawnPointId, int segmentIndex, double distanceOnSegmentMeters, double speedKph) {
 		this.id = id;
 		this.definition = definition;
 		this.route = route;
 		this.spawnPointId = spawnPointId;
 		this.despawnPointId = despawnPointId;
+		this.segmentIndex = segmentIndex;
 		this.distanceOnSegmentMeters = distanceOnSegmentMeters;
 		this.speedKph = speedKph;
 	}

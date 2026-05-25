@@ -90,9 +90,15 @@ Important controls:
 Notes:
 
 - Spawn interval is clamped between `20` and `1200` ticks.
-- The current beta mainly gates spawning by spawn interval and whether the spawn connector is occupied.
-- `maxVehicles` exists in saved data/snapshots, but the dashboard buttons are currently disabled and it is not the main spawn limiter.
+- Spawn interval controls the virtual departure cadence for spawn connectors.
+- `maxVehicles` limits how many recent virtual departures from a spawn connector may be considered for materialization near players.
 - Despawn connectors do not have vehicle pools.
+
+### MTA Exclusive Traffic Connectors
+
+MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks in normal builds.
+
+Existing saved addon-only connectors can still be removed by reconnecting the same two nodes with an MTA Traffic Connector item if a player already has one, or by using the standard MTR Rail Remover. New connector creation is intentionally blocked until the feature is finished.
 
 ### Vehicle Pool
 
@@ -320,6 +326,17 @@ The standalone copy under `resourcepacks/mtr-traffic-addon-sedan` is kept as an 
 
 Client rendering tries custom traffic models first, then falls back to MTR vehicle resources.
 
+Traffic vehicle distance limits live in `config/mtr-traffic-addon.properties`.
+
+- `trafficVehicleVisibilityDistanceBlocks=auto` follows render distance minus 2 chunks.
+- `trafficVehicleSimulationDistanceBlocks=auto` follows visibility distance plus the materialization margin.
+- `trafficVehicleMaterializationMarginChunks=2` controls how many chunks outside visibility distance virtual vehicles are materialized when simulation distance is `auto`.
+- `trafficVehicleUnrenderedLifetimeSeconds=30` removes active vehicles that have not been sent to any player for this many seconds. Set it to `0` to disable this timeout.
+
+Either distance value can be changed from `auto` to a fixed block distance. Simulation distance is never allowed below visibility distance. Spawn connectors continue to produce virtual departures even when no player is nearby, but vehicles are only materialized into active world traffic when their calculated route position falls inside a player's simulation radius. Active route vehicles outside every player's simulation radius are removed and can be recreated later from the same virtual stream.
+
+Virtual vehicles are not materialized on spawn/despawn connector track segments or on the immediately adjacent route segments. The virtual departure still starts at the spawn connector, but active world vehicles only appear after they have cleared the technical connector area.
+
 Custom traffic model definitions live under:
 
 ```text
@@ -349,18 +366,20 @@ The renderer samples world lighting at the vehicle position. If custom rendering
 
 ## Runtime Behavior
 
-The traffic manager runs on server ticks.
+The traffic manager uses an MTR-style wall-clock simulation loop. Minecraft server ticks update player/graph snapshots and networking, while addon traffic movement, spacing, signal decisions, virtual route stream checks, materialization checks, and despawn checks run on a dedicated daemon simulation thread.
 
 Main runtime steps:
 
 1. Refresh an MTR graph snapshot near a player at intervals.
 2. Refresh connector route metadata near the graph snapshot.
-3. Spawn traffic vehicles from eligible spawn connectors.
-4. Record recently simulated MTR vehicles for spacing/signal demand.
-5. Tick auto intersections.
-6. Resolve traffic vehicle spacing and signal speed limits.
-7. Move traffic vehicles along their route.
-8. Despawn vehicles at despawn connectors.
+3. Build deterministic virtual route streams from enabled spawn connectors to enabled despawn connectors.
+4. Materialize only virtual vehicles whose current route position is inside player simulation distance.
+5. Remove active addon vehicles that leave every player's simulation distance or exceed the unrendered lifetime timeout.
+6. Record recently simulated MTR vehicles for spacing/signal demand.
+7. Tick auto intersections.
+8. Resolve traffic vehicle spacing and signal speed limits.
+9. Move materialized traffic vehicles along their route.
+10. Despawn materialized vehicles at despawn connectors.
 
 Graph request radius is currently `512` blocks. Connector route pruning/repair near the player uses a radius of `448` blocks.
 
@@ -372,6 +391,10 @@ The addon injects into MTR vehicle blocking checks. MTR vehicles may be stopped 
 - red intersection entries
 
 To avoid indefinite blocking during pause menus, stalled ticks, or unloaded areas, blocker checks fail open when addon traffic ticks are stale. In that state, the addon reports no MTA blocker to MTR instead of preserving an old red or old vehicle position.
+
+MTR vehicles also ignore addon intersection lights when that intersection is outside every player's active simulation radius. This keeps remote intersections from stopping MTR vehicles when no player is close enough for the addon traffic simulation there to matter.
+
+Auto intersections queue MTR demand using a short lookahead over each MTR vehicle's remaining route path. This lets an MTR vehicle stopped before the actual intersection entry track still request the correct incoming signal group.
 
 This is intentional beta behavior. It prioritizes keeping MTR usable over perfectly preserving frozen traffic-light state.
 
@@ -386,6 +409,7 @@ The addon writes world data under:
 Files:
 
 - `traffic_connector_points.json`
+- `mta_exclusive_rails.json`
 - `traffic_intersections.json`
 - `traffic_light_bindings.json`
 
@@ -473,10 +497,9 @@ Build fails with a Java version error:
 
 ## Known Beta Limitations
 
-- Spawn density control is still basic.
-- `maxVehicles` is present in data but not currently exposed as an active dashboard control.
+- Spawn density control is still basic and is based on spawn interval plus `maxVehicles`.
+- `maxVehicles` is present in data/snapshots and limits recent virtual departures, but its dashboard controls are still not exposed.
 - Traffic uses MTR rail geometry, so road layout quality depends on the underlying rail graph.
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
 - Some dashboard labels and workflows are still beta-level and may change before stable release.
-

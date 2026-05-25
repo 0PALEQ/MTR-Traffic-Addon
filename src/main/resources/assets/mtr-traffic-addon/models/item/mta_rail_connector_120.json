@@ -1,0 +1,14 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "mtr-traffic-addon:item/mta_rail_connector_120"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "mtr:selected": 1
+      },
+      "model": "mtr-traffic-addon:item/mta_rail_connector_120_selected"
+    }
+  ]
+}

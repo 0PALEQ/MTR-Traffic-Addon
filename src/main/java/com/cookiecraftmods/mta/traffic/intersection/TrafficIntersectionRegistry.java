@@ -41,6 +41,7 @@ public final class TrafficIntersectionRegistry {
 	private static final double STOP_LOOKAHEAD_METERS = 48.0D;
 	private static final double STOP_BUFFER_METERS = 5.0D;
 	private static final double AUTO_DEMAND_LOOKAHEAD_METERS = STOP_LOOKAHEAD_METERS + STOP_BUFFER_METERS;
+	private static final double MTR_AUTO_DEMAND_LOOKAHEAD_METERS = 256.0D;
 	private static final int CLEARANCE_TICKS = 200;
 	private static final int AUTO_SWITCH_DELAY_TICKS = 60;
 	private static final int AUTO_YELLOW_TICKS = 60;
@@ -189,6 +190,9 @@ public final class TrafficIntersectionRegistry {
 				if (!definition.isEnabled() || definition.nodes().isEmpty()) {
 					continue;
 				}
+				if (!TrafficManager.isIntersectionInSimulationRange(definition)) {
+					continue;
+				}
 
 				final Optional<Double> distanceToRedEntry = distanceToRedEntry(definition, vehicle, serverTick);
 				if (distanceToRedEntry.isEmpty()) {
@@ -216,6 +220,9 @@ public final class TrafficIntersectionRegistry {
 		final Set<String> activeAutoIntersectionIds = new LinkedHashSet<>();
 		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
 			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.effectiveSignalMode() != TrafficIntersectionSignalMode.AUTO || definition.nodes().isEmpty()) {
+				continue;
+			}
+			if (!TrafficManager.isIntersectionInSimulationRange(definition)) {
 				continue;
 			}
 
@@ -279,6 +286,9 @@ public final class TrafficIntersectionRegistry {
 
 		for (TrafficIntersectionDefinition definition : DEFINITIONS.values()) {
 			if (!definition.dimensionId().equals(dimensionId) || !definition.isEnabled() || definition.nodes().isEmpty()) {
+				continue;
+			}
+			if (!TrafficManager.isIntersectionInSimulationRange(definition)) {
 				continue;
 			}
 			if (definition.contains(startX, startY, startZ) || !definition.contains(endX, endY, endZ)) {
@@ -403,14 +413,31 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static Optional<Integer> approachingInNumber(TrafficIntersectionDefinition definition, MtrGraph graph, TrafficManager.MtrSignalVehicle mtrVehicle) {
-		for (MtrGraphEdge edge : graph.edges()) {
-			if (!edge.railId().equals(mtrVehicle.connectorId()) || !isEntering(definition, edge)) {
-				continue;
-			}
+		if (!mtrVehicle.pathSegments().isEmpty()) {
+			for (TrafficManager.MtrSignalPathSegment pathSegment : mtrVehicle.pathSegments()) {
+				if (pathSegment.distanceToSegmentStartMeters() > MTR_AUTO_DEMAND_LOOKAHEAD_METERS) {
+					break;
+				}
+				for (MtrGraphEdge edge : graph.edges()) {
+					if (!edge.railId().equals(pathSegment.connectorId()) || !isEntering(definition, edge)) {
+						continue;
+					}
 
-			final double distanceToEntry = Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters());
-			if (distanceToEntry <= AUTO_DEMAND_LOOKAHEAD_METERS) {
-				return inNumberForEntry(definition, edge);
+					final double distanceToEntry = pathSegment.distanceToSegmentStartMeters() + Math.max(0.0D, edge.lengthMeters() - pathSegment.distanceOnSegmentMeters());
+					if (distanceToEntry <= MTR_AUTO_DEMAND_LOOKAHEAD_METERS) {
+						return inNumberForEntry(definition, edge);
+					}
+				}
+			}
+			return Optional.empty();
+		}
+
+		for (MtrGraphEdge edge : graph.edges()) {
+			if (edge.railId().equals(mtrVehicle.connectorId()) && isEntering(definition, edge)) {
+				final double distanceToEntry = Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters());
+				if (distanceToEntry <= MTR_AUTO_DEMAND_LOOKAHEAD_METERS) {
+					return inNumberForEntry(definition, edge);
+				}
 			}
 		}
 		return Optional.empty();

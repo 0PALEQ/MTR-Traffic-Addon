@@ -7,6 +7,17 @@
   "item.mtr-traffic-addon.traffic_dashboard": "Traffic Dashboard",
   "item.mtr-traffic-addon.traffic_spawn_connector": "Traffic Spawn Connector",
   "item.mtr-traffic-addon.traffic_despawn_connector": "Traffic Despawn Connector",
+  "item.mtr-traffic-addon.mta_rail_connector_20": "MTA Traffic Connector 20 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_30": "MTA Traffic Connector 30 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_40": "MTA Traffic Connector 40 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_50": "MTA Traffic Connector 50 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_60": "MTA Traffic Connector 60 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_70": "MTA Traffic Connector 70 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_80": "MTA Traffic Connector 80 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_90": "MTA Traffic Connector 90 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_100": "MTA Traffic Connector 100 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_110": "MTA Traffic Connector 110 (Unfinished)",
+  "item.mtr-traffic-addon.mta_rail_connector_120": "MTA Traffic Connector 120 (Unfinished)",
   "message.mtr-traffic-addon.state.enabled": "enabled",
   "message.mtr-traffic-addon.state.disabled": "disabled"
 }

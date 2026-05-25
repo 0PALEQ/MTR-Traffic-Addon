@@ -3,13 +3,13 @@ package com.cookiecraftmods.mta.client.render;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.render.custom.CustomTrafficVehicleRenderer;
+import com.cookiecraftmods.mta.config.TrafficAddonConfig;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
 
 public final class ClientTrafficRenderDispatcher {
 	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new CustomTrafficVehicleRenderer(new MtrVehicleResourceRenderer());
-	private static final double RENDER_DISTANCE_MARGIN_BLOCKS = 8.0D;
 
 	private ClientTrafficRenderDispatcher() {
 	}
@@ -59,8 +59,7 @@ public final class ClientTrafficRenderDispatcher {
 		}
 
 		final int renderDistanceChunks = Math.max(2, minecraft.options.getEffectiveRenderDistance());
-		final double entityDistanceScale = Math.max(0.25D, minecraft.options.entityDistanceScaling().get());
-		return renderDistanceChunks * 16.0D * entityDistanceScale + RENDER_DISTANCE_MARGIN_BLOCKS;
+		return TrafficAddonConfig.trafficVehicleVisibilityDistanceBlocks(renderDistanceChunks);
 	}
 
 	private static int floorChunk(double coordinate) {
