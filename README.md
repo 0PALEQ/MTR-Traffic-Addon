@@ -4,7 +4,7 @@ Addon for minecraft transit railway featuring car traffic generation.
 
 ## Beta Status
 
-Current beta line: `26.5.B01`.
+Current beta line: `26.5.B02`.
 
 This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, traffic light blocks, manual/auto intersection signals, bundled sedan vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
 
