@@ -23,6 +23,8 @@ public final class ModCreativeTabs {
 				output.accept(ModItems.TRAFFIC_LIGHTS_POLE);
 				output.accept(ModItems.TRAFFIC_LIGHTS_VERTICAL_POLE);
 				output.accept(ModItems.TRAFFIC_LIGHTS_PRIMARY);
+				output.accept(ModItems.PEDESTRIAN_LIGHTS);
+				output.accept(ModItems.PEDESTRIAN_LIGHTS_POLE);
 			})
 			.build()
 	);

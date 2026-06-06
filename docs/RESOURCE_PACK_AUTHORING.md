@@ -123,7 +123,7 @@ Use `positionsFlipped` only for parts that are intentionally mirrored/flipped, a
 
 For multiple colors using the same model:
 
-1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_black`, `mta_sedan_green`, `mta_sedan_red`, `mta_sedan_blue`, `mta_sedan_brown`, and `mta_sedan_orange`.
+1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_black`, `mta_sedan_green`, `mta_sedan_red`, `mta_sedan_blue`, `mta_sedan_brown`, `mta_sedan_orange`, and `mta_sedan_taxi`.
 2. Reuse the same `.bbmodel`, model properties, and position definitions.
 3. Change only `textureResource`, `id`, `name`, `color`, and optional tags.
 4. Add matching traffic vehicle definitions under `data/<namespace>/traffic_vehicles/*.json`.
@@ -143,6 +143,21 @@ Example traffic definition:
 }
 ```
 
+## OBJ Traffic Model Materials
+
+The custom OBJ traffic renderer supports `.mtl` libraries for per-face textures. Use `mtllib` in the `.obj`, `usemtl` before faces, and `map_Kd` in the `.mtl`.
+
+Relative `map_Kd` paths are resolved from the traffic model definition's default texture directory when a default texture exists. Faces without a resolved material texture use the default `texture` from `assets/<namespace>/traffic_models/*.json`.
+
+The built-in taxi uses this path to render the car body and taxi sign textures from one OBJ model:
+
+```text
+assets/mtr_traffic_addon_sedan/models/vehicle/sedan_taxi.obj
+assets/mtr_traffic_addon_sedan/models/vehicle/sedan_taxi.mtl
+assets/mtr_traffic_addon_sedan/textures/vehicle/sedan_taxi.png
+assets/mtr_traffic_addon_sedan/textures/vehicle/taxi_sign.png
+```
+
 ## Embedding In The Mod
 
 Once a pack is stable, embed it:
@@ -154,7 +169,7 @@ Once a pack is stable, embed it:
 5. Verify the jar contains the embedded files:
 
 ```powershell
-jar tf build\libs\mta-26.5.B01-fabric-1.20.1.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan"
+jar tf build\libs\mtr-traffic-addon-26.6.B03.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan"
 ```
 
 After embedding, remove old external copies of the same pack from `.minecraft/resourcepacks`; stale external packs can override the embedded resources.
@@ -193,3 +208,4 @@ Parts missing from normal MTR vehicles:
 - `mta_sedan_blue`
 - `mta_sedan_brown`
 - `mta_sedan_orange`
+- `mta_sedan_taxi`

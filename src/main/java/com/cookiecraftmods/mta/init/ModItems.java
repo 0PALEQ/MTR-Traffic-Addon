@@ -32,6 +32,8 @@ public final class ModItems {
 	public static final Item TRAFFIC_LIGHTS_POLE = registerBlockItem("traffic_lights_pole", ModBlocks.TRAFFIC_LIGHTS_POLE);
 	public static final Item TRAFFIC_LIGHTS_VERTICAL_POLE = registerBlockItem("traffic_lights_vertical_pole", ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE);
 	public static final Item TRAFFIC_LIGHTS_PRIMARY = registerItem("traffic_lights_primary", new TrafficLightsPrimaryBlockItem(ModBlocks.TRAFFIC_LIGHTS_PRIMARY, new Item.Properties()));
+	public static final Item PEDESTRIAN_LIGHTS = registerBlockItem("pedestrian_lights", ModBlocks.PEDESTRIAN_LIGHTS);
+	public static final Item PEDESTRIAN_LIGHTS_POLE = registerBlockItem("pedestrian_lights_pole", ModBlocks.PEDESTRIAN_LIGHTS_POLE);
 
 	private ModItems() {
 	}

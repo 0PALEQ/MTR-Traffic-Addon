@@ -4,15 +4,15 @@ Addon for minecraft transit railway featuring car traffic generation.
 
 ## Beta Status
 
-Current beta line: `26.5.B01`.
+Current beta line: `26.6.B03`.
 
-This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, traffic light blocks, manual/auto intersection signals, bundled sedan vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan and taxi vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
 
 MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks.
 
 Traffic vehicle visibility and simulation distances are `auto` by default in `config/mtr-traffic-addon.properties`. Auto visibility distance follows render distance minus 2 chunks, and auto simulation/materialization distance follows visibility distance plus `trafficVehicleMaterializationMarginChunks` chunks. The default margin is 2 chunks. Either distance value can be set to a fixed block distance if a server owner wants an explicit cap.
 
-Addon traffic simulation runs on a dedicated wall-clock simulation thread instead of doing vehicle movement and spacing inside the Minecraft server tick path. Spawn connectors produce deterministic virtual route streams globally; only vehicles whose calculated route position is near a player are materialized and sent to clients. Materialized vehicles that are not sent to any player for `trafficVehicleUnrenderedLifetimeSeconds` are removed and can be recreated later from the virtual stream.
+Addon traffic simulation runs on a dedicated wall-clock simulation thread instead of doing vehicle movement and spacing inside the Minecraft server tick path. Spawn connectors produce deterministic virtual route streams globally; only vehicles whose calculated route position is near a player and has enough route clearance are materialized and sent to clients. Materialized vehicles that are not sent to any player for `trafficVehicleUnrenderedLifetimeSeconds` are removed and can be recreated later from the virtual stream.
 
 ## Build
 
@@ -40,6 +40,7 @@ Current built-in sedan visuals:
 - `mta_sedan_blue`
 - `mta_sedan_brown`
 - `mta_sedan_orange`
+- `mta_sedan_taxi`
 
 Current built-in traffic vehicle definitions:
 
@@ -51,8 +52,11 @@ Current built-in traffic vehicle definitions:
 - `sedan_blue`
 - `sedan_brown`
 - `sedan_orange`
+- `sedan_taxi`
 
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
+
+Traffic lights can be bound with the MTR brush from inside an intersection area. Lights can target IN nodes or intersection signal groups, so pedestrian lights can follow a whole crossing phase instead of a single node.
 
 For full addon usage, setup, world data, beta limitations, and release notes, see [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md).
 

@@ -3,10 +3,12 @@ package com.cookiecraftmods.mta.traffic.lights;
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionDefinition;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionRegistry;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightSignalState;
+import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPedestrianBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPoleTopBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPrimaryBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsVerticalPoleBlock;
@@ -90,7 +92,7 @@ public final class TrafficLightBindingRegistry {
 		initialized = true;
 	}
 
-	public static void bind(ServerPlayer player, BlockPos blockPos, String intersectionId, int nodeNumber) {
+	public static void bind(ServerPlayer player, BlockPos blockPos, String intersectionId, TrafficLightBindingTargetType targetType, int targetNumber) {
 		final ServerLevel level = player.serverLevel();
 		final BlockState state = level.getBlockState(blockPos);
 		if (!isBindableTrafficLight(state)) {
@@ -102,17 +104,28 @@ public final class TrafficLightBindingRegistry {
 			player.displayClientMessage(Component.literal("Traffic light is not inside that intersection."), true);
 			return;
 		}
-		final boolean nodeExists = definition.nodes().stream().anyMatch(node -> node.type() == TrafficIntersectionNodeType.IN && node.number() == nodeNumber);
-		if (!nodeExists) {
-			player.displayClientMessage(Component.literal("Intersection IN node #" + nodeNumber + " does not exist."), true);
-			return;
+		final TrafficLightBindingTargetType effectiveTargetType = targetType == null ? TrafficLightBindingTargetType.NODE : targetType;
+		if (effectiveTargetType == TrafficLightBindingTargetType.NODE) {
+			final boolean nodeExists = definition.nodes().stream().anyMatch(node -> node.type() == TrafficIntersectionNodeType.IN && node.number() == targetNumber);
+			if (!nodeExists) {
+				player.displayClientMessage(Component.literal("Intersection IN node #" + targetNumber + " does not exist."), true);
+				return;
+			}
+		} else {
+			final List<TrafficIntersectionGroup> groups = TrafficIntersectionRegistry.signalGroups(definition);
+			if (targetNumber < 0 || targetNumber >= groups.size()) {
+				player.displayClientMessage(Component.literal("Intersection group #" + (targetNumber + 1) + " does not exist."), true);
+				return;
+			}
 		}
 
-		final TrafficLightBinding binding = new TrafficLightBinding(level.dimension().location().toString(), blockPos.getX(), blockPos.getY(), blockPos.getZ(), intersectionId, nodeNumber);
+		final int nodeNumber = effectiveTargetType == TrafficLightBindingTargetType.NODE ? targetNumber : 0;
+		final TrafficLightBinding binding = new TrafficLightBinding(level.dimension().location().toString(), blockPos.getX(), blockPos.getY(), blockPos.getZ(), intersectionId, nodeNumber, effectiveTargetType, targetNumber);
 		BINDINGS.put(key(binding.dimensionId(), blockPos), binding);
 		applyBindingState(level, blockPos, binding);
 		saveIfPossible();
-		player.displayClientMessage(Component.literal("Bound traffic light to node #" + nodeNumber + "."), true);
+		final String targetLabel = effectiveTargetType == TrafficLightBindingTargetType.NODE ? "node #" + targetNumber : "group #" + (targetNumber + 1);
+		player.displayClientMessage(Component.literal("Bound traffic light to " + targetLabel + "."), true);
 	}
 
 	private static void openBindMenu(ServerPlayer player, BlockPos blockPos) {
@@ -135,6 +148,16 @@ public final class TrafficLightBindingRegistry {
 				.toList();
 			buffer.writeUtf(intersection.id());
 			buffer.writeUtf(intersection.effectiveName());
+			final List<TrafficIntersectionGroup> groups = TrafficIntersectionRegistry.signalGroups(intersection);
+			buffer.writeVarInt(groups.size());
+			for (TrafficIntersectionGroup group : groups) {
+				buffer.writeUtf(group.name());
+				buffer.writeVarInt(group.effectiveGreenDurationTicks());
+				buffer.writeVarInt(group.nodeNumbers().size());
+				for (Integer nodeNumber : group.nodeNumbers()) {
+					buffer.writeVarInt(nodeNumber);
+				}
+			}
 			buffer.writeVarInt(inNodes.size());
 			for (TrafficIntersectionNode node : inNodes) {
 				buffer.writeLong(node.x());
@@ -173,7 +196,10 @@ public final class TrafficLightBindingRegistry {
 			saveIfPossible();
 			return;
 		}
-		final TrafficLightSignalState signal = TrafficIntersectionRegistry.signalState(binding.intersectionId(), binding.nodeNumber(), TrafficManager.signalTick()).orElse(TrafficLightSignalState.RED);
+		final TrafficLightSignalState signal = switch (binding.targetType()) {
+			case NODE -> TrafficIntersectionRegistry.signalState(binding.intersectionId(), binding.targetNumber(), TrafficManager.signalTick()).orElse(TrafficLightSignalState.RED);
+			case GROUP -> TrafficIntersectionRegistry.groupSignalState(binding.intersectionId(), binding.targetNumber(), TrafficManager.signalTick()).orElse(TrafficLightSignalState.RED);
+		};
 		if (state.is(ModBlocks.TRAFFIC_LIGHTS_POLE)) {
 			final BlockState updated = state
 				.setValue(TrafficLightsPoleTopBlock.HAS_LIGHTS, true)
@@ -193,11 +219,20 @@ public final class TrafficLightBindingRegistry {
 			if (updated != state) {
 				level.setBlock(blockPos, updated, Block.UPDATE_ALL);
 			}
+		} else if (state.is(ModBlocks.PEDESTRIAN_LIGHTS) || state.is(ModBlocks.PEDESTRIAN_LIGHTS_POLE)) {
+			final BlockState updated = state.setValue(TrafficLightsPedestrianBlock.SIGNAL, signal);
+			if (updated != state) {
+				level.setBlock(blockPos, updated, Block.UPDATE_ALL);
+			}
 		}
 	}
 
 	private static boolean isBindableTrafficLight(BlockState state) {
-		return state.is(ModBlocks.TRAFFIC_LIGHTS_POLE) || state.is(ModBlocks.TRAFFIC_LIGHTS_PRIMARY) || state.is(ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE);
+		return state.is(ModBlocks.TRAFFIC_LIGHTS_POLE)
+			|| state.is(ModBlocks.TRAFFIC_LIGHTS_PRIMARY)
+			|| state.is(ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE)
+			|| state.is(ModBlocks.PEDESTRIAN_LIGHTS)
+			|| state.is(ModBlocks.PEDESTRIAN_LIGHTS_POLE);
 	}
 
 	private static boolean isMtrBrush(ItemStack stack) {

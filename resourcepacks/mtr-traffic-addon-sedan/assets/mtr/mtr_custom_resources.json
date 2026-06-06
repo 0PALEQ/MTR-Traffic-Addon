@@ -215,6 +215,33 @@
       "hasGangway2": false,
       "hasBarrier1": false,
       "hasBarrier2": false
+    },
+    {
+      "id": "mta_sedan_taxi",
+      "name": "MTA Mesh Sedan Taxi",
+      "color": "F5D400",
+      "transportMode": "TRAIN",
+      "length": 4.2,
+      "width": 1.8,
+      "description": "Taxi mesh sedan model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:taxi", "model:mesh"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/sedan.bbmodel",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/sedan_taxi.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/sedan.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.35,
+      "bogie2Position": 1.35,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
     }
   ],
   "signs": [],

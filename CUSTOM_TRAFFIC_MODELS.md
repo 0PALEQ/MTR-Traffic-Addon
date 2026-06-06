@@ -37,7 +37,7 @@ Use the `id` as a vehicle pool entry or as `visualId` in a server-side traffic v
 
 Supported formats in this build:
 
-- `obj`: triangulated at load time, supports positions, UVs, normals and n-gon faces.
+- `obj`: triangulated at load time, supports positions, UVs, normals, n-gon faces, `mtllib`, `usemtl`, and `map_Kd` per-face texture selection.
 - `json`: simple Minecraft/Blockbench-style cuboids using `elements` with `from`/`to`, or `cubes` with `origin`/`size`.
 - `bbmodel`: loaded through the same cuboid reader when the file contains direct `elements` or `cubes`; face UV rectangles and per-cuboid rotations are supported.
 
@@ -62,4 +62,4 @@ src/main/resources/assets/mtr_traffic_addon_sedan/
 src/main/resources/data/mtr_traffic_addon_sedan/
 ```
 
-The sample registers eight `mta_sedan*` variants for the Traffic Dashboard vehicle pool and uses OBJ traffic model definitions for the supplied mesh renderer.
+The sample registers nine `mta_sedan*` variants for the Traffic Dashboard vehicle pool, including `mta_sedan_taxi`, and uses OBJ traffic model definitions for the supplied mesh renderer.

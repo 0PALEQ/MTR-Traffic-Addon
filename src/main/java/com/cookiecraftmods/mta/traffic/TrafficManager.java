@@ -53,11 +53,13 @@ public final class TrafficManager {
 	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
 	private static final double DEFAULT_TRAFFIC_TICK_DURATION_SECONDS = 1.0D / 20.0D;
 	private static final double MAX_TRAFFIC_CATCH_UP_SECONDS = 1.0D;
+	private static final double MATERIALIZATION_CLEARANCE_BUFFER_METERS = 2.0D;
 	private static final long SIMULATION_INTERVAL_MILLIS = 50L;
 	private static final Object SIMULATION_LOCK = new Object();
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
 	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new ConcurrentHashMap<>();
 	private static final Map<UUID, Long> LAST_RENDERED_WALL_MILLIS = new HashMap<>();
+	private static final Set<UUID> SKIPPED_VIRTUAL_VEHICLE_IDS = new HashSet<>();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
 	private static ScheduledExecutorService simulationExecutor;
 	private static List<SimulationPlayerSnapshot> playerSnapshots = List.of();
@@ -91,6 +93,7 @@ public final class TrafficManager {
 				ACTIVE_VEHICLES.clear();
 				MTR_VEHICLE_OCCUPANCY.clear();
 				LAST_RENDERED_WALL_MILLIS.clear();
+				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 				playerSnapshots = List.of();
 				cachedEnabledSpawns = List.of();
 				cachedEnabledDespawns = List.of();
@@ -126,6 +129,7 @@ public final class TrafficManager {
 			final int clearedVehicles = ACTIVE_VEHICLES.size();
 			ACTIVE_VEHICLES.clear();
 			LAST_RENDERED_WALL_MILLIS.clear();
+			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			return clearedVehicles;
 		}
 	}
@@ -342,6 +346,7 @@ public final class TrafficManager {
 			ACTIVE_VEHICLES.clear();
 			MTR_VEHICLE_OCCUPANCY.clear();
 			LAST_RENDERED_WALL_MILLIS.clear();
+			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			playerSnapshots = List.of();
 			cachedEnabledSpawns = List.of();
 			cachedEnabledDespawns = List.of();
@@ -475,6 +480,7 @@ public final class TrafficManager {
 			if (!updatedSignature.equals(routeCacheSignature)) {
 				routeCacheSignature = updatedSignature;
 				ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			}
 		}
 	}
@@ -528,6 +534,7 @@ public final class TrafficManager {
 						.toList();
 					routeCacheSignature = routeCacheSignature(cachedEnabledSpawns, cachedEnabledDespawns);
 					ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+					SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 				}
 			}
 		});
@@ -570,6 +577,7 @@ public final class TrafficManager {
 		synchronized (SIMULATION_LOCK) {
 			if (!dimensionId.equals(latestGraphDimensionId) || latestGraph == null) {
 				ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 				routeCacheSignature = "";
 				return;
 			}
@@ -578,6 +586,7 @@ public final class TrafficManager {
 			TrafficSavedPointRegistry.refreshConnectorRoutes(dimensionId, latestGraph);
 			TrafficIntersectionRegistry.refreshNodes(dimensionId, latestGraph);
 			ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			routeCacheSignature = "";
 		}
 	}
@@ -600,6 +609,7 @@ public final class TrafficManager {
 		for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
 			activeIds.add(vehicle.id());
 		}
+		final Set<UUID> consideredVirtualVehicleIds = new HashSet<>();
 
 		for (TrafficPointDefinition spawn : cachedEnabledSpawns) {
 			if (!spawn.isEnabled() || spawn.effectiveVehiclePool().isEmpty()) {
@@ -623,7 +633,13 @@ public final class TrafficManager {
 				}
 
 				final UUID vehicleId = virtualVehicleId(spawn.id(), departureIndex);
-				if (activeIds.contains(vehicleId)) {
+				consideredVirtualVehicleIds.add(vehicleId);
+				if (activeIds.contains(vehicleId) || SKIPPED_VIRTUAL_VEHICLE_IDS.contains(vehicleId)) {
+					continue;
+				}
+
+				if (!hasMaterializationClearance(candidate.route(), definition, sample)) {
+					SKIPPED_VIRTUAL_VEHICLE_IDS.add(vehicleId);
 					continue;
 				}
 
@@ -632,6 +648,130 @@ public final class TrafficManager {
 				activeIds.add(vehicleId);
 			}
 		}
+		SKIPPED_VIRTUAL_VEHICLE_IDS.retainAll(consideredVirtualVehicleIds);
+	}
+
+	private static boolean hasMaterializationClearance(TrafficRoute route, TrafficVehicleDefinition definition, VirtualVehicleSample sample) {
+		final List<TrafficRouteSegment> segments = route.segments();
+		if (segments.isEmpty() || sample.segmentIndex() < 0 || sample.segmentIndex() >= segments.size()) {
+			return false;
+		}
+
+		final TrafficRouteSegment spawnSegment = segments.get(0);
+		final TrafficRouteSegment sampleSegment = segments.get(sample.segmentIndex());
+		final double vehicleHalfLength = Math.max(0.0D, definition.lengthMeters()) * 0.5D;
+		if (isTrafficSpawnEntryOccupied(spawnSegment, vehicleHalfLength) || isMtrSegmentOccupiedAt(spawnSegment, 0.0D, vehicleHalfLength)) {
+			return false;
+		}
+		return !isTrafficSegmentOccupiedAt(sampleSegment, sample.distanceOnSegmentMeters(), vehicleHalfLength) && !isMtrSegmentOccupiedAt(sampleSegment, sample.distanceOnSegmentMeters(), vehicleHalfLength);
+	}
+
+	private static boolean isTrafficSpawnEntryOccupied(TrafficRouteSegment spawnSegment, double candidateHalfLengthMeters) {
+		for (TrafficVehicle otherVehicle : ACTIVE_VEHICLES) {
+			final TrafficRouteSegment otherSegment = otherVehicle.currentSegment().orElse(null);
+			if (otherSegment == null) {
+				continue;
+			}
+
+			final Double otherDistanceFromSpawnNode = distanceFromNode(
+				spawnSegment.startX(),
+				spawnSegment.startY(),
+				spawnSegment.startZ(),
+				otherSegment,
+				otherVehicle.distanceOnSegmentMeters()
+			);
+			if (otherDistanceFromSpawnNode == null) {
+				continue;
+			}
+
+			final double requiredClearance = candidateHalfLengthMeters
+				+ Math.max(0.0D, otherVehicle.definition().lengthMeters()) * 0.5D
+				+ MATERIALIZATION_CLEARANCE_BUFFER_METERS;
+			if (otherDistanceFromSpawnNode < requiredClearance) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isTrafficSegmentOccupiedAt(TrafficRouteSegment candidateSegment, double candidateDistanceMeters, double candidateHalfLengthMeters) {
+		for (TrafficVehicle otherVehicle : ACTIVE_VEHICLES) {
+			final TrafficRouteSegment otherSegment = otherVehicle.currentSegment().orElse(null);
+			if (otherSegment == null) {
+				continue;
+			}
+
+			final Double otherDistanceInCandidateDirection = distanceOnSamePhysicalSegment(candidateSegment, otherSegment, otherVehicle.distanceOnSegmentMeters());
+			if (otherDistanceInCandidateDirection == null) {
+				continue;
+			}
+
+			final double requiredClearance = candidateHalfLengthMeters
+				+ Math.max(0.0D, otherVehicle.definition().lengthMeters()) * 0.5D
+				+ MATERIALIZATION_CLEARANCE_BUFFER_METERS;
+			if (Math.abs(otherDistanceInCandidateDirection - candidateDistanceMeters) < requiredClearance) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isMtrSegmentOccupiedAt(TrafficRouteSegment candidateSegment, double candidateDistanceMeters, double candidateHalfLengthMeters) {
+		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
+			if (lastServerTick - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
+				continue;
+			}
+
+			final double occupiedDistanceMeters;
+			if (candidateSegment.connectorId().equals(occupancy.connectorId())) {
+				occupiedDistanceMeters = occupancy.distanceOnSegmentMeters();
+			} else if (candidateSegment.connectorId().equals(occupancy.reverseConnectorId())) {
+				occupiedDistanceMeters = Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
+			} else {
+				continue;
+			}
+
+			final double requiredClearance = candidateHalfLengthMeters
+				+ Math.max(0.0D, occupancy.lengthMeters()) * 0.5D
+				+ MATERIALIZATION_CLEARANCE_BUFFER_METERS;
+			if (Math.abs(occupiedDistanceMeters - candidateDistanceMeters) < requiredClearance) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Double distanceOnSamePhysicalSegment(TrafficRouteSegment candidateSegment, TrafficRouteSegment otherSegment, double otherDistanceMeters) {
+		if (sameDirectedSegment(candidateSegment, otherSegment)) {
+			return otherDistanceMeters;
+		}
+		if (samePhysicalSegment(candidateSegment, otherSegment)) {
+			return Math.max(0.0D, otherSegment.lengthMeters() - otherDistanceMeters);
+		}
+		return null;
+	}
+
+	private static Double distanceFromNode(double nodeX, double nodeY, double nodeZ, TrafficRouteSegment segment, double distanceMeters) {
+		if (sameNode(nodeX, nodeY, nodeZ, segment.startX(), segment.startY(), segment.startZ())) {
+			return distanceMeters;
+		}
+		if (sameNode(nodeX, nodeY, nodeZ, segment.endX(), segment.endY(), segment.endZ())) {
+			return Math.max(0.0D, segment.lengthMeters() - distanceMeters);
+		}
+		return null;
+	}
+
+	private static boolean sameDirectedSegment(TrafficRouteSegment first, TrafficRouteSegment second) {
+		return first.directedConnectorId().equals(second.directedConnectorId());
+	}
+
+	private static boolean samePhysicalSegment(TrafficRouteSegment first, TrafficRouteSegment second) {
+		return sameNode(first.startX(), first.startY(), first.startZ(), second.endX(), second.endY(), second.endZ())
+			&& sameNode(first.endX(), first.endY(), first.endZ(), second.startX(), second.startY(), second.startZ());
+	}
+
+	private static boolean sameNode(double firstX, double firstY, double firstZ, double secondX, double secondY, double secondZ) {
+		return Double.compare(firstX, secondX) == 0 && Double.compare(firstY, secondY) == 0 && Double.compare(firstZ, secondZ) == 0;
 	}
 
 	private static List<VirtualRouteCandidate> buildVirtualRouteCandidates(MtrGraph graph, TrafficPointDefinition spawn) {
@@ -702,6 +842,7 @@ public final class TrafficManager {
 		if (playerSnapshots.isEmpty()) {
 			ACTIVE_VEHICLES.clear();
 			LAST_RENDERED_WALL_MILLIS.clear();
+			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			return;
 		}
 
@@ -807,7 +948,7 @@ public final class TrafficManager {
 			final double speedMetersPerSecond = speedKph / 3.6D;
 			final double segmentDurationSeconds = Math.max(0.0D, segment.lengthMeters()) / speedMetersPerSecond;
 			if (remainingSeconds <= segmentDurationSeconds) {
-				if (isProtectedConnectorMaterializationSegment(segments, segmentIndex)) {
+				if (isProtectedConnectorMaterializationSegment(segment)) {
 					return null;
 				}
 				final double distanceOnSegmentMeters = Math.min(segment.lengthMeters(), Math.max(0.0D, remainingSeconds * speedMetersPerSecond));
@@ -823,31 +964,8 @@ public final class TrafficManager {
 		return null;
 	}
 
-	private static boolean isProtectedConnectorMaterializationSegment(List<TrafficRouteSegment> segments, int segmentIndex) {
-		if (segmentIndex < 0 || segmentIndex >= segments.size()) {
-			return true;
-		}
-
-		final TrafficRouteSegment segment = segments.get(segmentIndex);
-		if (segment.spawnConnector() || segment.despawnConnector()) {
-			return true;
-		}
-
-		if (segmentIndex > 0) {
-			final TrafficRouteSegment previousSegment = segments.get(segmentIndex - 1);
-			if (previousSegment.spawnConnector() || previousSegment.despawnConnector()) {
-				return true;
-			}
-		}
-
-		if (segmentIndex + 1 < segments.size()) {
-			final TrafficRouteSegment nextSegment = segments.get(segmentIndex + 1);
-			if (nextSegment.spawnConnector() || nextSegment.despawnConnector()) {
-				return true;
-			}
-		}
-
-		return false;
+	private static boolean isProtectedConnectorMaterializationSegment(TrafficRouteSegment segment) {
+		return segment.despawnConnector();
 	}
 
 	private static TrafficVehiclePosition sampleRoutePosition(TrafficRouteSegment segment, double distanceMeters) {
@@ -862,16 +980,31 @@ public final class TrafficManager {
 				final double x = lerp(previous.x(), next.x(), progress);
 				final double y = lerp(previous.y(), next.y(), progress);
 				final double z = lerp(previous.z(), next.z(), progress);
-				final float yawDegrees = (float) Math.toDegrees(Math.atan2(next.z() - previous.z(), next.x() - previous.x()));
-				return new TrafficVehiclePosition(x, y, z, yawDegrees);
+				final Orientation orientation = orientation(
+					next.x() - previous.x(),
+					next.y() - previous.y(),
+					next.z() - previous.z()
+				);
+				return new TrafficVehiclePosition(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
 			}
 			remaining -= length;
 		}
 
 		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint previous = path.get(path.size() - 2);
 		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint last = path.get(path.size() - 1);
-		final float yawDegrees = (float) Math.toDegrees(Math.atan2(last.z() - previous.z(), last.x() - previous.x()));
-		return new TrafficVehiclePosition(last.x(), last.y(), last.z(), yawDegrees);
+		final Orientation orientation = orientation(
+			last.x() - previous.x(),
+			last.y() - previous.y(),
+			last.z() - previous.z()
+		);
+		return new TrafficVehiclePosition(last.x(), last.y(), last.z(), orientation.yawDegrees(), orientation.pitchDegrees());
+	}
+
+	private static Orientation orientation(double dx, double dy, double dz) {
+		final double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+		final float yawDegrees = (float) Math.toDegrees(Math.atan2(dz, dx));
+		final float pitchDegrees = (float) Math.toDegrees(Math.atan2(dy, horizontalDistance));
+		return new Orientation(yawDegrees, pitchDegrees);
 	}
 
 	private static UUID virtualVehicleId(String spawnPointId, long departureIndex) {
@@ -983,6 +1116,12 @@ public final class TrafficManager {
 		final MtrNodeKey endNode = new MtrNodeKey(point.connectorEndX(), point.connectorEndY(), point.connectorEndZ());
 		final List<ConnectorTraversal> traversals = new ArrayList<>(2);
 		addConnectorTraversal(traversals, graph, startNode, endNode, point);
+		if (point.type() == TrafficPointType.SPAWN && !traversals.isEmpty()) {
+			return traversals;
+		}
+
+		// Existing saved spawn points may have been created with the opposite node order.
+		// Keep them usable, but do not prefer the far node when the saved direction exists.
 		addConnectorTraversal(traversals, graph, endNode, startNode, point);
 		return traversals;
 	}
@@ -1145,6 +1284,9 @@ public final class TrafficManager {
 		double speedKph,
 		TrafficVehiclePosition position
 	) {
+	}
+
+	private record Orientation(float yawDegrees, float pitchDegrees) {
 	}
 
 	private record SimulationPlayerSnapshot(

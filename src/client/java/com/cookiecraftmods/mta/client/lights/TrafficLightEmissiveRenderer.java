@@ -4,6 +4,7 @@ import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.init.ModBlockEntities;
 import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightSignalState;
+import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPedestrianBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPoleTopBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPrimaryBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsVerticalPoleBlock;
@@ -38,6 +39,10 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 	private static final ResourceLocation VERTICAL_RED = model("traffic_lights_pole_top_vertical_with_lights_red_glow");
 	private static final ResourceLocation VERTICAL_YELLOW = model("traffic_lights_pole_top_vertical_with_lights_yellow_glow");
 	private static final ResourceLocation VERTICAL_GREEN = model("traffic_lights_pole_top_vertical_with_lights_green_glow");
+	private static final ResourceLocation PEDESTRIAN_RED = model("pedestrian_lights_red_glow");
+	private static final ResourceLocation PEDESTRIAN_GREEN = model("pedestrian_lights_green_glow");
+	private static final ResourceLocation PEDESTRIAN_POLE_RED = model("pedestrian_lights_pole_red_glow");
+	private static final ResourceLocation PEDESTRIAN_POLE_GREEN = model("pedestrian_lights_pole_green_glow");
 	private static final List<ResourceLocation> OVERLAY_MODELS = List.of(
 		PRIMARY_RED,
 		PRIMARY_YELLOW,
@@ -47,7 +52,11 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 		POLE_GREEN,
 		VERTICAL_RED,
 		VERTICAL_YELLOW,
-		VERTICAL_GREEN
+		VERTICAL_GREEN,
+		PEDESTRIAN_RED,
+		PEDESTRIAN_GREEN,
+		PEDESTRIAN_POLE_RED,
+		PEDESTRIAN_POLE_GREEN
 	);
 
 	public TrafficLightEmissiveRenderer(BlockEntityRendererProvider.Context context) {
@@ -96,6 +105,12 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 		if (state.is(ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE) && state.getValue(TrafficLightsVerticalPoleBlock.HAS_LIGHTS)) {
 			return verticalModel(state.getValue(TrafficLightsVerticalPoleBlock.SIGNAL));
 		}
+		if (state.is(ModBlocks.PEDESTRIAN_LIGHTS)) {
+			return pedestrianModel(state.getValue(TrafficLightsPedestrianBlock.SIGNAL));
+		}
+		if (state.is(ModBlocks.PEDESTRIAN_LIGHTS_POLE)) {
+			return pedestrianPoleModel(state.getValue(TrafficLightsPedestrianBlock.SIGNAL));
+		}
 		return null;
 	}
 
@@ -123,6 +138,22 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 			case YELLOW -> VERTICAL_YELLOW;
 			case GREEN -> VERTICAL_GREEN;
 			case OFF -> null;
+		};
+	}
+
+	private static ResourceLocation pedestrianModel(TrafficLightSignalState signal) {
+		return switch (signal) {
+			case RED -> PEDESTRIAN_RED;
+			case GREEN -> PEDESTRIAN_GREEN;
+			case YELLOW, OFF -> null;
+		};
+	}
+
+	private static ResourceLocation pedestrianPoleModel(TrafficLightSignalState signal) {
+		return switch (signal) {
+			case RED -> PEDESTRIAN_POLE_RED;
+			case GREEN -> PEDESTRIAN_POLE_GREEN;
+			case YELLOW, OFF -> null;
 		};
 	}
 

@@ -28,6 +28,7 @@ final class ClientTrafficDebugTrack {
 			lerp(previousSnapshot.y(), currentSnapshot.y(), progress),
 			lerp(previousSnapshot.z(), currentSnapshot.z(), progress),
 			lerpAngle(previousSnapshot.yawDegrees(), currentSnapshot.yawDegrees(), progress),
+			(float) lerp(previousSnapshot.pitchDegrees(), currentSnapshot.pitchDegrees(), progress),
 			lerp(previousSnapshot.speedKph(), currentSnapshot.speedKph(), progress)
 		);
 	}

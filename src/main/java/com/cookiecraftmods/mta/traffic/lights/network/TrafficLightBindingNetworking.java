@@ -1,6 +1,7 @@
 package com.cookiecraftmods.mta.traffic.lights.network;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
+import com.cookiecraftmods.mta.traffic.lights.TrafficLightBindingTargetType;
 import com.cookiecraftmods.mta.traffic.lights.TrafficLightBindingRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -22,8 +23,9 @@ public final class TrafficLightBindingNetworking {
 		ServerPlayNetworking.registerGlobalReceiver(BIND_PACKET_ID, (server, player, handler, buffer, responseSender) -> {
 			final BlockPos blockPos = buffer.readBlockPos();
 			final String intersectionId = buffer.readUtf();
-			final int nodeNumber = buffer.readVarInt();
-			server.execute(() -> TrafficLightBindingRegistry.bind(player, blockPos, intersectionId, nodeNumber));
+			final TrafficLightBindingTargetType targetType = buffer.readEnum(TrafficLightBindingTargetType.class);
+			final int targetNumber = buffer.readVarInt();
+			server.execute(() -> TrafficLightBindingRegistry.bind(player, blockPos, intersectionId, targetType, targetNumber));
 		});
 
 		initialized = true;

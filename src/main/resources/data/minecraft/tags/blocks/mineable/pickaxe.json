@@ -4,6 +4,8 @@
     "mtr-traffic-addon:traffic_lights_pole_bottom",
     "mtr-traffic-addon:traffic_lights_pole",
     "mtr-traffic-addon:traffic_lights_vertical_pole",
-    "mtr-traffic-addon:traffic_lights_primary"
+    "mtr-traffic-addon:traffic_lights_primary",
+    "mtr-traffic-addon:pedestrian_lights",
+    "mtr-traffic-addon:pedestrian_lights_pole"
   ]
 }

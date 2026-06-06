@@ -16,7 +16,9 @@ public final class ModBlockEntities {
 			TrafficLightBlockEntity::new,
 			ModBlocks.TRAFFIC_LIGHTS_POLE,
 			ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE,
-			ModBlocks.TRAFFIC_LIGHTS_PRIMARY
+			ModBlocks.TRAFFIC_LIGHTS_PRIMARY,
+			ModBlocks.PEDESTRIAN_LIGHTS,
+			ModBlocks.PEDESTRIAN_LIGHTS_POLE
 		).build()
 	);
 

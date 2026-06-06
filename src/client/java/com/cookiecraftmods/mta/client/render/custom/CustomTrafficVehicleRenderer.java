@@ -13,13 +13,16 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleRenderer {
+	private static final float MAX_RANDOM_PITCH_DEGREES = 0.3F;
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
 	private final ClientTrafficVehicleRenderer fallbackRenderer;
 
@@ -47,8 +50,8 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 			);
 			context.poseStack().mulPose(Axis.YP.rotationDegrees(-snapshot.yawDegrees()));
 			applyDefinitionTransform(context.poseStack(), model.definition());
+			context.poseStack().mulPose(Axis.XP.rotationDegrees(snapshot.pitchDegrees() + deterministicPitchOffset(snapshot.id())));
 
-			final VertexConsumer vertexConsumer = context.bufferSource().getBuffer(RenderType.entityCutout(model.texture()));
 			final PoseStack.Pose pose = context.poseStack().last();
 			final Matrix4f positionMatrix = pose.pose();
 			final Matrix3f normalMatrix = pose.normal();
@@ -60,6 +63,8 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 			final int light = lightFor(snapshot);
 
 			for (TrafficMeshFace face : model.faces()) {
+				final ResourceLocation texture = face.texture() == null ? model.texture() : face.texture();
+				final VertexConsumer vertexConsumer = context.bufferSource().getBuffer(RenderType.entityCutout(texture));
 				emitFace(vertexConsumer, positionMatrix, normalMatrix, face, red, green, blue, alpha, light);
 			}
 		} catch (Exception e) {
@@ -108,6 +113,16 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 			return 0x00F000F0;
 		}
 		return LevelRenderer.getLightColor(minecraft.level, BlockPos.containing(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
+	}
+
+	private static float deterministicPitchOffset(UUID id) {
+		if (id == null) {
+			return 0.0F;
+		}
+
+		final long hash = id.getMostSignificantBits() ^ Long.rotateLeft(id.getLeastSignificantBits(), 17);
+		final double normalized = (double) Long.remainderUnsigned(hash, 10_000L) / 9_999.0D;
+		return (float) (-MAX_RANDOM_PITCH_DEGREES + normalized * MAX_RANDOM_PITCH_DEGREES * 2.0D);
 	}
 
 	private static void applyDefinitionTransform(PoseStack poseStack, CustomTrafficModelDefinition definition) {

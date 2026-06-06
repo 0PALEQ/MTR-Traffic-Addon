@@ -49,6 +49,7 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 				snapshot.z() - context.cameraPosition().z
 			);
 			context.poseStack().mulPose(Axis.YP.rotationDegrees(90.0F - snapshot.yawDegrees()));
+			context.poseStack().mulPose(Axis.XP.rotationDegrees(-snapshot.pitchDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(180.0F));
 
 			GraphicsHolder.createInstanceSafe(context.poseStack(), context.bufferSource(), graphicsHolder -> {

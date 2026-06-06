@@ -1,8 +1,8 @@
 # MTR Traffic Addon Documentation
 
-Version line: `26.5.B01`
+Version line: `26.6.B03`
 
-MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan resources.
+MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi resources.
 
 This document is the main user and maintainer documentation for the addon. For custom vehicle model authoring, also see `docs/RESOURCE_PACK_AUTHORING.md` and `CUSTOM_TRAFFIC_MODELS.md`.
 
@@ -30,6 +30,8 @@ Items:
 - `Traffic Lights Pole`
 - `Traffic Lights Vertical Pole`
 - `Traffic Lights Primary`
+- `Pedestrian Lights`
+- `Pedestrian Lights Pole`
 
 The two connector items inherit MTR rail modifier behavior. They create styled MTR rail sections and register those sections as traffic spawn or despawn points.
 
@@ -114,6 +116,7 @@ The pool lists loaded MTR vehicle resources and addon custom traffic model resou
 - `mta_sedan_blue`
 - `mta_sedan_brown`
 - `mta_sedan_orange`
+- `mta_sedan_taxi`
 
 Use `[+]` entries to add vehicles and `[-]` entries to remove vehicles. A spawn connector with no entries in its pool will not spawn traffic.
 
@@ -242,22 +245,26 @@ Auto signal state fails open when it is stale. This prevents paused or unloaded 
 
 ## Traffic Lights
 
-Traffic light blocks can be bound to intersection IN nodes.
+Traffic light blocks can be bound to intersection IN nodes or signal groups.
 
 Supported blocks:
 
 - `Traffic Lights Primary`
 - `Traffic Lights Pole` with attached lights
 - `Traffic Lights Vertical Pole` with attached lights
+- `Pedestrian Lights`
+- `Pedestrian Lights Pole`
 
 Binding workflow:
 
 1. Place a traffic light block inside an intersection area.
 2. Hold the MTR brush.
 3. Right-click the traffic light.
-4. Select an intersection IN node from the binding screen.
+4. Select an intersection signal group or IN node from the binding screen.
 
-The traffic light then reads the node's signal state:
+Vehicle lights normally bind to IN nodes. Pedestrian lights normally bind to a signal group so they can show green when any IN node in that group has green, yellow when any node in that group has yellow, and red otherwise.
+
+The traffic light then reads the selected target's signal state:
 
 - red
 - yellow
@@ -270,7 +277,7 @@ Saved bindings are stored in:
 data/mtr-traffic-addon/traffic_light_bindings.json
 ```
 
-Bound lights update their block state server-side. Lit states emit block light and have client-side emissive/glow overlays.
+Bound lights update their block state server-side. Lit vehicle-light states emit block light and have client-side emissive/glow overlays for red/yellow/green. Pedestrian lights emit and render glow overlays for red and green; yellow maps to no pedestrian glow.
 
 ## Vehicle Definitions
 
@@ -316,6 +323,7 @@ Embedded resources include:
 
 - MTR custom resource metadata at `assets/mtr/mtr_custom_resources.json`
 - OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.obj`
+- taxi OBJ and MTL assets at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan_taxi.obj` and `sedan_taxi.mtl`
 - BBModel source/metadata copy at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.bbmodel`
 - texture variants under `assets/mtr_traffic_addon_sedan/textures/vehicle/`
 - traffic model definitions under `assets/mtr_traffic_addon_sedan/traffic_models/`
@@ -335,7 +343,7 @@ Traffic vehicle distance limits live in `config/mtr-traffic-addon.properties`.
 
 Either distance value can be changed from `auto` to a fixed block distance. Simulation distance is never allowed below visibility distance. Spawn connectors continue to produce virtual departures even when no player is nearby, but vehicles are only materialized into active world traffic when their calculated route position falls inside a player's simulation radius. Active route vehicles outside every player's simulation radius are removed and can be recreated later from the same virtual stream.
 
-Virtual vehicles are not materialized on spawn/despawn connector track segments or on the immediately adjacent route segments. The virtual departure still starts at the spawn connector, but active world vehicles only appear after they have cleared the technical connector area.
+Virtual vehicles are not materialized on despawn connector track segments. Spawn-side materialization is allowed only when the spawn entry and sampled segment have clearance from active addon vehicles and recently observed MTR vehicles.
 
 Custom traffic model definitions live under:
 
@@ -362,7 +370,9 @@ Supported custom format in the current path:
 
 - `obj`
 
-The renderer samples world lighting at the vehicle position. If custom rendering fails, the client falls back to the MTR resource renderer where possible.
+OBJ traffic models may reference sibling `.mtl` files with `mtllib` and select materials with `usemtl`. `map_Kd` textures are resolved relative to the model/default texture namespace and can be used per face; faces without a material texture use the traffic model definition's default texture.
+
+The renderer samples world lighting at the vehicle position. Traffic vehicles now include route pitch, a tiny deterministic pitch variation, and a deterministic lateral offset to reduce perfectly overlapping visuals. If custom rendering fails, the client falls back to the MTR resource renderer where possible.
 
 ## Runtime Behavior
 
@@ -373,7 +383,7 @@ Main runtime steps:
 1. Refresh an MTR graph snapshot near a player at intervals.
 2. Refresh connector route metadata near the graph snapshot.
 3. Build deterministic virtual route streams from enabled spawn connectors to enabled despawn connectors.
-4. Materialize only virtual vehicles whose current route position is inside player simulation distance.
+4. Materialize only virtual vehicles whose current route position is inside player simulation distance and has enough clearance from existing addon/MTR vehicles.
 5. Remove active addon vehicles that leave every player's simulation distance or exceed the unrendered lifetime timeout.
 6. Record recently simulated MTR vehicles for spacing/signal demand.
 7. Tick auto intersections.
@@ -382,6 +392,12 @@ Main runtime steps:
 10. Despawn materialized vehicles at despawn connectors.
 
 Graph request radius is currently `512` blocks. Connector route pruning/repair near the player uses a radius of `448` blocks.
+
+Spawn connectors prefer their saved node direction when building routes. Existing saved spawn points with the opposite node order can still fall back to the reverse traversal for compatibility.
+
+Materialization clearance checks prevent new virtual vehicles from appearing on top of active addon vehicles or recently observed MTR vehicles. Vehicles that cannot materialize safely are skipped for that virtual departure instead of retrying every simulation pass.
+
+Traffic spacing now also limits entry into the next segment when the target segment is occupied or effectively full. Signal-section occupancy checks apply at signal entry boundaries rather than across every segment that shares the same signal color.
 
 ## MTR Interaction and Fail-Open Behavior
 
@@ -428,13 +444,13 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 Expected beta jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.5.B01.jar
+build/libs/mtr-traffic-addon-26.6.B03.jar
 ```
 
 The sources jar is also generated:
 
 ```text
-build/libs/mtr-traffic-addon-26.5.B01-sources.jar
+build/libs/mtr-traffic-addon-26.6.B03-sources.jar
 ```
 
 Before publishing a beta:
@@ -445,7 +461,7 @@ Before publishing a beta:
 4. Open an existing test world.
 5. Confirm the dashboard opens.
 6. Confirm at least one spawn/despawn route can spawn vehicles.
-7. Confirm traffic lights bind to an intersection IN node.
+7. Confirm traffic lights bind to an intersection IN node or signal group.
 8. Pause/open menus near a red intersection and confirm MTR vehicles are not permanently stuck after stale MTA ticks.
 
 ## Troubleshooting
@@ -465,7 +481,7 @@ Vehicles spawn but disappear too soon:
 
 Traffic lights always red:
 
-- Make sure the traffic light is bound to an `IN` node.
+- Make sure the traffic light is bound to an `IN` node or a signal group that contains IN nodes.
 - Make sure the intersection has valid nodes.
 - In auto mode, make sure at least one group contains the target IN node.
 - Press `Find Nodes` after changing rail geometry.
@@ -503,3 +519,4 @@ Build fails with a Java version error:
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
 - Some dashboard labels and workflows are still beta-level and may change before stable release.
+- Pedestrian lights currently use red/green pedestrian states only; yellow is treated as no pedestrian glow.

@@ -7,11 +7,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 public final class TrafficVehicle {
+	private static final double MIN_LATERAL_OFFSET_METERS = -0.3D;
+	private static final double MAX_LATERAL_OFFSET_METERS = 0.3D;
+
 	private final UUID id;
 	private final TrafficVehicleDefinition definition;
 	private final TrafficRoute route;
 	private final String spawnPointId;
 	private final String despawnPointId;
+	private final double lateralOffsetMeters;
 	private int segmentIndex;
 	private double distanceOnSegmentMeters;
 	private double speedKph;
@@ -26,6 +30,7 @@ public final class TrafficVehicle {
 		this.route = route;
 		this.spawnPointId = spawnPointId;
 		this.despawnPointId = despawnPointId;
+		this.lateralOffsetMeters = deterministicLateralOffset(id);
 		this.segmentIndex = segmentIndex;
 		this.distanceOnSegmentMeters = distanceOnSegmentMeters;
 		this.speedKph = speedKph;
@@ -97,17 +102,19 @@ public final class TrafficVehicle {
 	public TrafficVehiclePosition currentPosition() {
 		final List<TrafficRouteSegment> segments = route.segments();
 		if (segments.isEmpty()) {
-			return new TrafficVehiclePosition(0.0D, 0.0D, 0.0D, 0.0F);
+			return new TrafficVehiclePosition(0.0D, 0.0D, 0.0D, 0.0F, 0.0F);
 		}
 
 		final int currentSegmentIndex = Math.min(segmentIndex, segments.size() - 1);
 		final TrafficRouteSegment currentSegment = segments.get(currentSegmentIndex);
 		final PathSample pathSample = samplePath(currentSegment, distanceOnSegmentMeters);
-		final double x = pathSample.x();
+		final double yawRadians = Math.toRadians(pathSample.yawDegrees());
+		final double x = pathSample.x() - Math.sin(yawRadians) * lateralOffsetMeters;
 		final double y = pathSample.y();
-		final double z = pathSample.z();
+		final double z = pathSample.z() + Math.cos(yawRadians) * lateralOffsetMeters;
 		final float yawDegrees = pathSample.yawDegrees();
-		return new TrafficVehiclePosition(x, y, z, yawDegrees);
+		final float pitchDegrees = pathSample.pitchDegrees();
+		return new TrafficVehiclePosition(x, y, z, yawDegrees, pitchDegrees);
 	}
 
 	public boolean tick(double tickDurationSeconds, double allowedSpeedKph) {
@@ -200,6 +207,12 @@ public final class TrafficVehicle {
 		return start + (end - start) * progress;
 	}
 
+	private static double deterministicLateralOffset(UUID id) {
+		final long hash = id == null ? 0L : id.getMostSignificantBits() ^ id.getLeastSignificantBits();
+		final double normalized = (double) Long.remainderUnsigned(hash, 10_000L) / 9_999.0D;
+		return MIN_LATERAL_OFFSET_METERS + normalized * (MAX_LATERAL_OFFSET_METERS - MIN_LATERAL_OFFSET_METERS);
+	}
+
 	private static PathSample samplePath(TrafficRouteSegment segment, double distanceMeters) {
 		final List<TrafficPathPoint> path = segment.path();
 		if (path.size() < 2) {
@@ -207,8 +220,12 @@ public final class TrafficVehicle {
 			final double x = lerp(segment.startX(), segment.endX(), progress);
 			final double y = lerp(segment.startY(), segment.endY(), progress);
 			final double z = lerp(segment.startZ(), segment.endZ(), progress);
-			final float yawDegrees = (float) Math.toDegrees(Math.atan2(segment.endZ() - segment.startZ(), segment.endX() - segment.startX()));
-			return new PathSample(x, y, z, yawDegrees);
+			final Orientation orientation = orientation(
+				segment.endX() - segment.startX(),
+				segment.endY() - segment.startY(),
+				segment.endZ() - segment.startZ()
+			);
+			return new PathSample(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
 		}
 
 		double remaining = Math.max(0.0D, distanceMeters);
@@ -221,16 +238,24 @@ public final class TrafficVehicle {
 				final double x = lerp(previous.x(), next.x(), progress);
 				final double y = lerp(previous.y(), next.y(), progress);
 				final double z = lerp(previous.z(), next.z(), progress);
-				final float yawDegrees = (float) Math.toDegrees(Math.atan2(next.z() - previous.z(), next.x() - previous.x()));
-				return new PathSample(x, y, z, yawDegrees);
+				final Orientation orientation = orientation(
+					next.x() - previous.x(),
+					next.y() - previous.y(),
+					next.z() - previous.z()
+				);
+				return new PathSample(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
 			}
 			remaining -= length;
 		}
 
 		final TrafficPathPoint previous = path.get(path.size() - 2);
 		final TrafficPathPoint last = path.get(path.size() - 1);
-		final float yawDegrees = (float) Math.toDegrees(Math.atan2(last.z() - previous.z(), last.x() - previous.x()));
-		return new PathSample(last.x(), last.y(), last.z(), yawDegrees);
+		final Orientation orientation = orientation(
+			last.x() - previous.x(),
+			last.y() - previous.y(),
+			last.z() - previous.z()
+		);
+		return new PathSample(last.x(), last.y(), last.z(), orientation.yawDegrees(), orientation.pitchDegrees());
 	}
 
 	private static double distance(TrafficPathPoint a, TrafficPathPoint b) {
@@ -240,6 +265,16 @@ public final class TrafficVehicle {
 		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
-	private record PathSample(double x, double y, double z, float yawDegrees) {
+	private static Orientation orientation(double dx, double dy, double dz) {
+		final double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+		final float yawDegrees = (float) Math.toDegrees(Math.atan2(dz, dx));
+		final float pitchDegrees = (float) Math.toDegrees(Math.atan2(dy, horizontalDistance));
+		return new Orientation(yawDegrees, pitchDegrees);
+	}
+
+	private record PathSample(double x, double y, double z, float yawDegrees, float pitchDegrees) {
+	}
+
+	private record Orientation(float yawDegrees, float pitchDegrees) {
 	}
 }

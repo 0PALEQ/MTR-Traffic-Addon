@@ -1,7 +1,9 @@
 package com.cookiecraftmods.mta.client.lights;
 
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
+import com.cookiecraftmods.mta.traffic.lights.TrafficLightBindingTargetType;
 import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -20,7 +22,7 @@ public class TrafficLightBindingScreen extends Screen {
 	private static final int ROWS = 10;
 	private final BlockPos blockPos;
 	private final List<IntersectionOption> intersections;
-	private final List<NodeOption> visibleNodes = new ArrayList<>();
+	private final List<BindingOption> visibleOptions = new ArrayList<>();
 	private int selectedIntersectionIndex;
 	private int page;
 
@@ -49,7 +51,7 @@ public class TrafficLightBindingScreen extends Screen {
 
 	private void rebuildBindingWidgets() {
 		clearWidgets();
-		visibleNodes.clear();
+		visibleOptions.clear();
 		final IntersectionOption intersection = selectedIntersection();
 		if (intersection == null) {
 			return;
@@ -71,12 +73,12 @@ public class TrafficLightBindingScreen extends Screen {
 			y += 24;
 		}
 		final int start = page * ROWS;
-		final int end = Math.min(intersection.nodes().size(), start + ROWS);
+		final List<BindingOption> options = bindingOptions(intersection);
+		final int end = Math.min(options.size(), start + ROWS);
 		for (int i = start; i < end; i++) {
-			final TrafficIntersectionNode node = intersection.nodes().get(i);
-			final NodeOption option = new NodeOption(intersection.id(), node.number());
-			visibleNodes.add(option);
-			addRenderableWidget(Button.builder(Component.literal(nodeLabel(node)), button -> bind(option))
+			final BindingOption option = options.get(i);
+			visibleOptions.add(option);
+			addRenderableWidget(Button.builder(Component.literal(option.label()), button -> bind(option))
 				.bounds(left, y + (i - start) * ROW_HEIGHT, panelWidth, 18)
 				.build());
 		}
@@ -92,11 +94,12 @@ public class TrafficLightBindingScreen extends Screen {
 		}).bounds(left + panelWidth - 74, y, 74, 18).build()).active = page < maxPage(intersection);
 	}
 
-	private void bind(NodeOption option) {
+	private void bind(BindingOption option) {
 		final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 		buffer.writeBlockPos(blockPos);
 		buffer.writeUtf(option.intersectionId());
-		buffer.writeVarInt(option.nodeNumber());
+		buffer.writeEnum(option.targetType());
+		buffer.writeVarInt(option.targetNumber());
 		ClientPlayNetworking.send(TrafficLightBindingNetworking.BIND_PACKET_ID, buffer);
 		onClose();
 	}
@@ -106,7 +109,24 @@ public class TrafficLightBindingScreen extends Screen {
 	}
 
 	private static int maxPage(IntersectionOption intersection) {
-		return Math.max(0, (intersection.nodes().size() - 1) / ROWS);
+		return Math.max(0, (bindingOptions(intersection).size() - 1) / ROWS);
+	}
+
+	private static List<BindingOption> bindingOptions(IntersectionOption intersection) {
+		final List<BindingOption> options = new ArrayList<>();
+		for (int i = 0; i < intersection.groups().size(); i++) {
+			final TrafficIntersectionGroup group = intersection.groups().get(i);
+			options.add(new BindingOption(intersection.id(), TrafficLightBindingTargetType.GROUP, i, groupLabel(i, group)));
+		}
+		for (TrafficIntersectionNode node : intersection.nodes()) {
+			options.add(new BindingOption(intersection.id(), TrafficLightBindingTargetType.NODE, node.number(), nodeLabel(node)));
+		}
+		return options;
+	}
+
+	private static String groupLabel(int index, TrafficIntersectionGroup group) {
+		final String nodes = group.nodeNumbers().isEmpty() ? "no nodes" : "nodes " + group.nodeNumbers();
+		return "Group #" + (index + 1) + " " + group.name() + " (" + nodes + ")";
 	}
 
 	private static String nodeLabel(TrafficIntersectionNode node) {
@@ -114,12 +134,13 @@ public class TrafficLightBindingScreen extends Screen {
 		return type + " #" + node.number() + " @ " + node.x() + ", " + node.y() + ", " + node.z();
 	}
 
-	public record IntersectionOption(String id, String name, List<TrafficIntersectionNode> nodes) {
+	public record IntersectionOption(String id, String name, List<TrafficIntersectionGroup> groups, List<TrafficIntersectionNode> nodes) {
 		public IntersectionOption {
+			groups = groups == null ? List.of() : List.copyOf(groups);
 			nodes = nodes == null ? List.of() : List.copyOf(nodes);
 		}
 	}
 
-	private record NodeOption(String intersectionId, int nodeNumber) {
+	private record BindingOption(String intersectionId, TrafficLightBindingTargetType targetType, int targetNumber, String label) {
 	}
 }

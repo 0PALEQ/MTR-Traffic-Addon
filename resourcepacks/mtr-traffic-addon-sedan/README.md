@@ -29,6 +29,7 @@ The pack also includes `data/mtr_traffic_addon_sedan/traffic_vehicles/*.json`, w
 - MTR vehicle resource: `mta_sedan_blue`
 - MTR vehicle resource: `mta_sedan_brown`
 - MTR vehicle resource: `mta_sedan_orange`
+- MTR vehicle resource: `mta_sedan_taxi`
 - Traffic vehicle definition: `sedan_01`
 - Traffic vehicle definition: `sedan_white`
 - Traffic vehicle definition: `sedan_black`
@@ -37,6 +38,7 @@ The pack also includes `data/mtr_traffic_addon_sedan/traffic_vehicles/*.json`, w
 - Traffic vehicle definition: `sedan_blue`
 - Traffic vehicle definition: `sedan_brown`
 - Traffic vehicle definition: `sedan_orange`
+- Traffic vehicle definition: `sedan_taxi`
 
 ## Authoring notes
 
@@ -44,7 +46,7 @@ The working sedan pack uses:
 
 - one shared OBJ mesh for traffic rendering,
 - one `.bbmodel` copy for resource metadata and future MTR renderer compatibility,
-- eight 256x256 texture variants,
+- nine 256x256 texture variants plus the 64x64 taxi sign texture,
 - no `bogie1Models` or `bogie2Models`,
 - `positions: [{}]`,
 - `positionsFlipped: []`,

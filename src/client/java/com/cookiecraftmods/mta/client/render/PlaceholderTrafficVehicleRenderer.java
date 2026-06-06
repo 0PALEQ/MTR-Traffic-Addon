@@ -15,6 +15,7 @@ public final class PlaceholderTrafficVehicleRenderer implements ClientTrafficVeh
 			snapshot.z() - context.cameraPosition().z
 		);
 		context.poseStack().mulPose(Axis.YP.rotationDegrees(-snapshot.yawDegrees()));
+		context.poseStack().mulPose(Axis.XP.rotationDegrees(-snapshot.pitchDegrees()));
 
 		final double halfWidth = visualProfile.widthMeters() / 2.0D;
 		final double halfLength = visualProfile.lengthMeters() / 2.0D;

@@ -104,7 +104,7 @@ public final class CustomTrafficModelRegistry implements SimpleSynchronousResour
 		if (format.equals("obj")) {
 			final Resource resource = manager.getResource(definition.model()).orElseThrow(() -> new IllegalArgumentException("Missing model resource " + definition.model()));
 			try (Reader reader = new InputStreamReader(resource.open(), StandardCharsets.UTF_8)) {
-				return ObjTrafficModelLoader.load(reader);
+				return ObjTrafficModelLoader.load(reader, manager, definition.model(), definition.texture());
 			}
 		}
 		if (format.equals("json") || format.equals("bbmodel")) {

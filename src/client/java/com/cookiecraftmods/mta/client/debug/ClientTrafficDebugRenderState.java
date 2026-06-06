@@ -11,6 +11,7 @@ public record ClientTrafficDebugRenderState(
 	double y,
 	double z,
 	float yawDegrees,
+	float pitchDegrees,
 	double speedKph
 ) {
 }

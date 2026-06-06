@@ -13,6 +13,9 @@ public final class TrafficSpacingResolver {
 	private static final double MIN_SPACING_BUFFER_METERS = 2.0D;
 	private static final double LOOKAHEAD_BUFFER_METERS = 8.0D;
 	private static final double ROUTE_OCCUPANCY_LOOKAHEAD_METERS = 80.0D;
+	private static final double NEXT_SEGMENT_ENTRY_BUFFER_METERS = 2.0D;
+	private static final double NEXT_SEGMENT_STOP_BUFFER_METERS = 1.0D;
+	private static final double SEGMENT_FULLNESS_BUFFER_METERS = 1.0D;
 	private static final double SIGNAL_STOP_BUFFER_METERS = 2.0D;
 	private static final double SIGNAL_APPROACH_LOOKAHEAD_METERS = 10.0D;
 	private static final double TICK_DURATION_SECONDS = 1.0D / 20.0D;
@@ -45,6 +48,7 @@ public final class TrafficSpacingResolver {
 
 		applyRouteLookaheadSpacing(vehicles, allowedSpeeds);
 		applyMtrVehicleSpacing(vehicles, allowedSpeeds);
+		applyNextSegmentEntryLimits(vehicles, allowedSpeeds);
 		applySignalLimits(vehicles, allowedSpeeds);
 		return allowedSpeeds;
 	}
@@ -162,6 +166,55 @@ public final class TrafficSpacingResolver {
 		return first.directedConnectorId().equals(second.directedConnectorId());
 	}
 
+	private static void applyNextSegmentEntryLimits(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
+		for (TrafficVehicle vehicle : vehicles) {
+			final TrafficRouteSegment nextSegment = vehicle.nextSegment().orElse(null);
+			if (nextSegment == null || nextSegmentHasRoomAtEntry(vehicles, vehicle, nextSegment)) {
+				continue;
+			}
+
+			final double distanceToStop = vehicle.distanceToEndOfCurrentSegmentMeters() - NEXT_SEGMENT_STOP_BUFFER_METERS;
+			final double limitedSpeedKph;
+			if (distanceToStop <= 0.0D) {
+				limitedSpeedKph = 0.0D;
+			} else {
+				limitedSpeedKph = Math.sqrt(2.0D * vehicle.definition().effectiveBrakingMetersPerSecondSquared() * distanceToStop) * 3.6D;
+			}
+			allowedSpeeds.put(vehicle, Math.min(allowedSpeeds.getOrDefault(vehicle, 0.0D), limitedSpeedKph));
+		}
+	}
+
+	private static boolean nextSegmentHasRoomAtEntry(Collection<TrafficVehicle> vehicles, TrafficVehicle enteringVehicle, TrafficRouteSegment nextSegment) {
+		double occupiedMeters = 0.0D;
+		boolean hasVehicleOnNextSegment = false;
+		for (TrafficVehicle otherVehicle : vehicles) {
+			if (otherVehicle == enteringVehicle) {
+				continue;
+			}
+
+			final TrafficRouteSegment otherSegment = otherVehicle.currentSegment().orElse(null);
+			if (otherSegment == null || !sameDirectedSegment(nextSegment, otherSegment)) {
+				continue;
+			}
+
+			final double requiredEntryClearance = enteringVehicle.definition().lengthMeters() * 0.5D
+				+ otherVehicle.definition().lengthMeters() * 0.5D
+				+ NEXT_SEGMENT_ENTRY_BUFFER_METERS;
+			if (otherVehicle.distanceOnSegmentMeters() < requiredEntryClearance) {
+				return false;
+			}
+			occupiedMeters += Math.max(0.0D, otherVehicle.definition().lengthMeters()) + SEGMENT_FULLNESS_BUFFER_METERS;
+			hasVehicleOnNextSegment = true;
+		}
+
+		if (!hasVehicleOnNextSegment) {
+			return true;
+		}
+
+		occupiedMeters += Math.max(0.0D, enteringVehicle.definition().lengthMeters()) + SEGMENT_FULLNESS_BUFFER_METERS;
+		return occupiedMeters <= Math.max(nextSegment.lengthMeters(), 0.1D);
+	}
+
 	private static void applySignalLimits(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
 		for (TrafficVehicle vehicle : vehicles) {
 			final TrafficRouteSegment currentSegment = vehicle.currentSegment().orElse(null);
@@ -169,13 +222,13 @@ public final class TrafficSpacingResolver {
 				continue;
 			}
 
-			if (!currentSegment.signalColors().isEmpty() && vehicle.distanceOnSegmentMeters() <= SIGNAL_APPROACH_LOOKAHEAD_METERS && isSignalSectionOccupiedByOtherVehicle(vehicles, vehicle, currentSegment)) {
+			if (isCurrentSegmentSignalEntry(vehicle, currentSegment) && vehicle.distanceOnSegmentMeters() <= SIGNAL_APPROACH_LOOKAHEAD_METERS && isSignalSectionOccupiedByOtherVehicle(vehicles, vehicle, currentSegment)) {
 				allowedSpeeds.put(vehicle, 0.0D);
 				continue;
 			}
 
 			final TrafficRouteSegment nextSegment = vehicle.nextSegment().orElse(null);
-			if (nextSegment == null || nextSegment.signalColors().isEmpty() || !isSignalSectionOccupiedByOtherVehicle(vehicles, vehicle, nextSegment)) {
+			if (nextSegment == null || !isNextSegmentSignalEntry(currentSegment, nextSegment) || !isSignalSectionOccupiedByOtherVehicle(vehicles, vehicle, nextSegment)) {
 				continue;
 			}
 
@@ -187,6 +240,24 @@ public final class TrafficSpacingResolver {
 				allowedSpeeds.put(vehicle, Math.min(allowedSpeeds.getOrDefault(vehicle, 0.0D), maxSpeedToStopKph));
 			}
 		}
+	}
+
+	private static boolean isCurrentSegmentSignalEntry(TrafficVehicle vehicle, TrafficRouteSegment currentSegment) {
+		if (currentSegment.signalColors().isEmpty()) {
+			return false;
+		}
+
+		final int previousSegmentIndex = vehicle.segmentIndex() - 1;
+		final List<TrafficRouteSegment> segments = vehicle.route().segments();
+		if (previousSegmentIndex < 0 || previousSegmentIndex >= segments.size()) {
+			return true;
+		}
+
+		return !overlaps(segments.get(previousSegmentIndex).signalColors(), currentSegment.signalColors());
+	}
+
+	private static boolean isNextSegmentSignalEntry(TrafficRouteSegment currentSegment, TrafficRouteSegment nextSegment) {
+		return !nextSegment.signalColors().isEmpty() && !overlaps(currentSegment.signalColors(), nextSegment.signalColors());
 	}
 
 	private static boolean isSignalSectionOccupiedByOtherVehicle(Collection<TrafficVehicle> vehicles, TrafficVehicle candidateVehicle, TrafficRouteSegment candidateSegment) {

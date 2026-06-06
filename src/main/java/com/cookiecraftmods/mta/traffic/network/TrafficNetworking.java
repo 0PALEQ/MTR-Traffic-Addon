@@ -80,6 +80,7 @@ public final class TrafficNetworking {
 			buffer.writeDouble(position.y());
 			buffer.writeDouble(position.z());
 			buffer.writeFloat(position.yawDegrees());
+			buffer.writeFloat(position.pitchDegrees());
 			buffer.writeDouble(vehicle.speedKph());
 		}
 

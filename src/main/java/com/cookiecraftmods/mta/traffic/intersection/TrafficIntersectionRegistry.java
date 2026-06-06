@@ -98,6 +98,32 @@ public final class TrafficIntersectionRegistry {
 		return Optional.of(TrafficLightSignalState.RED);
 	}
 
+	public static Optional<TrafficLightSignalState> groupSignalState(String intersectionId, int groupIndex, long serverTick) {
+		final TrafficIntersectionDefinition definition = DEFINITIONS.get(intersectionId);
+		if (definition == null || !definition.isEnabled() || definition.nodes().isEmpty() || groupIndex < 0) {
+			return Optional.empty();
+		}
+		final List<TrafficIntersectionGroup> groups = signalGroups(definition);
+		if (groupIndex >= groups.size()) {
+			return Optional.empty();
+		}
+
+		final TrafficIntersectionGroup group = groups.get(groupIndex);
+		final List<Integer> activeNumbers = activeInNumbers(definition, serverTick);
+		if (group.nodeNumbers().stream().anyMatch(activeNumbers::contains)) {
+			return Optional.of(TrafficLightSignalState.GREEN);
+		}
+		final List<Integer> yellowNumbers = yellowInNumbers(definition, serverTick);
+		if (group.nodeNumbers().stream().anyMatch(yellowNumbers::contains)) {
+			return Optional.of(TrafficLightSignalState.YELLOW);
+		}
+		return Optional.of(TrafficLightSignalState.RED);
+	}
+
+	public static List<TrafficIntersectionGroup> signalGroups(TrafficIntersectionDefinition definition) {
+		return List.copyOf(validGroups(definition));
+	}
+
 	public static TrafficIntersectionDefinition createIntersection(ServerLevel level, BlockPos firstCorner, BlockPos secondCorner) {
 		final String dimensionId = level.dimension().location().toString();
 		final long minX = Math.min(firstCorner.getX(), secondCorner.getX());

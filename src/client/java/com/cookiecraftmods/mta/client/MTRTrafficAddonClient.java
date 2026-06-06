@@ -47,7 +47,9 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM,
 			ModBlocks.TRAFFIC_LIGHTS_POLE,
 			ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE,
-			ModBlocks.TRAFFIC_LIGHTS_PRIMARY
+			ModBlocks.TRAFFIC_LIGHTS_PRIMARY,
+			ModBlocks.PEDESTRIAN_LIGHTS,
+			ModBlocks.PEDESTRIAN_LIGHTS_POLE
 		);
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
@@ -66,6 +68,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 					buffer.readDouble(),
 					buffer.readDouble(),
 					buffer.readDouble(),
+					buffer.readFloat(),
 					buffer.readFloat(),
 					buffer.readDouble()
 				));
@@ -188,6 +191,18 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			for (int i = 0; i < intersectionCount; i++) {
 				final String id = buffer.readUtf();
 				final String name = buffer.readUtf();
+				final int groupCount = buffer.readVarInt();
+				final List<TrafficIntersectionGroup> groups = new ArrayList<>(groupCount);
+				for (int j = 0; j < groupCount; j++) {
+					final String groupName = buffer.readUtf();
+					final int greenDurationTicks = buffer.readVarInt();
+					final int nodeNumberCount = buffer.readVarInt();
+					final List<Integer> nodeNumbers = new ArrayList<>(nodeNumberCount);
+					for (int k = 0; k < nodeNumberCount; k++) {
+						nodeNumbers.add(buffer.readVarInt());
+					}
+					groups.add(new TrafficIntersectionGroup(groupName, greenDurationTicks, nodeNumbers));
+				}
 				final int nodeCount = buffer.readVarInt();
 				final List<TrafficIntersectionNode> nodes = new ArrayList<>(nodeCount);
 				for (int j = 0; j < nodeCount; j++) {
@@ -199,7 +214,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 						buffer.readVarInt()
 					));
 				}
-				intersections.add(new TrafficLightBindingScreen.IntersectionOption(id, name, nodes));
+				intersections.add(new TrafficLightBindingScreen.IntersectionOption(id, name, groups, nodes));
 			}
 			client.execute(() -> client.setScreen(new TrafficLightBindingScreen(blockPos, intersections)));
 		});

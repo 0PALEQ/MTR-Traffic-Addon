@@ -1,19 +1,33 @@
 package com.cookiecraftmods.mta.client.render.custom;
 
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
+
 import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 final class ObjTrafficModelLoader {
 	private ObjTrafficModelLoader() {
 	}
 
 	static List<TrafficMeshFace> load(Reader reader) throws Exception {
+		return load(reader, null, null, null);
+	}
+
+	static List<TrafficMeshFace> load(Reader reader, ResourceManager manager, ResourceLocation modelLocation, ResourceLocation defaultTexture) throws Exception {
 		final List<Vec3> positions = new ArrayList<>();
 		final List<Vec2> textureCoordinates = new ArrayList<>();
 		final List<Vec3> normals = new ArrayList<>();
 		final List<TrafficMeshFace> faces = new ArrayList<>();
+		final Map<String, ResourceLocation> materialTextures = new HashMap<>();
+		String currentMaterial = null;
 
 		try (BufferedReader bufferedReader = new BufferedReader(reader)) {
 			String line;
@@ -28,7 +42,9 @@ final class ObjTrafficModelLoader {
 					case "v" -> positions.add(new Vec3(parseFloat(parts, 1), parseFloat(parts, 2), parseFloat(parts, 3)));
 					case "vt" -> textureCoordinates.add(new Vec2(parseFloat(parts, 1), parseFloat(parts, 2)));
 					case "vn" -> normals.add(new Vec3(parseFloat(parts, 1), parseFloat(parts, 2), parseFloat(parts, 3)));
-					case "f" -> addFaces(parts, positions, textureCoordinates, normals, faces);
+					case "mtllib" -> loadMaterialLibraries(parts, manager, modelLocation, defaultTexture, materialTextures);
+					case "usemtl" -> currentMaterial = parts.length > 1 ? parts[1] : null;
+					case "f" -> addFaces(parts, positions, textureCoordinates, normals, faces, materialTextures.get(currentMaterial));
 					default -> {
 					}
 				}
@@ -38,7 +54,7 @@ final class ObjTrafficModelLoader {
 		return faces;
 	}
 
-	private static void addFaces(String[] parts, List<Vec3> positions, List<Vec2> textureCoordinates, List<Vec3> normals, List<TrafficMeshFace> faces) {
+	private static void addFaces(String[] parts, List<Vec3> positions, List<Vec2> textureCoordinates, List<Vec3> normals, List<TrafficMeshFace> faces, ResourceLocation texture) {
 		if (parts.length < 4) {
 			return;
 		}
@@ -54,8 +70,75 @@ final class ObjTrafficModelLoader {
 				toMeshVertex(first),
 				toMeshVertex(second),
 				toMeshVertex(third)
-			), normal.x(), normal.y(), normal.z()));
+			), normal.x(), normal.y(), normal.z(), texture));
 		}
+	}
+
+	private static void loadMaterialLibraries(String[] parts, ResourceManager manager, ResourceLocation modelLocation, ResourceLocation defaultTexture, Map<String, ResourceLocation> materialTextures) throws Exception {
+		if (manager == null || modelLocation == null) {
+			return;
+		}
+
+		for (int i = 1; i < parts.length; i++) {
+			final ResourceLocation materialLocation = resolveSibling(modelLocation, parts[i]);
+			final Resource resource = manager.getResource(materialLocation).orElse(null);
+			if (resource == null) {
+				continue;
+			}
+			readMaterialLibrary(resource, materialLocation, defaultTexture, materialTextures);
+		}
+	}
+
+	private static void readMaterialLibrary(Resource resource, ResourceLocation materialLocation, ResourceLocation defaultTexture, Map<String, ResourceLocation> materialTextures) throws Exception {
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.open(), StandardCharsets.UTF_8))) {
+			String currentMaterial = null;
+			String line;
+			while ((line = reader.readLine()) != null) {
+				final String trimmedLine = line.trim();
+				if (trimmedLine.isEmpty() || trimmedLine.startsWith("#")) {
+					continue;
+				}
+
+				final String[] parts = trimmedLine.split("\\s+");
+				switch (parts[0]) {
+					case "newmtl" -> currentMaterial = parts.length > 1 ? parts[1] : null;
+					case "map_Kd" -> {
+						if (currentMaterial != null && parts.length > 1) {
+							materialTextures.put(currentMaterial, resolveMaterialTexture(materialLocation, defaultTexture, parts[1]));
+						}
+					}
+					default -> {
+					}
+				}
+			}
+		}
+	}
+
+	private static ResourceLocation resolveMaterialTexture(ResourceLocation materialLocation, ResourceLocation defaultTexture, String rawPath) {
+		if (rawPath.contains(":")) {
+			return new ResourceLocation(rawPath);
+		}
+		if (defaultTexture != null) {
+			final String texturePath = defaultTexture.getPath();
+			final int slashIndex = texturePath.lastIndexOf('/');
+			final String textureDirectory = slashIndex < 0 ? "" : texturePath.substring(0, slashIndex + 1);
+			return new ResourceLocation(defaultTexture.getNamespace(), textureDirectory + normalizeRelativePath(rawPath));
+		}
+		return resolveSibling(materialLocation, rawPath);
+	}
+
+	private static ResourceLocation resolveSibling(ResourceLocation sourceLocation, String rawPath) {
+		if (rawPath.contains(":")) {
+			return new ResourceLocation(rawPath);
+		}
+		final String sourcePath = sourceLocation.getPath();
+		final int slashIndex = sourcePath.lastIndexOf('/');
+		final String directory = slashIndex < 0 ? "" : sourcePath.substring(0, slashIndex + 1);
+		return new ResourceLocation(sourceLocation.getNamespace(), directory + normalizeRelativePath(rawPath));
+	}
+
+	private static String normalizeRelativePath(String rawPath) {
+		return rawPath.replace('\\', '/');
 	}
 
 	private static FaceVertex parseFaceVertex(String rawValue, List<Vec3> positions, List<Vec2> textureCoordinates, List<Vec3> normals) {
