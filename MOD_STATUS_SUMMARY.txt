@@ -12,7 +12,8 @@ Current working state
   D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a-sources.jar
 - The standalone road vehicle resource pack export remains:
   D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan.zip
-- Gradle/Fabric Loom requires Java 21 or newer to run. The latest verified build used JDK 23 from C:\Program Files\Java\jdk-23. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+- Gradle/Fabric Loom requires Java 21 or newer to run. The latest verified build used Microsoft JDK 21 from C:\Users\opale\.jdks\ms-21.0.8. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+- The MTR compile dependency resolves through Modrinth Maven (`maven.modrinth:minecraft-transit-railway:FABRIC-4.0.4+1.20.1`) instead of CurseMaven, avoiding CurseForge media 403 failures in CI.
 - Current branch has uncommitted work for 26.6.B03a, including code/resource changes and this documentation refresh.
 
 Current feature status
@@ -115,8 +116,8 @@ Build verification
 
 Last verified command:
 
-JAVA_HOME=C:\Program Files\Java\jdk-23
-.\gradlew.bat build
+JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
+.\gradlew.bat build --refresh-dependencies
 
 Result:
 

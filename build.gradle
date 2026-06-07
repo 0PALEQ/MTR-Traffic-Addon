@@ -12,11 +12,15 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
-	maven {
-		name = "CurseMaven"
-		url = uri("https://cursemaven.com/")
-		content {
-			includeGroup "curse.maven"
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "Modrinth"
+				url = uri("https://api.modrinth.com/maven")
+			}
+		}
+		filter {
+			includeGroup "maven.modrinth"
 		}
 	}
 }
@@ -39,7 +43,7 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	modImplementation "curse.maven:minecraft-transit-railway-${project.mtr_curse_project_id}:${project.mtr_curse_file_id}"
+	modImplementation "maven.modrinth:minecraft-transit-railway:${project.mtr_modrinth_version}"
 	
 }
 
