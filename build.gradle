@@ -66,6 +66,12 @@ java {
 	targetCompatibility = JavaVersion.VERSION_17
 }
 
+tasks.named("sourcesJar") {
+	// Source jars are not runnable mods. Leaving Fabric metadata in them makes
+	// loaders treat them as mods and fail when mixin classes are only present as sources.
+	exclude("fabric.mod.json", "*.mixins.json")
+}
+
 jar {
 	def projectName = project.name
 	inputs.property "projectName", projectName

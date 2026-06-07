@@ -1,8 +1,8 @@
 # MTR Traffic Addon Documentation
 
-Version line: `26.6.B03`
+Version line: `26.6.B03a`
 
-MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi resources.
+MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi/hatchback resources.
 
 This document is the main user and maintainer documentation for the addon. For custom vehicle model authoring, also see `docs/RESOURCE_PACK_AUTHORING.md` and `CUSTOM_TRAFFIC_MODELS.md`.
 
@@ -58,7 +58,7 @@ The addon uses MTR rails as the path graph. In practice, road lanes should be bu
 4. Open the `Traffic Dashboard`.
 5. Select the spawn connector.
 6. Open `Vehicle Pool`.
-7. Add at least one loaded vehicle visual ID, such as `mta_sedan` or `mta_sedan_blue`.
+7. Add at least one loaded vehicle visual ID, such as `mta_sedan`, `mta_sedan_blue`, or `mta_hatchback`.
 8. Return to the overview and press `Refresh Routes`.
 9. Make sure the spawn and despawn connectors are enabled.
 10. Wait for active vehicles to appear on the route.
@@ -106,7 +106,7 @@ Existing saved addon-only connectors can still be removed by reconnecting the sa
 
 Vehicle Pool controls which visual IDs may spawn from a spawn connector.
 
-The pool lists loaded MTR vehicle resources and addon custom traffic model resources. Built-in sedan visual IDs include:
+The pool lists loaded MTR vehicle resources and addon custom traffic model resources. Built-in sedan and hatchback visual IDs include:
 
 - `mta_sedan`
 - `mta_sedan_white`
@@ -117,6 +117,15 @@ The pool lists loaded MTR vehicle resources and addon custom traffic model resou
 - `mta_sedan_brown`
 - `mta_sedan_orange`
 - `mta_sedan_taxi`
+- `mta_hatchback`
+- `mta_hatchback_white`
+- `mta_hatchback_gray`
+- `mta_hatchback_blue`
+- `mta_hatchback_brown`
+- `mta_hatchback_green`
+- `mta_hatchback_orange`
+- `mta_hatchback_pink`
+- `mta_hatchback_red`
 
 Use `[+]` entries to add vehicles and `[-]` entries to remove vehicles. A spawn connector with no entries in its pool will not spawn traffic.
 
@@ -317,13 +326,14 @@ Invalid definitions are skipped and logged.
 
 ## Built-In Vehicle Resources
 
-The mod embeds sedan resources directly in the jar. Players do not need to install the old standalone sedan resource pack for the built-in sedans.
+The mod embeds road vehicle resources directly in the jar. Players do not need to install the old standalone vehicle resource pack for the built-in sedans or hatchbacks.
 
 Embedded resources include:
 
 - MTR custom resource metadata at `assets/mtr/mtr_custom_resources.json`
 - OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.obj`
 - taxi OBJ and MTL assets at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan_taxi.obj` and `sedan_taxi.mtl`
+- hatchback OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/hatchback.obj`
 - BBModel source/metadata copy at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.bbmodel`
 - texture variants under `assets/mtr_traffic_addon_sedan/textures/vehicle/`
 - traffic model definitions under `assets/mtr_traffic_addon_sedan/traffic_models/`
@@ -444,13 +454,13 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 Expected beta jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B03.jar
+build/libs/mtr-traffic-addon-26.6.B03a.jar
 ```
 
 The sources jar is also generated:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B03-sources.jar
+build/libs/mtr-traffic-addon-26.6.B03a-sources.jar
 ```
 
 Before publishing a beta:

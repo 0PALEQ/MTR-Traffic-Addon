@@ -97,7 +97,7 @@ Rules:
 - Use `condition: "NORMAL"` for always-visible exterior road vehicles.
 - Use `renderStage: "EXTERIOR"` for the body.
 - Include `type: "NORMAL"` for normal static geometry.
-- Tune vertical placement with `modelYOffset`; for the current mesh sedan, `0.0` places it correctly on the road.
+- Tune vertical placement with `modelYOffset`; for the current mesh sedan and hatchback, `0.0` places them correctly on the road.
 
 ## Position Definitions
 
@@ -123,7 +123,7 @@ Use `positionsFlipped` only for parts that are intentionally mirrored/flipped, a
 
 For multiple colors using the same model:
 
-1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_black`, `mta_sedan_green`, `mta_sedan_red`, `mta_sedan_blue`, `mta_sedan_brown`, `mta_sedan_orange`, and `mta_sedan_taxi`.
+1. Add one MTR vehicle resource per texture, for example `mta_sedan`, `mta_sedan_white`, `mta_sedan_black`, `mta_sedan_green`, `mta_sedan_red`, `mta_sedan_blue`, `mta_sedan_brown`, `mta_sedan_orange`, `mta_sedan_taxi`, `mta_hatchback`, `mta_hatchback_white`, `mta_hatchback_gray`, `mta_hatchback_blue`, `mta_hatchback_brown`, `mta_hatchback_green`, `mta_hatchback_orange`, `mta_hatchback_pink`, and `mta_hatchback_red`.
 2. Reuse the same `.bbmodel`, model properties, and position definitions.
 3. Change only `textureResource`, `id`, `name`, `color`, and optional tags.
 4. Add matching traffic vehicle definitions under `data/<namespace>/traffic_vehicles/*.json`.
@@ -158,6 +158,8 @@ assets/mtr_traffic_addon_sedan/textures/vehicle/sedan_taxi.png
 assets/mtr_traffic_addon_sedan/textures/vehicle/taxi_sign.png
 ```
 
+The built-in hatchback uses one shared OBJ mesh and per-variant default textures from `traffic_models/*.json`. Its OBJ copy intentionally does not reference `mtllib`, so each `mta_hatchback*` visual uses the texture declared in that variant definition.
+
 ## Embedding In The Mod
 
 Once a pack is stable, embed it:
@@ -169,7 +171,7 @@ Once a pack is stable, embed it:
 5. Verify the jar contains the embedded files:
 
 ```powershell
-jar tf build\libs\mtr-traffic-addon-26.6.B03.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan"
+jar tf build\libs\mtr-traffic-addon-26.6.B03a.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan|hatchback"
 ```
 
 After embedding, remove old external copies of the same pack from `.minecraft/resourcepacks`; stale external packs can override the embedded resources.
@@ -198,7 +200,7 @@ Parts missing from normal MTR vehicles:
 - Do not special-case the global renderer for one custom car if that changes how all MTR vehicle resources queue their render stages.
 - Fix per-pack structure first: parts, position definitions, and bogie definitions.
 
-## Current Built-In Sedan IDs
+## Current Built-In Road Vehicle IDs
 
 - `mta_sedan`
 - `mta_sedan_white`
@@ -209,3 +211,12 @@ Parts missing from normal MTR vehicles:
 - `mta_sedan_brown`
 - `mta_sedan_orange`
 - `mta_sedan_taxi`
+- `mta_hatchback`
+- `mta_hatchback_white`
+- `mta_hatchback_gray`
+- `mta_hatchback_blue`
+- `mta_hatchback_brown`
+- `mta_hatchback_green`
+- `mta_hatchback_orange`
+- `mta_hatchback_pink`
+- `mta_hatchback_red`

@@ -48,13 +48,13 @@ Recognized but not decoded yet:
 
 Those formats need a full glTF decoder for buffers, accessors, materials and node transforms before they can render correctly.
 
-The sedan MTR resource sample lives in:
+The built-in road vehicle resource sample lives in:
 
 ```text
 resourcepacks/mtr-traffic-addon-sedan
 ```
 
-The same sedan resources are now embedded in the mod jar under:
+The same sedan and hatchback resources are now embedded in the mod jar under:
 
 ```text
 src/main/resources/assets/mtr/
@@ -62,4 +62,4 @@ src/main/resources/assets/mtr_traffic_addon_sedan/
 src/main/resources/data/mtr_traffic_addon_sedan/
 ```
 
-The sample registers nine `mta_sedan*` variants for the Traffic Dashboard vehicle pool, including `mta_sedan_taxi`, and uses OBJ traffic model definitions for the supplied mesh renderer.
+The sample registers nine `mta_sedan*` variants, including `mta_sedan_taxi`, and nine `mta_hatchback*` variants for the Traffic Dashboard vehicle pool. Both body styles use OBJ traffic model definitions for the supplied mesh renderer.

@@ -4,9 +4,9 @@ Addon for minecraft transit railway featuring car traffic generation.
 
 ## Beta Status
 
-Current beta line: `26.6.B03`.
+Current beta line: `26.6.B03a`.
 
-This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan and taxi vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan/taxi/hatchback vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
 
 MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks.
 
@@ -28,9 +28,9 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 
 ## Built-In Vehicle Resources
 
-The sedan vehicle resources are bundled inside the mod jar. Players do not need to install the old standalone sedan resource pack when using a current build.
+The road vehicle resources are bundled inside the mod jar. Players do not need to install the old standalone vehicle resource pack when using a current build.
 
-Current built-in sedan visuals:
+Current built-in sedan and hatchback visuals:
 
 - `mta_sedan`
 - `mta_sedan_white`
@@ -41,6 +41,15 @@ Current built-in sedan visuals:
 - `mta_sedan_brown`
 - `mta_sedan_orange`
 - `mta_sedan_taxi`
+- `mta_hatchback`
+- `mta_hatchback_white`
+- `mta_hatchback_gray`
+- `mta_hatchback_blue`
+- `mta_hatchback_brown`
+- `mta_hatchback_green`
+- `mta_hatchback_orange`
+- `mta_hatchback_pink`
+- `mta_hatchback_red`
 
 Current built-in traffic vehicle definitions:
 
@@ -53,6 +62,15 @@ Current built-in traffic vehicle definitions:
 - `sedan_brown`
 - `sedan_orange`
 - `sedan_taxi`
+- `hatchback`
+- `hatchback_white`
+- `hatchback_gray`
+- `hatchback_blue`
+- `hatchback_brown`
+- `hatchback_green`
+- `hatchback_orange`
+- `hatchback_pink`
+- `hatchback_red`
 
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
 

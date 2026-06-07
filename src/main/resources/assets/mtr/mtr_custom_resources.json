@@ -242,6 +242,258 @@
       "hasGangway2": false,
       "hasBarrier1": false,
       "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback",
+      "name": "MTA Mesh Hatchback",
+      "color": "808080",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:primary", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_primary.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_white",
+      "name": "MTA Mesh Hatchback White",
+      "color": "E8E4D8",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "White mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:white", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_primary_white.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_gray",
+      "name": "MTA Mesh Hatchback Gray",
+      "color": "6F7374",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Gray mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:gray", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_gray.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_blue",
+      "name": "MTA Mesh Hatchback Blue",
+      "color": "4E6F91",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Blue mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:blue", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_blue.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_brown",
+      "name": "MTA Mesh Hatchback Brown",
+      "color": "7B563F",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Brown mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:brown", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_brown.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_green",
+      "name": "MTA Mesh Hatchback Green",
+      "color": "5F8056",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Green mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:green", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_green.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_orange",
+      "name": "MTA Mesh Hatchback Orange",
+      "color": "C97B35",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Orange mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:orange", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_orange.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_pink",
+      "name": "MTA Mesh Hatchback Pink",
+      "color": "D4839A",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Pink mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:pink", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_pink.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_hatchback_red",
+      "name": "MTA Mesh Hatchback Red",
+      "color": "A74C43",
+      "transportMode": "TRAIN",
+      "length": 4.5,
+      "width": 1.9,
+      "height": 1.65,
+      "description": "Red mesh hatchback model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:red", "model:mesh", "body:hatchback"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/hatchback_red.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/hatchback.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.45,
+      "bogie2Position": 1.45,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
     }
   ],
   "signs": [],

@@ -1,26 +1,28 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-06-06
-Version covered: 26.6.B03
+Updated: 2026-06-07
+Version covered: 26.6.B03a
 
 Current working state
 =====================
 
 - The mod builds as a Fabric 1.20.1 addon for Minecraft Transit Railway 4.0.4+.
 - Current build output in this workspace:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03.jar
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a.jar
 - Current sources jar:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03-sources.jar
-- The standalone sedan resource pack export remains:
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a-sources.jar
+- The standalone road vehicle resource pack export remains:
   D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan.zip
-- Gradle/Fabric Loom requires Java 21 or newer to run. The verified build used Microsoft OpenJDK 21.0.8. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
-- Current branch has uncommitted work for 26.6.B03, including code/resource changes and this documentation refresh.
+- Gradle/Fabric Loom requires Java 21 or newer to run. The latest verified build used JDK 23 from C:\Program Files\Java\jdk-23. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+- Current branch has uncommitted work for 26.6.B03a, including code/resource changes and this documentation refresh.
 
 Current feature status
 ======================
 
-- Built-in sedan traffic vehicles render through the custom OBJ traffic model path and remain available as embedded resources.
-- The built-in vehicle set now includes the taxi variant:
+- Built-in sedan and hatchback traffic vehicles render through the custom OBJ traffic model path and remain available as embedded resources.
+- The built-in sedan vehicle set includes the taxi variant:
   mta_sedan_taxi / sedan_taxi
+- The built-in hatchback vehicle set includes nine visual/resource variants:
+  mta_hatchback, mta_hatchback_white, mta_hatchback_gray, mta_hatchback_blue, mta_hatchback_brown, mta_hatchback_green, mta_hatchback_orange, mta_hatchback_pink, mta_hatchback_red
 - OBJ custom traffic models support .mtl material libraries, usemtl material selection, and map_Kd per-face texture selection. Faces without material textures use the model definition default texture.
 - Traffic vehicles now carry route pitch to the client, and render with a small deterministic pitch variation plus deterministic lateral offset so vehicles do not overlap as perfectly on the same route centerline.
 - Traffic dashboard controls for connector state, intersection state, signal modes, and vehicle pools remain present.
@@ -53,8 +55,8 @@ Unfinished / hidden features
 - There is a JVM flag for local development only:
   -Dmta.enableUnfinishedTrafficConnectors=true
 
-26.6.B03 changelog
-==================
+26.6.B03a changelog
+===================
 
 Vehicles and rendering
 ----------------------
@@ -64,6 +66,18 @@ Vehicles and rendering
   - sedan_taxi
   - sedan_taxi.obj / sedan_taxi.mtl
   - sedan_taxi.png / taxi_sign.png
+- Added the built-in hatchback resources:
+  - mta_hatchback / hatchback
+  - mta_hatchback_white / hatchback_white
+  - mta_hatchback_gray / hatchback_gray
+  - mta_hatchback_blue / hatchback_blue
+  - mta_hatchback_brown / hatchback_brown
+  - mta_hatchback_green / hatchback_green
+  - mta_hatchback_orange / hatchback_orange
+  - mta_hatchback_pink / hatchback_pink
+  - mta_hatchback_red / hatchback_red
+  - hatchback.obj and hatchback texture variants
+- Hatchback OBJ rendering uses per-variant default textures from traffic model definitions instead of a fixed MTL map_Kd texture.
 - Added OBJ material-library loading for traffic models.
 - Added per-face texture selection from MTL map_Kd entries.
 - Added route pitch to traffic debug snapshots, server networking, client interpolation, and custom/MTR/placeholder render state.
@@ -91,17 +105,18 @@ Simulation and spacing
 Documentation
 -------------
 
-- Updated README with 26.6.B03 status, taxi resources, pedestrian/group binding behavior, and clearance-aware materialization.
-- Updated docs/ADDON_DOCUMENTATION.md with B03 runtime behavior, pedestrian lights, group bindings, OBJ MTL texture support, taxi resources, and current jar names.
-- Updated docs/RESOURCE_PACK_AUTHORING.md and CUSTOM_TRAFFIC_MODELS.md with taxi IDs and OBJ material texture support.
+- Updated README with 26.6.B03a status, taxi/hatchback resources, pedestrian/group binding behavior, and clearance-aware materialization.
+- Updated docs/ADDON_DOCUMENTATION.md with B03a runtime behavior, pedestrian lights, group bindings, OBJ MTL texture support, taxi/hatchback resources, and current jar names.
+- Updated docs/RESOURCE_PACK_AUTHORING.md and CUSTOM_TRAFFIC_MODELS.md with taxi/hatchback IDs and OBJ material texture support.
+- Updated the standalone resource pack README and pack metadata to describe road vehicle resources instead of sedan-only resources.
 
 Build verification
 ==================
 
 Last verified command:
 
-JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
-.\gradlew.bat build --stacktrace
+JAVA_HOME=C:\Program Files\Java\jdk-23
+.\gradlew.bat build
 
 Result:
 
@@ -109,15 +124,15 @@ BUILD SUCCESSFUL
 
 Last verified date:
 
-2026-06-06
+2026-06-07
 
 Current jar:
 
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03.jar
+D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a.jar
 
 Current sources jar:
 
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03-sources.jar
+D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a-sources.jar
 
 Current resourcepack export:
 
