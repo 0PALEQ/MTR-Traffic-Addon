@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 public final class MtrApiClient {
 	private static final Gson GSON = new GsonBuilder().create();
 	private static final long WARNING_INTERVAL_MILLIS = 5000;
-	private static final long REQUEST_RADIUS_BLOCKS = 512;
+	private static final long REQUEST_RADIUS_BLOCKS = 8192;
 	private static long lastWarningMillis;
 
 	public void fetchGraphNearPlayer(ServerPlayer player, Consumer<Optional<MtrGraph>> callback) {

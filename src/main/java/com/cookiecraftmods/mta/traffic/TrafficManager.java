@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class TrafficManager {
 	private static final int SNAPSHOT_REFRESH_INTERVAL_TICKS = 200;
-	private static final int GRAPH_PRUNE_RADIUS_BLOCKS = 448;
+	private static final int GRAPH_PRUNE_RADIUS_BLOCKS = 30_000;
 	private static final int SPAWN_DIAGNOSTIC_INTERVAL_TICKS = 100;
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
 	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;

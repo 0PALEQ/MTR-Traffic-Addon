@@ -1,6 +1,6 @@
 # MTR Traffic Addon Documentation
 
-Version line: `26.6.B03a`
+Version line: `26.6.B04a`
 
 MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi/hatchback resources.
 
@@ -9,13 +9,15 @@ This document is the main user and maintainer documentation for the addon. For c
 ## Requirements
 
 - Minecraft `1.20.1`
-- Fabric Loader `0.19.2` or newer
+- Fabric Loader `0.15.0` or newer (Sinytra Connector ships `0.18.x`, which is supported)
 - Fabric API
 - Minecraft Transit Railway `4.0.4` or newer
 - Java `17` or newer at runtime
 - Java `21` or newer to run the current Gradle/Loom build
 
 The published mod targets Java 17 bytecode, but Fabric Loom `1.16.1` requires Gradle itself to run on Java 21 or newer.
+
+The mod can run on Forge via Sinytra Connector. No extra configuration is needed beyond installing Connector and its Fabric API shim alongside the Forge-edition MTR jar.
 
 ## Installed Items and Blocks
 
@@ -74,6 +76,8 @@ The dashboard has two main sections:
 - `Connectors`
 - `Intersections`
 
+The panel width adapts to the window size and GUI scale. On narrow screens (effective width below 520 px) the map collapses; a `Map ►` / `← Panel` toggle button switches between the list panel and the full-screen map. On wider screens the panel and map share space side by side. The map overlay buttons (zoom, Top/Y view) are placed in the bottom-right corner of the map area and are always clickable regardless of the map being active underneath them.
+
 The map can focus on selected connectors or intersections. It can also switch between top-view and current-Y overlays.
 
 ### Connector Controls
@@ -86,7 +90,7 @@ Important controls:
 - `Focus Map`: centers the map on the selected connector.
 - `Refresh Routes`: asks the server to refresh connector route metadata using the latest MTR graph near the player.
 - `Clear Active`: removes currently active addon traffic vehicles.
-- `Interval -1s` / `Interval +1s`: changes spawn interval for spawn connectors.
+- Spawn interval: displayed inline as `[−]  X.Xs  [+]`; each press changes the interval by 1 second (20 ticks).
 - `Vehicle Pool`: opens the vehicle visual selection panel for spawn connectors.
 
 Notes:
@@ -204,9 +208,9 @@ Nodes are detected where MTR graph edges cross the intersection boundary:
 Dashboard node controls:
 
 - `Find Nodes`: refreshes detected nodes.
-- `Node Type`: toggles selected node between `IN` and `OUT`.
-- `Node # -` / `Node # +`: changes the selected node number.
-- `Delete Node`: removes the selected node.
+- `IN/OUT`: toggles selected node between `IN` and `OUT`.
+- `# -` / `# +`: changes the selected node number.
+- `Del Node`: removes the selected node.
 
 Signal logic only binds traffic lights and groups to `IN` nodes.
 
@@ -218,12 +222,12 @@ The active green set is computed from configured groups or phase order. If multi
 
 Useful controls:
 
-- `Mode: Manual` / `Mode: Auto`: toggles signal mode.
-- `Add Group`: creates a group.
-- `Assign Node`: adds the selected IN node to the current group.
-- `Remove Node`: removes the selected IN node from the current group.
-- `Green -1s` / `Green +1s`: changes the group's green duration.
-- `Move Up` / `Move Down`: changes group order.
+- `Manual` / `Auto` (signal mode button): toggles signal mode.
+- `+ Group`: creates a group.
+- `+ Assign`: adds the selected IN node to the current group.
+- `- Remove`: removes the selected IN node from the current group.
+- Green duration: displayed inline as `[−]  X.Xs  [+]`; each press changes the duration by 1 second (20 ticks).
+- `▲ Up` / `▼ Down`: changes group order.
 
 Group green durations have a minimum of `300` ticks in saved/runtime logic.
 
@@ -401,7 +405,7 @@ Main runtime steps:
 9. Move materialized traffic vehicles along their route.
 10. Despawn materialized vehicles at despawn connectors.
 
-Graph request radius is currently `512` blocks. Connector route pruning/repair near the player uses a radius of `448` blocks.
+Graph request radius is `8192` blocks. Connector route pruning/repair uses a radius of `30,000` blocks, which is effectively unlimited for any practical network. This means spawn and despawn connectors that are more than 512 blocks apart now build routes correctly as long as the player is within 8192 blocks of the connector area.
 
 Spawn connectors prefer their saved node direction when building routes. Existing saved spawn points with the opposite node order can still fall back to the reverse traversal for compatibility.
 
@@ -454,13 +458,13 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 Expected beta jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B03a.jar
+build/libs/mtr-traffic-addon-26.6.B04a.jar
 ```
 
 The sources jar is also generated:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B03a-sources.jar
+build/libs/mtr-traffic-addon-26.6.B04a-sources.jar
 ```
 
 Before publishing a beta:
@@ -482,6 +486,7 @@ No traffic vehicles spawn:
 - Open the spawn connector's `Vehicle Pool` and add at least one loaded visual ID.
 - Press `Refresh Routes`.
 - Check that MTR rails exist between spawn and despawn connectors.
+- If the spawn and despawn connectors are far apart, make sure the player is within 8192 blocks of the connector area so the MTR graph fetch covers the route.
 - Check server logs for graph refresh or definition loading warnings.
 
 Vehicles spawn but disappear too soon:
@@ -528,5 +533,5 @@ Build fails with a Java version error:
 - Traffic uses MTR rail geometry, so road layout quality depends on the underlying rail graph.
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
-- Some dashboard labels and workflows are still beta-level and may change before stable release.
 - Pedestrian lights currently use red/green pedestrian states only; yellow is treated as no pedestrian glow.
+- Routes require the player to be within 8192 blocks of the connector area for the MTR graph to be fetched. Very large networks where the player is more than 8192 blocks from one end of a route may still fail to resolve.

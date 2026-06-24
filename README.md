@@ -4,9 +4,15 @@ Addon for minecraft transit railway featuring car traffic generation.
 
 ## Beta Status
 
-Current beta line: `26.6.B03a`.
+Current beta line: `26.6.B04a`.
 
 This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan/taxi/hatchback vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+
+**26.6.B04a changes:**
+- Sinytra Connector compatibility: `fabricloader` version constraint relaxed to `>=0.15.0` so the mod runs on Forge via Sinytra Connector without a crash.
+- Routing over long distances: MTR graph fetch radius increased to `8192` blocks and connector route refresh radius increased to `30,000` blocks. Spawn and despawn connectors that are more than 512 blocks apart now build routes correctly.
+- Dashboard responsiveness: the panel resizes with the window and GUI scale. On narrow screens the map collapses and a toggle button shows it. Spawn interval and phase green duration use inline `[−]` / `[+]` controls with the current value displayed between them.
+- Dashboard intersection layout: action buttons are anchored below the signal groups list instead of overlapping it. All buttons in the map area are now clickable.
 
 MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks.
 
