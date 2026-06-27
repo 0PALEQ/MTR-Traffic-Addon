@@ -162,6 +162,9 @@ public final class TrafficSavedPointRegistry {
 				if (existsForward || existsBackward) {
 					continue;
 				}
+				if (!graph.adjacency().containsKey(start) && !graph.adjacency().containsKey(end)) {
+					continue;
+				}
 				removedDefinitionIds.add(definition.id());
 				continue;
 			}
