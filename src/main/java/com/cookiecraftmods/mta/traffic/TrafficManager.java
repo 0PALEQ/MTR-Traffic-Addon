@@ -57,6 +57,7 @@ public final class TrafficManager {
 	private static final long SIMULATION_INTERVAL_MILLIS = 50L;
 	private static final Object SIMULATION_LOCK = new Object();
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
+	private static volatile List<TrafficVehicle> activeVehicleSnapshot = List.of();
 	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new ConcurrentHashMap<>();
 	private static final Map<UUID, Long> LAST_RENDERED_WALL_MILLIS = new HashMap<>();
 	private static final Set<UUID> SKIPPED_VIRTUAL_VEHICLE_IDS = new HashSet<>();
@@ -70,7 +71,7 @@ public final class TrafficManager {
 	private static long lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
 	private static MtrGraph latestGraph;
 	private static String latestGraphDimensionId;
-	private static long lastServerTick;
+	private static volatile long lastServerTick;
 	private static long lastTrafficTickWallMillis;
 	private static long signalClockTick;
 	private static long signalClockWallMillis;
@@ -91,6 +92,7 @@ public final class TrafficManager {
 			stopSimulationExecutor();
 			synchronized (SIMULATION_LOCK) {
 				ACTIVE_VEHICLES.clear();
+				publishActiveVehicleSnapshot();
 				MTR_VEHICLE_OCCUPANCY.clear();
 				LAST_RENDERED_WALL_MILLIS.clear();
 				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
@@ -106,18 +108,14 @@ public final class TrafficManager {
 	}
 
 	public static Collection<TrafficVehicle> getActiveVehicles() {
-		synchronized (SIMULATION_LOCK) {
-			return List.copyOf(ACTIVE_VEHICLES);
-		}
+		return activeVehicleSnapshot;
 	}
 
 	public static Map<String, Integer> countActiveVehiclesBySpawnPointId() {
 		final Map<String, Integer> counts = new HashMap<>();
-		synchronized (SIMULATION_LOCK) {
-			for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
-				if (vehicle.spawnPointId() != null) {
-					counts.merge(vehicle.spawnPointId(), 1, Integer::sum);
-				}
+		for (TrafficVehicle vehicle : activeVehicleSnapshot) {
+			if (vehicle.spawnPointId() != null) {
+				counts.merge(vehicle.spawnPointId(), 1, Integer::sum);
 			}
 		}
 
@@ -128,6 +126,7 @@ public final class TrafficManager {
 		synchronized (SIMULATION_LOCK) {
 			final int clearedVehicles = ACTIVE_VEHICLES.size();
 			ACTIVE_VEHICLES.clear();
+			publishActiveVehicleSnapshot();
 			LAST_RENDERED_WALL_MILLIS.clear();
 			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			return clearedVehicles;
@@ -139,15 +138,15 @@ public final class TrafficManager {
 			return;
 		}
 
-		synchronized (SIMULATION_LOCK) {
-			if (ACTIVE_VEHICLES.isEmpty()) {
-				return;
-			}
+		final Set<UUID> activeIds = new HashSet<>();
+		for (TrafficVehicle vehicle : activeVehicleSnapshot) {
+			activeIds.add(vehicle.id());
+		}
+		if (activeIds.isEmpty()) {
+			return;
+		}
 
-			final Set<UUID> activeIds = new HashSet<>();
-			for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
-				activeIds.add(vehicle.id());
-			}
+		synchronized (SIMULATION_LOCK) {
 			for (UUID vehicleId : vehicleIds) {
 				if (activeIds.contains(vehicleId)) {
 					LAST_RENDERED_WALL_MILLIS.put(vehicleId, wallMillis);
@@ -169,41 +168,40 @@ public final class TrafficManager {
 		final long signalTick = currentSignalTick();
 		final boolean includeTrafficVehicleObstacles = signalTick - lastServerTick <= PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS;
 
-		synchronized (SIMULATION_LOCK) {
-			for (int i = startIndex; i < path.size(); i++) {
-				final PathData pathData = path.get(i);
-				if (pathData.getStartDistance() > lookaheadEnd) {
-					break;
-				}
+		final List<TrafficVehicle> trafficVehicles = activeVehicleSnapshot;
+		for (int i = startIndex; i < path.size(); i++) {
+			final PathData pathData = path.get(i);
+			if (pathData.getStartDistance() > lookaheadEnd) {
+				break;
+			}
 
-				if (isRedMtrEntry(pathData, signalTick)) {
-					closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
-				}
+			if (isRedMtrEntry(pathData, signalTick)) {
+				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
+			}
 
-				if (includeTrafficVehicleObstacles) {
-					for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
-						final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
-						final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
-						if (railDirectionMatch == null) {
-							continue;
-						}
-
-						final double pathStart = pathData.getStartDistance();
-						final double pathEnd = pathData.getEndDistance();
-						final double segmentLength = Math.max(0.001D, segment.lengthMeters());
-						final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
-						final double vehicleCenter = railDirectionMatch.sameDirection()
-							? pathStart + (pathEnd - pathStart) * progress
-							: pathEnd - (pathEnd - pathStart) * progress;
-						final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
-						final double vehicleStart = vehicleCenter - vehicleHalfLength;
-						final double vehicleEnd = vehicleCenter + vehicleHalfLength;
-						if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
-							continue;
-						}
-
-						closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, vehicleStart));
+			if (includeTrafficVehicleObstacles) {
+				for (TrafficVehicle vehicle : trafficVehicles) {
+					final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+					final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
+					if (railDirectionMatch == null) {
+						continue;
 					}
+
+					final double pathStart = pathData.getStartDistance();
+					final double pathEnd = pathData.getEndDistance();
+					final double segmentLength = Math.max(0.001D, segment.lengthMeters());
+					final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
+					final double vehicleCenter = railDirectionMatch.sameDirection()
+						? pathStart + (pathEnd - pathStart) * progress
+						: pathEnd - (pathEnd - pathStart) * progress;
+					final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
+					final double vehicleStart = vehicleCenter - vehicleHalfLength;
+					final double vehicleEnd = vehicleCenter + vehicleHalfLength;
+					if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
+						continue;
+					}
+
+					closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, vehicleStart));
 				}
 			}
 		}
@@ -344,6 +342,7 @@ public final class TrafficManager {
 	private static void onServerStarted(MinecraftServer server) {
 		synchronized (SIMULATION_LOCK) {
 			ACTIVE_VEHICLES.clear();
+			publishActiveVehicleSnapshot();
 			MTR_VEHICLE_OCCUPANCY.clear();
 			LAST_RENDERED_WALL_MILLIS.clear();
 			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
@@ -386,6 +385,7 @@ public final class TrafficManager {
 			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
+				publishActiveVehicleSnapshot();
 				return;
 			}
 
@@ -398,7 +398,12 @@ public final class TrafficManager {
 				}
 				return remove;
 			});
+			publishActiveVehicleSnapshot();
 		}
+	}
+
+	private static void publishActiveVehicleSnapshot() {
+		activeVehicleSnapshot = List.copyOf(ACTIVE_VEHICLES);
 	}
 
 	private static double trafficTickDurationSeconds(long nowMillis) {
@@ -644,7 +649,6 @@ public final class TrafficManager {
 				}
 
 				ACTIVE_VEHICLES.add(createTrafficVehicle(definition, candidate, vehicleId, sample));
-				LAST_RENDERED_WALL_MILLIS.putIfAbsent(vehicleId, nowMillis);
 				activeIds.add(vehicleId);
 			}
 		}
@@ -868,7 +872,10 @@ public final class TrafficManager {
 
 		final long lifetimeMillis = lifetimeSeconds * 1000L;
 		ACTIVE_VEHICLES.removeIf(vehicle -> {
-			final long lastRenderedMillis = LAST_RENDERED_WALL_MILLIS.getOrDefault(vehicle.id(), nowMillis);
+			final Long lastRenderedMillis = LAST_RENDERED_WALL_MILLIS.get(vehicle.id());
+			if (lastRenderedMillis == null) {
+				return false;
+			}
 			final boolean remove = nowMillis - lastRenderedMillis > lifetimeMillis;
 			if (remove) {
 				LAST_RENDERED_WALL_MILLIS.remove(vehicle.id());
