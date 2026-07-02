@@ -46,10 +46,7 @@ public final class ClientTrafficRenderDispatcher {
 		}
 
 		final Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.level == null) {
-			return false;
-		}
-		return minecraft.level.hasChunk(floorChunk(snapshot.x()), floorChunk(snapshot.z()));
+		return minecraft.level != null;
 	}
 
 	private static double maxRenderDistanceBlocks() {
@@ -60,9 +57,5 @@ public final class ClientTrafficRenderDispatcher {
 
 		final int renderDistanceChunks = Math.max(2, minecraft.options.getEffectiveRenderDistance());
 		return TrafficAddonConfig.trafficVehicleVisibilityDistanceBlocks(renderDistanceChunks);
-	}
-
-	private static int floorChunk(double coordinate) {
-		return (int) Math.floor(coordinate / 16.0D);
 	}
 }
