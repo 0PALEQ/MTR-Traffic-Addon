@@ -14,12 +14,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class AsyncSnapshotFilter {
-	private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(
-		Math.max(2, Runtime.getRuntime().availableProcessors() - 2)
-	);
-
 	private static final class PlayerSnapshotCache {
 		volatile byte[] buffer;
 		volatile List<UUID> vehicleIds;
@@ -27,6 +24,7 @@ public final class AsyncSnapshotFilter {
 	}
 
 	private static final ConcurrentHashMap<UUID, PlayerSnapshotCache> PLAYER_SNAPSHOTS = new ConcurrentHashMap<>();
+	private static ExecutorService executor;
 
 	private AsyncSnapshotFilter() {
 	}
@@ -36,54 +34,67 @@ public final class AsyncSnapshotFilter {
 			Collection<TrafficVehicle> vehicles,
 			double maxDistanceBlocks) {
 
-		EXECUTOR.submit(() -> {
-			try {
-				final SpatialVehicleIndex spatialIndex = SpatialVehicleIndex.build(vehicles);
-				final double maxDistanceSquared = maxDistanceBlocks * maxDistanceBlocks;
-				final long nowNanos = System.nanoTime();
+		try {
+			executor().submit(() -> {
+				try {
+					final SpatialVehicleIndex spatialIndex = SpatialVehicleIndex.build(vehicles);
+					final double maxDistanceSquared = maxDistanceBlocks * maxDistanceBlocks;
+					final long nowNanos = System.nanoTime();
 
-				for (ServerPlayer player : players) {
-					final PlayerSnapshotCache cache = PLAYER_SNAPSHOTS.computeIfAbsent(
-						player.getUUID(),
-						uuid -> new PlayerSnapshotCache()
-					);
+					for (ServerPlayer player : players) {
+						final PlayerSnapshotCache cache = PLAYER_SNAPSHOTS.computeIfAbsent(
+							player.getUUID(),
+							uuid -> new PlayerSnapshotCache()
+						);
 
-					// Query nearby vehicles using spatial index
-					final List<TrafficVehicle> visibleVehicles = spatialIndex.queryNearby(
-						player.getX(),
-						player.getZ(),
-						maxDistanceSquared
-					);
+						// Query nearby vehicles using spatial index
+						final List<TrafficVehicle> visibleVehicles = spatialIndex.queryNearby(
+							player.getX(),
+							player.getZ(),
+							maxDistanceSquared
+						);
 
-					// Encode snapshot buffer
-					final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
-					final List<UUID> vehicleIds = new ArrayList<>(visibleVehicles.size());
+						// Encode snapshot buffer
+						final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+						final List<UUID> vehicleIds = new ArrayList<>(visibleVehicles.size());
 
-					buffer.writeVarInt(visibleVehicles.size());
-					for (TrafficVehicle vehicle : visibleVehicles) {
-						final TrafficVehiclePosition position = vehicle.currentPosition();
-						buffer.writeUUID(vehicle.id());
-						buffer.writeUtf(vehicle.definition().effectiveVisualId());
-						buffer.writeUtf(vehicle.definition().type());
-						buffer.writeDouble(vehicle.definition().lengthMeters());
-						buffer.writeDouble(position.x());
-						buffer.writeDouble(position.y());
-						buffer.writeDouble(position.z());
-						buffer.writeFloat(position.yawDegrees());
-						buffer.writeFloat(position.pitchDegrees());
-						buffer.writeDouble(vehicle.speedKph());
-						vehicleIds.add(vehicle.id());
+						buffer.writeVarInt(visibleVehicles.size());
+						for (TrafficVehicle vehicle : visibleVehicles) {
+							final TrafficVehiclePosition position = vehicle.currentPosition();
+							buffer.writeUUID(vehicle.id());
+							buffer.writeUtf(vehicle.definition().effectiveVisualId());
+							buffer.writeUtf(vehicle.definition().type());
+							buffer.writeDouble(vehicle.definition().lengthMeters());
+							buffer.writeDouble(position.x());
+							buffer.writeDouble(position.y());
+							buffer.writeDouble(position.z());
+							buffer.writeFloat(position.yawDegrees());
+							buffer.writeFloat(position.pitchDegrees());
+							buffer.writeDouble(vehicle.speedKph());
+							vehicleIds.add(vehicle.id());
+						}
+
+						// Atomically update cache
+						cache.buffer = buffer.array();
+						cache.vehicleIds = vehicleIds;
+						cache.generatedAtNanos = nowNanos;
 					}
-
-					// Atomically update cache
-					cache.buffer = buffer.array();
-					cache.vehicleIds = vehicleIds;
-					cache.generatedAtNanos = nowNanos;
+				} catch (Exception e) {
+					MTRTrafficAddon.LOGGER.error("Error in async snapshot filter", e);
 				}
-			} catch (Exception e) {
-				MTRTrafficAddon.LOGGER.error("Error in async snapshot filter", e);
-			}
-		});
+			});
+		} catch (RejectedExecutionException ignored) {
+			// Server shutdown can race the end-tick callback; skip this frame instead of crashing.
+		}
+	}
+
+	private static synchronized ExecutorService executor() {
+		if (executor == null || executor.isShutdown() || executor.isTerminated()) {
+			executor = Executors.newFixedThreadPool(
+				Math.max(2, Runtime.getRuntime().availableProcessors() - 2)
+			);
+		}
+		return executor;
 	}
 
 	public static SnapshotResult getSnapshot(ServerPlayer player) {
@@ -108,7 +119,12 @@ public final class AsyncSnapshotFilter {
 		PLAYER_SNAPSHOTS.remove(playerUUID);
 	}
 	
-	public static void shutdown() {
-		EXECUTOR.shutdownNow();
+	public static synchronized void shutdown() {
+		final ExecutorService currentExecutor = executor;
+		executor = null;
+		if (currentExecutor != null) {
+			currentExecutor.shutdownNow();
+		}
+		PLAYER_SNAPSHOTS.clear();
 	}
 }

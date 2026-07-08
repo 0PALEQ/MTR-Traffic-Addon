@@ -3,8 +3,9 @@
 	"package": "com.cookiecraftmods.mta.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
-		"ItemRailModifierMixin",
+		"RailSchemaAccessor",
 		"RailTypeMixin",
+		"SimulatorMixin",
 		"VehicleMixin",
 		"VehicleSchemaAccessor"
 	],

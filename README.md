@@ -14,8 +14,6 @@ This build includes MTR route traffic, traffic dashboard controls, configurable 
 - Dashboard responsiveness: the panel resizes with the window and GUI scale. On narrow screens the map collapses and a toggle button shows it. Spawn interval and phase green duration use inline `[−]` / `[+]` controls with the current value displayed between them.
 - Dashboard intersection layout: action buttons are anchored below the signal groups list instead of overlapping it. All buttons in the map area are now clickable.
 
-MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks.
-
 Traffic vehicle visibility and simulation distances are `auto` by default in `config/mtr-traffic-addon.properties`. Auto visibility distance follows render distance minus 2 chunks, and auto simulation/materialization distance follows visibility distance plus `trafficVehicleMaterializationMarginChunks` chunks. The default margin is 2 chunks. Either distance value can be set to a fixed block distance if a server owner wants an explicit cap.
 
 Addon traffic simulation runs on a dedicated wall-clock simulation thread instead of doing vehicle movement and spacing inside the Minecraft server tick path. Spawn connectors produce deterministic virtual route streams globally; only vehicles whose calculated route position is near a player and has enough route clearance are materialized and sent to clients. Materialized vehicles that are not sent to any player for `trafficVehicleUnrenderedLifetimeSeconds` are removed and can be recreated later from the virtual stream.

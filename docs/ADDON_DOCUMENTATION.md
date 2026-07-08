@@ -100,12 +100,6 @@ Notes:
 - `maxVehicles` limits how many recent virtual departures from a spawn connector may be considered for materialization near players.
 - Despawn connectors do not have vehicle pools.
 
-### MTA Exclusive Traffic Connectors
-
-MTA Traffic Connector items are an unfinished feature. They remain registered for world compatibility, but are hidden from the creative tab and disabled for creating new connector tracks in normal builds.
-
-Existing saved addon-only connectors can still be removed by reconnecting the same two nodes with an MTA Traffic Connector item if a player already has one, or by using the standard MTR Rail Remover. New connector creation is intentionally blocked until the feature is finished.
-
 ### Vehicle Pool
 
 Vehicle Pool controls which visual IDs may spawn from a spawn connector.

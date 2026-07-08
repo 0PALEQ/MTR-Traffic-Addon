@@ -1,5 +1,6 @@
 package com.cookiecraftmods.mta.traffic.mtr.graph;
 
+import com.cookiecraftmods.mta.mixin.RailSchemaAccessor;
 import com.cookiecraftmods.mta.traffic.mtr.dto.MtrPosition;
 import com.cookiecraftmods.mta.traffic.mtr.dto.MtrRail;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint;
@@ -11,6 +12,7 @@ import org.mtr.core.tool.Angle;
 import org.mtr.core.tool.Vector;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,33 @@ public final class MtrGraphBuilder {
 				final List<TrafficPathPoint> reversedPath = new ArrayList<>(railPath.points());
 				java.util.Collections.reverse(reversedPath);
 				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), rail.effectiveSignalColors(), reversedPath);
+			}
+		}
+
+		return new MtrGraph(adjacency, edges);
+	}
+
+	public static MtrGraph buildFromRails(Collection<Rail> rails) {
+		final Map<MtrNodeKey, List<MtrGraphEdge>> adjacency = new LinkedHashMap<>();
+		final List<MtrGraphEdge> edges = new ArrayList<>();
+
+		for (Rail rail : rails) {
+			final RailSchemaAccessor accessor = (RailSchemaAccessor) (Object) rail;
+			final Position rawPosition1 = accessor.mta$getPosition1();
+			final Position rawPosition2 = accessor.mta$getPosition2();
+			final MtrNodeKey position1 = new MtrNodeKey(rawPosition1.getX(), rawPosition1.getY(), rawPosition1.getZ());
+			final MtrNodeKey position2 = new MtrNodeKey(rawPosition2.getX(), rawPosition2.getY(), rawPosition2.getZ());
+			final RailPath railPath = createRailPath(accessor);
+			final List<Long> signalColors = new ArrayList<>();
+			accessor.mta$getSignalColors().forEach((long signalColor) -> signalColors.add(signalColor));
+
+			if (accessor.mta$getSpeedLimit1() > 0) {
+				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), accessor.mta$getSpeedLimit1(), signalColors, railPath.points());
+			}
+			if (accessor.mta$getSpeedLimit2() > 0) {
+				final List<TrafficPathPoint> reversedPath = new ArrayList<>(railPath.points());
+				java.util.Collections.reverse(reversedPath);
+				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), accessor.mta$getSpeedLimit2(), signalColors, reversedPath);
 			}
 		}
 
@@ -93,6 +122,45 @@ public final class MtrGraphBuilder {
 				)
 			);
 		}
+	}
+
+	private static RailPath createRailPath(RailSchemaAccessor accessor) {
+		final Position position1 = accessor.mta$getPosition1();
+		final Position position2 = accessor.mta$getPosition2();
+		try {
+			final RailMath railMath = new RailMath(
+				position1,
+				accessor.mta$getAngle1(),
+				position2,
+				accessor.mta$getAngle2(),
+				accessor.mta$getShape(),
+				accessor.mta$getVerticalRadius()
+			);
+			final double length = Math.max(railMath.getLength(), measureDistance(position1, position2));
+			final int samples = Math.max(2, (int) Math.ceil(length / SAMPLE_SPACING_METERS) + 1);
+			final List<TrafficPathPoint> points = new ArrayList<>(samples);
+			for (int i = 0; i < samples; i++) {
+				final double distance = length * i / (samples - 1.0D);
+				final Vector position = railMath.getPosition(distance, false);
+				points.add(new TrafficPathPoint(position.x(), position.y(), position.z()));
+			}
+			return new RailPath(length, points);
+		} catch (Exception ignored) {
+			return new RailPath(
+				measureDistance(position1, position2),
+				List.of(
+					new TrafficPathPoint(position1.getX(), position1.getY(), position1.getZ()),
+					new TrafficPathPoint(position2.getX(), position2.getY(), position2.getZ())
+				)
+			);
+		}
+	}
+
+	private static double measureDistance(Position a, Position b) {
+		final double dx = a.getX() - b.getX();
+		final double dy = a.getY() - b.getY();
+		final double dz = a.getZ() - b.getZ();
+		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
 	private static String createRailId(MtrNodeKey from, MtrNodeKey to) {

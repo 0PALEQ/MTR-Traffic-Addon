@@ -44,18 +44,6 @@ Current feature status
 - MTR vehicles ignore addon intersection lights when no player is close enough for that intersection to be actively simulated.
 - MTR intersection demand detection uses route lookahead, so MTR vehicles stopped before an entry rail can still queue the correct intersection input group.
 
-Unfinished / hidden features
-============================
-
-- MTA Traffic Connector items are unfinished.
-- They remain registered so old worlds, old saves, and existing item stacks do not break.
-- They are hidden from the addon creative tab.
-- Their display names are marked with "(Unfinished)".
-- Creating new MTA-only connector tracks is disabled in normal builds.
-- Existing saved MTA-only connector tracks can still be removed by reconnecting the same two nodes with an existing MTA Traffic Connector item, or by using the standard MTR Rail Remover.
-- There is a JVM flag for local development only:
-  -Dmta.enableUnfinishedTrafficConnectors=true
-
 26.6.B03a changelog
 ===================
 
@@ -150,7 +138,5 @@ Known notes and remaining work
 - Spawn density controls are still basic and are based on spawn interval plus maxVehicles.
 - maxVehicles limits recent virtual departures, but dashboard controls for changing it are still not exposed.
 - Traffic still depends on MTR rail geometry, so road quality depends on the underlying rail graph.
-- MTA Traffic Connectors should stay hidden/disabled until the routing, rendering, node behavior, and player workflow are redesigned and tested.
-- Existing worlds that already contain saved MTA-only connector definitions may keep those definitions in saved data until removed.
 - Pedestrian lights currently use red/green pedestrian indications only. Yellow group state has no pedestrian glow overlay.
 - Traffic light glow placement should still be checked in-game from all four facings after model or texture changes.

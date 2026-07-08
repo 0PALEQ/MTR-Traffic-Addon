@@ -7,8 +7,6 @@ import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.lights.TrafficLightBindingScreen;
 import com.cookiecraftmods.mta.client.lights.TrafficLightEmissiveRenderer;
-import com.cookiecraftmods.mta.client.rail.ClientMtaExclusiveRailRenderer;
-import com.cookiecraftmods.mta.client.rail.ClientMtaExclusiveRailState;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
 import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
@@ -22,7 +20,6 @@ import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMod
 import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
-import com.cookiecraftmods.mta.traffic.rail.MtaExclusiveRailNetworking;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.api.ClientModInitializer;
@@ -39,9 +36,12 @@ import java.util.List;
 public class MTRTrafficAddonClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		ClientMtrVehicleResourceRegistry.initialize();
-		CustomTrafficModelRegistry.initialize();
-		TrafficLightEmissiveRenderer.initialize();
+		// INICJALIZACJA SYSTEMÓW RENDEROWANIA
+		ClientMtrVehicleResourceRegistry.initialize();     // Zasoby pojazdów z MTR
+		CustomTrafficModelRegistry.initialize();            // Niestandardowe modele pojazdów
+		TrafficLightEmissiveRenderer.initialize();          // Renderowanie emitowanych świateł
+
+		// USTAWIENIA RENDER LAYERS - które bloki są przezroczyste
 		BlockRenderLayerMap.INSTANCE.putBlocks(
 			RenderType.cutout(),
 			ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM,
@@ -51,10 +51,14 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			ModBlocks.PEDESTRIAN_LIGHTS,
 			ModBlocks.PEDESTRIAN_LIGHTS_POLE
 		);
+
+		// WŁAŚCIWOŚCI ITEMÓW - zmienia visual state na podstawie tagu NBT
+		// Connector zmienia wygląd gdy ma zapisaną pozycję
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
-		registerMtaRailConnectorProperties();
 
+		// NETWORK PACKET LISTENERS - odbieranie danych z serwera
+		// Debug snapshot - pozycje pojazdów dla debugowania
 		ClientPlayNetworking.registerGlobalReceiver(TrafficNetworking.DEBUG_SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final int count = buffer.readVarInt();
 			final List<ClientTrafficDebugSnapshot> snapshots = new ArrayList<>(count);
@@ -77,22 +81,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			client.execute(() -> ClientTrafficDebugState.replace(snapshots));
 		});
 
-		ClientPlayNetworking.registerGlobalReceiver(MtaExclusiveRailNetworking.SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
-			final int count = buffer.readVarInt();
-			final List<ClientMtaExclusiveRailState.ClientMtaExclusiveRail> rails = new ArrayList<>(count);
-			for (int i = 0; i < count; i++) {
-				final String id = buffer.readUtf();
-				final BlockPos start = new BlockPos((int) buffer.readLong(), (int) buffer.readLong(), (int) buffer.readLong());
-				final BlockPos end = new BlockPos((int) buffer.readLong(), (int) buffer.readLong(), (int) buffer.readLong());
-				final String startAngle = buffer.readUtf();
-				final String endAngle = buffer.readUtf();
-				final int speedLimitKph = buffer.readVarInt();
-				rails.add(ClientMtaExclusiveRailState.create(id, start, end, startAngle, endAngle, speedLimitKph));
-			}
-
-			client.execute(() -> ClientMtaExclusiveRailState.replace(rails));
-		});
-
+		// DASHBOARD PACKET - informacje o punktach spawn i skrzyżowaniach
 		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final int count = buffer.readVarInt();
 			final List<ClientTrafficDashboardEntry> entries = new ArrayList<>(count);
@@ -184,6 +173,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			client.execute(() -> TrafficDashboardClient.openOrUpdate(entries, intersections));
 		});
 
+		// LIGHT BINDING MENU PACKET - otwarcie menu bindowania świateł
 		ClientPlayNetworking.registerGlobalReceiver(TrafficLightBindingNetworking.OPEN_MENU_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final BlockPos blockPos = buffer.readBlockPos();
 			final int intersectionCount = buffer.readVarInt();
@@ -219,30 +209,12 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			client.execute(() -> client.setScreen(new TrafficLightBindingScreen(blockPos, intersections)));
 		});
 
+		// EVENT LISTENERY - czyszczenie przy rozłączeniu i renderowanie
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientTrafficDebugState.clear();
 			TrafficDashboardClient.clear();
 		});
 		WorldRenderEvents.AFTER_ENTITIES.register(ClientTrafficRenderDispatcher::render);
-		WorldRenderEvents.AFTER_ENTITIES.register(ClientMtaExclusiveRailRenderer::render);
-	}
-
-	private static void registerMtaRailConnectorProperties() {
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_20, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_30, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_40, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_50, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_60, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_70, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_80, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_90, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_100, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_110, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-		ItemProperties.register(ModItems.MTA_RAIL_CONNECTOR_120, new ResourceLocation("mtr", "selected"), MTRTrafficAddonClient::selectedRailConnector);
-	}
-
-	private static float selectedRailConnector(net.minecraft.world.item.ItemStack stack, net.minecraft.client.multiplayer.ClientLevel level, net.minecraft.world.entity.LivingEntity entity, int seed) {
-		return stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F;
 	}
 
 	private static Long readNullableLong(net.minecraft.network.FriendlyByteBuf buffer) {

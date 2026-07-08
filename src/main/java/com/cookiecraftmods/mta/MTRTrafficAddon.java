@@ -13,8 +13,6 @@ import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetwork
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
 import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
-import com.cookiecraftmods.mta.traffic.rail.MtaExclusiveRailNetworking;
-import com.cookiecraftmods.mta.traffic.rail.MtaExclusiveRailRegistry;
 import com.cookiecraftmods.mta.traffic.vehicle.TrafficVehicleDefinitionRegistry;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -33,8 +31,6 @@ public class MTRTrafficAddon implements ModInitializer {
 		ModCreativeTabs.initialize();
 		TrafficVehicleDefinitionRegistry.initialize();
 		TrafficSavedPointRegistry.initialize();
-		MtaExclusiveRailRegistry.initialize();
-		MtaExclusiveRailNetworking.initialize();
 		TrafficIntersectionRegistry.initialize();
 		TrafficLightBindingNetworking.initialize();
 		TrafficLightBindingRegistry.initialize();
