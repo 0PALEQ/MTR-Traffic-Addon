@@ -28,5 +28,6 @@ public final class TrafficDashboardClient {
 	public static void clear() {
 		ENTRIES.clear();
 		INTERSECTIONS.clear();
+		TrafficWidgetMap.disposeCachedMaps();
 	}
 }

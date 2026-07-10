@@ -724,7 +724,7 @@ public final class TrafficManager {
 			maxRouteDurationMillis = Math.max(maxRouteDurationMillis, routeTravelDurationMillis(candidate.route(), definition));
 		}
 		final long routeDepartureCount = Math.max(1L, Math.floorDiv(maxRouteDurationMillis + intervalMillis - 1L, intervalMillis) + 1L);
-		final long requestedCount = Math.max(Math.max(1, spawn.effectiveMaxVehicles()), routeDepartureCount);
+		final long requestedCount = Math.min(Math.max(1, spawn.effectiveMaxVehicles()), routeDepartureCount);
 		return (int) Math.min(MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN, requestedCount);
 	}
 

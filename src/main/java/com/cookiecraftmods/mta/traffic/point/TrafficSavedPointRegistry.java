@@ -136,6 +136,23 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
+	public static boolean replaceVehiclePool(String pointId, List<String> vehicleIds) {
+		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
+		if (definition == null || definition.type() != TrafficPointType.SPAWN || vehicleIds == null) {
+			return false;
+		}
+
+		final List<String> updatedPool = vehicleIds.stream()
+			.filter(vehicleId -> vehicleId != null && !vehicleId.isBlank())
+			.distinct()
+			.toList();
+		DEFINITIONS.put(pointId, copy(definition, definition.group(), definition.enabled(), definition.maxVehicles(), definition.spawnIntervalTicks(), definition.targetGroup(), updatedPool));
+		if (currentServer != null) {
+			save(currentServer);
+		}
+		return true;
+	}
+
 	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph, long centerX, long centerZ, int radius) {
 		if (graph == null || graph.isEmpty()) {
 			return 0;

@@ -225,6 +225,8 @@ public final class TrafficDashboardNetworking {
 		final boolean changed;
 		if ("vehicle_pool_toggle".equals(action)) {
 			changed = TrafficSavedPointRegistry.toggleVehiclePool(pointId, value);
+		} else if ("vehicle_pool_replace".equals(action)) {
+			changed = TrafficSavedPointRegistry.replaceVehiclePool(pointId, value == null || value.isBlank() ? List.of() : List.of(value.split("\\R")));
 		} else {
 			changed = TrafficSavedPointRegistry.applyUpdate(pointId, action, delta);
 		}

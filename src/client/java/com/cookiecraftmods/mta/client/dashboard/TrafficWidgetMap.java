@@ -11,11 +11,13 @@ import org.mtr.mapping.mapper.GraphicsHolder;
 import org.mtr.mapping.mapper.GuiDrawing;
 import org.mtr.mod.client.IDrawing;
 import org.mtr.mod.data.IGui;
-import org.mtr.mod.screen.WorldMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -47,7 +49,8 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 	private final TriConsumer<ClientTrafficIntersectionEntry, Long, Long> nodeClickConsumer;
 	private final ClientWorld world;
 	private final ClientPlayerEntity player;
-	private final WorldMap worldMap;
+	private final TrafficWorldMapCache worldMap;
+	private static final Map<String, TrafficWorldMapCache> WORLD_MAP_CACHES = new HashMap<>();
 
 	private double scale = 1;
 	private double centerX;
@@ -79,8 +82,8 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 			centerZ = minecraft.player.getZ();
 		}
 
-		worldMap = new WorldMap();
-		worldMap.setMapOverlayMode(WorldMap.MapOverlayMode.TOP_VIEW);
+		final String cacheKey = cacheKey(minecraft);
+		worldMap = WORLD_MAP_CACHES.computeIfAbsent(cacheKey, ignored -> new TrafficWorldMapCache(cacheDirectory(cacheKey)));
 	}
 
 	@Override
@@ -102,13 +105,13 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 
 		if (world != null) {
 			worldMap.tick(World.cast(world), player, delta);
-			worldMap.forEachTile(mapImage -> {
-				final int posX = mapImage.chunkX * WorldMap.CHUNK_SIZE;
-				final int posZ = mapImage.chunkZ * WorldMap.CHUNK_SIZE;
-				if (posX + WorldMap.CHUNK_SIZE < topLeftX || posZ + WorldMap.CHUNK_SIZE < topLeftZ || posX > bottomRightX || posZ > bottomRightZ) {
+			worldMap.forEachVisibleTile(mapImage -> {
+				final int posX = mapImage.chunkX * TrafficWorldMapCache.CHUNK_SIZE;
+				final int posZ = mapImage.chunkZ * TrafficWorldMapCache.CHUNK_SIZE;
+				if (posX + TrafficWorldMapCache.CHUNK_SIZE < topLeftX || posZ + TrafficWorldMapCache.CHUNK_SIZE < topLeftZ || posX > bottomRightX || posZ > bottomRightZ) {
 					return;
 				}
-				drawTextureFromWorldCoords(guiDrawing, mapImage.textureId, posX, posZ, posX + WorldMap.CHUNK_SIZE, posZ + WorldMap.CHUNK_SIZE);
+				drawTextureFromWorldCoords(guiDrawing, mapImage.textureId, posX, posZ, posX + TrafficWorldMapCache.CHUNK_SIZE, posZ + TrafficWorldMapCache.CHUNK_SIZE);
 			});
 		}
 
@@ -285,19 +288,54 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 		scale = Math.max(8, scale);
 	}
 
-	public void setMapOverlayMode(WorldMap.MapOverlayMode mapOverlayMode) {
-		worldMap.setMapOverlayMode(mapOverlayMode);
-		if (world != null) {
-			worldMap.updateMap(World.cast(world), player);
-		}
-	}
+	public void fitToContent() {
+		double minX = Double.POSITIVE_INFINITY;
+		double minZ = Double.POSITIVE_INFINITY;
+		double maxX = Double.NEGATIVE_INFINITY;
+		double maxZ = Double.NEGATIVE_INFINITY;
 
-	public boolean isMapOverlayMode(WorldMap.MapOverlayMode mapOverlayMode) {
-		return worldMap.isMapOverlayMode(mapOverlayMode);
+		for (ClientTrafficDashboardEntry entry : entriesSupplier.get()) {
+			minX = Math.min(minX, entry.blockPos().getX());
+			minZ = Math.min(minZ, entry.blockPos().getZ());
+			maxX = Math.max(maxX, entry.blockPos().getX());
+			maxZ = Math.max(maxZ, entry.blockPos().getZ());
+			if (entry.hasConnectorRoute()) {
+				minX = Math.min(minX, Math.min(entry.connectorStartPos().getX(), entry.connectorEndPos().getX()));
+				minZ = Math.min(minZ, Math.min(entry.connectorStartPos().getZ(), entry.connectorEndPos().getZ()));
+				maxX = Math.max(maxX, Math.max(entry.connectorStartPos().getX(), entry.connectorEndPos().getX()));
+				maxZ = Math.max(maxZ, Math.max(entry.connectorStartPos().getZ(), entry.connectorEndPos().getZ()));
+			}
+		}
+		for (ClientTrafficIntersectionEntry intersection : intersectionsSupplier.get()) {
+			minX = Math.min(minX, intersection.minX());
+			minZ = Math.min(minZ, intersection.minZ());
+			maxX = Math.max(maxX, intersection.maxX());
+			maxZ = Math.max(maxZ, intersection.maxZ());
+		}
+
+		if (!Double.isFinite(minX) || !Double.isFinite(minZ) || !Double.isFinite(maxX) || !Double.isFinite(maxZ)) {
+			return;
+		}
+
+		centerX = (minX + maxX) * 0.5D;
+		centerZ = (minZ + maxZ) * 0.5D;
+		final double paddedWidth = Math.max(32.0D, maxX - minX + 32.0D);
+		final double paddedHeight = Math.max(32.0D, maxZ - minZ + 32.0D);
+		final double scaleX = width <= 0 ? 1.0D : width / paddedWidth;
+		final double scaleZ = height <= 0 ? 1.0D : height / paddedHeight;
+		scale = Math.max(SCALE_LOWER_LIMIT, Math.min(SCALE_UPPER_LIMIT, Math.min(scaleX, scaleZ)));
 	}
 
 	public void onClose() {
-		worldMap.disposeImages();
+	}
+
+	public int cachedMapTiles() {
+		return worldMap.cachedTileCount();
+	}
+
+	public static void disposeCachedMaps() {
+		WORLD_MAP_CACHES.values().forEach(TrafficWorldMapCache::disposeImages);
+		WORLD_MAP_CACHES.clear();
 	}
 
 	private void drawEntryLabel(GraphicsHolder graphicsHolder, ClientTrafficDashboardEntry entry) {
@@ -466,18 +504,57 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 	}
 
 	private void drawTextureFromWorldCoords(GuiDrawing guiDrawing, org.mtr.mapping.holder.Identifier texture, double posX1, double posZ1, double posX2, double posZ2) {
-		guiDrawing.beginDrawingTexture(texture);
 		final double x1 = (posX1 - centerX) * scale + width / 2D;
 		final double z1 = (posZ1 - centerZ) * scale + height / 2D;
 		final double x2 = (posX2 - centerX) * scale + width / 2D;
 		final double z2 = (posZ2 - centerZ) * scale + height / 2D;
-		final float uScale = x1 >= 0 ? 0 : 1F - (float) ((x2 - 0) / (x2 - x1));
-		guiDrawing.drawTexture(getX2() + Math.max(0, x1), getY2() + z1, getX2() + x2, getY2() + z2, uScale, 0, 1, 1);
+		final double clippedX1 = Math.max(0, x1);
+		final double clippedZ1 = Math.max(0, z1);
+		final double clippedX2 = Math.min(width, x2);
+		final double clippedZ2 = Math.min(height, z2);
+		if (clippedX1 >= clippedX2 || clippedZ1 >= clippedZ2) {
+			return;
+		}
+		final float u1 = (float) ((clippedX1 - x1) / (x2 - x1));
+		final float v1 = (float) ((clippedZ1 - z1) / (z2 - z1));
+		final float u2 = (float) ((clippedX2 - x1) / (x2 - x1));
+		final float v2 = (float) ((clippedZ2 - z1) / (z2 - z1));
+		guiDrawing.beginDrawingTexture(texture);
+		guiDrawing.drawTexture(getX2() + clippedX1, getY2() + clippedZ1, getX2() + clippedX2, getY2() + clippedZ2, u1, v1, u2, v2);
 		guiDrawing.finishDrawingTexture();
 	}
 
 	private static String shortLabel(ClientTrafficDashboardEntry entry) {
 		return (entry.type().name().equals("SPAWN") ? "S" : "D") + " " + entry.group();
+	}
+
+	private static Path cacheDirectory(String cacheKey) {
+		return org.mtr.mapping.holder.MinecraftClient.getInstance().getRunDirectoryMapped().toPath()
+			.resolve("mtr-traffic-dashboard-map")
+			.resolve("v2")
+			.resolve(cacheKey);
+	}
+
+	private static String cacheKey(Minecraft minecraft) {
+		return sanitize(worldId(minecraft) + "_" + dimensionId(minecraft));
+	}
+
+	private static String worldId(Minecraft minecraft) {
+		if (minecraft.getCurrentServer() != null && minecraft.getCurrentServer().ip != null && !minecraft.getCurrentServer().ip.isBlank()) {
+			return "server_" + minecraft.getCurrentServer().ip;
+		}
+		if (minecraft.getSingleplayerServer() != null) {
+			return "singleplayer_" + minecraft.getSingleplayerServer().getWorldData().getLevelName();
+		}
+		return "unknown_world";
+	}
+
+	private static String dimensionId(Minecraft minecraft) {
+		return minecraft.level == null ? "unknown_dimension" : minecraft.level.dimension().location().toString();
+	}
+
+	private static String sanitize(String value) {
+		return value.replaceAll("[^a-zA-Z0-9._-]", "_");
 	}
 
 	private static String nodeKey(com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node) {
