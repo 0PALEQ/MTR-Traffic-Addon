@@ -1,8 +1,8 @@
 # MTR Traffic Addon Documentation
 
-Version line: `26.6.B04a`
+Version line: `26.7.B09a`
 
-MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi/hatchback resources.
+MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi/hatchback/Nissan Sentra resources.
 
 This document is the main user and maintainer documentation for the addon. For custom vehicle model authoring, also see `docs/RESOURCE_PACK_AUTHORING.md` and `CUSTOM_TRAFFIC_MODELS.md`.
 
@@ -60,7 +60,7 @@ The addon uses MTR rails as the path graph. In practice, road lanes should be bu
 4. Open the `Traffic Dashboard`.
 5. Select the spawn connector.
 6. Open `Vehicle Pool`.
-7. Add at least one loaded vehicle visual ID, such as `mta_sedan`, `mta_sedan_blue`, or `mta_hatchback`.
+7. Add at least one loaded vehicle visual ID, such as `mta_sedan`, `mta_sedan_blue`, `mta_hatchback`, or `mta_nissan_sentra_blue`.
 8. Return to the overview and press `Refresh Routes`.
 9. Make sure the spawn and despawn connectors are enabled.
 10. Wait for active vehicles to appear on the route.
@@ -93,6 +93,17 @@ Important controls:
 - Spawn interval: displayed inline as `[−]  X.Xs  [+]`; each press changes the interval by 1 second (20 ticks).
 - `Vehicle Pool`: opens the vehicle visual selection panel for spawn connectors.
 
+### Renaming Connector Tracks
+
+Connector names are edited directly in the connector list:
+
+1. Open the dashboard and select `Connectors`.
+2. Double-click the spawn or despawn connector row you want to rename. The second click must occur within about 350 milliseconds.
+3. The row is replaced by a text field with the current name selected.
+4. Type the new name and press Enter or the keypad Enter key to save it.
+
+The name is trimmed before it is saved. Submitting an empty or whitespace-only name removes the custom name and returns the connector to its generated default name. Connector names are saved with the connector point in `traffic_connector_points.json` and are included in connector search results.
+
 Notes:
 
 - Spawn interval is clamped between `20` and `1200` ticks.
@@ -104,7 +115,7 @@ Notes:
 
 Vehicle Pool controls which visual IDs may spawn from a spawn connector.
 
-The pool lists loaded MTR vehicle resources and addon custom traffic model resources. Built-in sedan and hatchback visual IDs include:
+The pool lists loaded MTR vehicle resources and addon custom traffic model resources. Built-in visual IDs include:
 
 - `mta_sedan`
 - `mta_sedan_white`
@@ -124,8 +135,31 @@ The pool lists loaded MTR vehicle resources and addon custom traffic model resou
 - `mta_hatchback_orange`
 - `mta_hatchback_pink`
 - `mta_hatchback_red`
+- `mta_nissan_sentra_white`
+- `mta_nissan_sentra_red`
+- `mta_nissan_sentra_blue`
+- `mta_nissan_sentra_black`
+- `mta_nissan_sentra_brown`
 
 Use `[+]` entries to add vehicles and `[-]` entries to remove vehicles. A spawn connector with no entries in its pool will not spawn traffic.
+
+### Copying and Pasting Vehicle Pools
+
+Use this workflow to give several spawn connectors the same vehicle selection:
+
+1. Select the source spawn connector and open `Vehicle Pool`.
+2. Press `Copy Vehicles`. The dashboard remembers the source connector's complete selected list, including an empty list.
+3. Return to the connector overview and open the destination spawn connector's `Vehicle Pool`.
+4. Press `Paste Vehicles`.
+5. Repeat steps 3-4 for any additional spawn connectors.
+
+Important behavior:
+
+- Paste replaces the complete destination pool; it does not merge entries with the existing pool.
+- Duplicate IDs are removed when the replacement is saved.
+- Copy/Paste is available only for spawn connectors because despawn connectors do not have vehicle pools.
+- `Paste Vehicles` stays disabled until a pool has been copied.
+- The copy buffer is internal to the dashboard/client session. It is not the operating-system clipboard and does not contain editable text.
 
 In the current implementation, the pool selects the rendered visual ID. Vehicle physics are still based on the selected runtime traffic definition used by the spawner.
 
@@ -184,9 +218,11 @@ Each intersection stores:
 - bounds: `minX`, `minY`, `minZ`, `maxX`, `maxY`, `maxZ`
 - `enabled`
 - `autoDetectNodes`
+- `level`: `CROSSING` or `TRAIN`
 - `signalMode`
 - `phaseDurationTicks`
 - `phaseOrder`
+- `trainNodeNumbers`
 - `groups`
 - `nodes`
 
@@ -207,6 +243,43 @@ Dashboard node controls:
 - `Del Node`: removes the selected node.
 
 Signal logic only binds traffic lights and groups to `IN` nodes.
+
+### Intersection Levels: Crossing and Train
+
+Every new intersection starts at the `Crossing` level. The intersection row shows its current level.
+
+- `Crossing` uses manual/auto signal groups, green durations, yellow clearance, and normal road-intersection controls.
+- `Train` detects approaching MTR trains and controls road traffic signals and tollgates as a railway level crossing. Signal-group editing is hidden because train detection controls the open/closed state.
+
+To convert an existing intersection to Train level:
+
+1. Open the dashboard and select `Intersections`.
+2. Right-click the intersection's row in the left-hand list. Its label changes from `Crossing` to `Train`. Right-click it again to switch back.
+3. Select the Train intersection normally with a left-click.
+4. Press `Find Nodes` to refresh the boundary nodes from the MTR graph.
+5. Select a detected `IN` node on the map.
+6. Press `Train Node: Off` to add that node to the train approach set; the button changes to `Train Node: On`. Press it again to remove the node.
+7. Repeat for each approach that trains should use.
+
+If `trainNodeNumbers` is empty, Train mode treats all detected IN nodes as train nodes. This is the simplest setup for a normal two-way railway crossing. Turning on the first explicit Train Node changes the configuration from the all-IN default to an explicit set containing only that node, so turn on every approach that should continue to trigger the crossing. Explicit node selection is useful when the area contains unrelated rails or approaches that should not trigger the crossing.
+
+Train-level runtime behavior:
+
+- An approaching or currently intersecting MTR vehicle closes the Train intersection.
+- The detection lookahead is up to approximately 256 meters along observed MTR path geometry.
+- Road traffic receives red while the Train intersection is closed and green while it is open; Train level does not produce a yellow phase.
+- The closed state is held for 60 ticks (3 seconds) after the most recent train detection to avoid raising the barriers too early.
+- Tollgate Pole and connected Tollgate Bar blocks within the Train area or its 24-block control margin follow the intersection automatically.
+- A pole controls a contiguous bar chain of up to seven blocks in either direction. Closed bars extend horizontally; open bars render vertically.
+- The intersection must be enabled, and train detection depends on recent MTR vehicle observations near active players.
+
+Recommended tollgate setup:
+
+1. Create or resize the intersection area so it covers the railway crossing and road stop line.
+2. Change it to `Train`, find nodes, and configure train nodes as described above.
+3. Place a `Tollgate Pole` inside the area or within 24 blocks of its boundary.
+4. Place one to seven contiguous `Tollgate Bar` blocks outward from either side of the pole.
+5. Run an MTR train through the configured approach and verify that the bars close before it enters, remain closed while it passes, and reopen after the 3-second hold.
 
 ### Manual Signal Mode
 
@@ -269,7 +342,7 @@ Binding workflow:
 3. Right-click the traffic light.
 4. Select an intersection signal group or IN node from the binding screen.
 
-Vehicle lights normally bind to IN nodes. Pedestrian lights normally bind to a signal group so they can show green when any IN node in that group has green, yellow when any node in that group has yellow, and red otherwise.
+Vehicle lights normally bind to IN nodes. Pedestrian lights normally bind to a signal group so they can show steady green when any IN node in that group has green, blinking green when any node in that group has yellow, and red otherwise.
 
 The traffic light then reads the selected target's signal state:
 
@@ -284,7 +357,7 @@ Saved bindings are stored in:
 data/mtr-traffic-addon/traffic_light_bindings.json
 ```
 
-Bound lights update their block state server-side. Lit vehicle-light states emit block light and have client-side emissive/glow overlays for red/yellow/green. Pedestrian lights emit and render glow overlays for red and green; yellow maps to no pedestrian glow.
+Bound lights update their block state server-side. Lit vehicle-light states emit block light and have client-side emissive/glow overlays for red/yellow/green. Pedestrian red and green states render their corresponding glow overlays. During pedestrian yellow, the client renders the green overlay for 10 ticks and hides it for 10 ticks, producing a synchronized 0.5-second-on/0.5-second-off warning blink without repeated server block updates. The yellow pedestrian blockstate itself remains the unlit base model between flashes.
 
 ## Vehicle Definitions
 
@@ -324,7 +397,7 @@ Invalid definitions are skipped and logged.
 
 ## Built-In Vehicle Resources
 
-The mod embeds road vehicle resources directly in the jar. Players do not need to install the old standalone vehicle resource pack for the built-in sedans or hatchbacks.
+The mod embeds road vehicle resources directly in the jar. Players do not need to install the old standalone vehicle resource pack for the built-in sedans, hatchbacks, or Nissan Sentras.
 
 Embedded resources include:
 
@@ -332,6 +405,7 @@ Embedded resources include:
 - OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.obj`
 - taxi OBJ and MTL assets at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan_taxi.obj` and `sedan_taxi.mtl`
 - hatchback OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/hatchback.obj`
+- normalized Nissan Sentra OBJ mesh at `assets/mtr_traffic_addon_sedan/models/vehicle/nissan_sentra.obj`
 - BBModel source/metadata copy at `assets/mtr_traffic_addon_sedan/models/vehicle/sedan.bbmodel`
 - texture variants under `assets/mtr_traffic_addon_sedan/textures/vehicle/`
 - traffic model definitions under `assets/mtr_traffic_addon_sedan/traffic_models/`
@@ -452,13 +526,13 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 Expected beta jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B04a.jar
+build/libs/mtr-traffic-addon-26.7.B09a.jar
 ```
 
 The sources jar is also generated:
 
 ```text
-build/libs/mtr-traffic-addon-26.6.B04a-sources.jar
+build/libs/mtr-traffic-addon-26.7.B09a-sources.jar
 ```
 
 Before publishing a beta:
@@ -470,7 +544,11 @@ Before publishing a beta:
 5. Confirm the dashboard opens.
 6. Confirm at least one spawn/despawn route can spawn vehicles.
 7. Confirm traffic lights bind to an intersection IN node or signal group.
-8. Pause/open menus near a red intersection and confirm MTR vehicles are not permanently stuck after stale MTA ticks.
+8. Confirm pedestrian lights blink green during yellow for 10 ticks on and 10 ticks off, then turn red.
+9. Rename a connector by double-clicking its row, pressing Enter, and confirming the name survives a dashboard refresh.
+10. Copy a spawn connector vehicle pool, paste it into another spawn connector, and confirm the destination pool is replaced.
+11. Right-click an intersection row to switch it to Train, configure train nodes, and confirm nearby tollgates respond to an approaching MTR train.
+12. Pause/open menus near a red intersection and confirm MTR vehicles are not permanently stuck after stale MTA ticks.
 
 ## Troubleshooting
 
@@ -527,5 +605,4 @@ Build fails with a Java version error:
 - Traffic uses MTR rail geometry, so road layout quality depends on the underlying rail graph.
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
-- Pedestrian lights currently use red/green pedestrian states only; yellow is treated as no pedestrian glow.
 - Routes require the player to be within 8192 blocks of the connector area for the MTR graph to be fetched. Very large networks where the player is more than 8192 blocks from one end of a route may still fail to resolve.

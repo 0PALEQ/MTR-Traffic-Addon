@@ -1,35 +1,41 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-06-07
-Version covered: 26.6.B03a
+Updated: 2026-07-11
+Version covered: 26.7.B09a
 
 Current working state
 =====================
 
 - The mod builds as a Fabric 1.20.1 addon for Minecraft Transit Railway 4.0.4+.
 - Current build output in this workspace:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a.jar
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a.jar
 - Current sources jar:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a-sources.jar
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a-sources.jar
 - The standalone road vehicle resource pack export remains:
   D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan.zip
 - Gradle/Fabric Loom requires Java 21 or newer to run. The latest verified build used Microsoft JDK 21 from C:\Users\opale\.jdks\ms-21.0.8. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
 - The MTR compile dependency resolves through Modrinth Maven (`maven.modrinth:minecraft-transit-railway:FABRIC-4.0.4+1.20.1`) instead of CurseMaven, avoiding CurseForge media 403 failures in CI.
-- Current branch has uncommitted work for 26.6.B03a, including code/resource changes and this documentation refresh.
+- Current branch has uncommitted work for 26.7.B09a, including code/resource changes and this documentation refresh.
 
 Current feature status
 ======================
 
-- Built-in sedan and hatchback traffic vehicles render through the custom OBJ traffic model path and remain available as embedded resources.
+- Built-in sedan, hatchback, and Nissan Sentra traffic vehicles remain available as embedded resources. The normalized Sentra OBJ uses the MTR vehicle renderer.
 - The built-in sedan vehicle set includes the taxi variant:
   mta_sedan_taxi / sedan_taxi
 - The built-in hatchback vehicle set includes nine visual/resource variants:
   mta_hatchback, mta_hatchback_white, mta_hatchback_gray, mta_hatchback_blue, mta_hatchback_brown, mta_hatchback_green, mta_hatchback_orange, mta_hatchback_pink, mta_hatchback_red
+- The built-in Nissan Sentra set includes five visual/resource variants:
+  mta_nissan_sentra_white, mta_nissan_sentra_red, mta_nissan_sentra_blue, mta_nissan_sentra_black, mta_nissan_sentra_brown
 - OBJ custom traffic models support .mtl material libraries, usemtl material selection, and map_Kd per-face texture selection. Faces without material textures use the model definition default texture.
 - Traffic vehicles now carry route pitch to the client, and render with a small deterministic pitch variation plus deterministic lateral offset so vehicles do not overlap as perfectly on the same route centerline.
 - Traffic dashboard controls for connector state, intersection state, signal modes, and vehicle pools remain present.
+- Connector rows support inline renaming by double-clicking a row and submitting with Enter; blank names restore the generated default.
+- Spawn connector vehicle pools can be copied and pasted between connectors. Paste replaces the destination pool and uses an internal dashboard buffer.
+- Intersection rows can be right-clicked to toggle Crossing/Train level. Train level supports selectable train nodes and automatic road-signal/tollgate control for approaching MTR trains.
 - Traffic spawn/despawn connectors still use MTR rail geometry and saved connector metadata.
 - Traffic light blocks, pole attachment models, glow overlays, and brush binding behavior are implemented.
 - Pedestrian Lights and Pedestrian Lights Pole blocks are implemented, exposed in the creative tab, mineable with pickaxe, and bindable with the MTR brush.
+- Pedestrian yellow/clearance state blinks the green emissive overlay for 10 ticks on and 10 ticks off, synchronized to client world time.
 - Traffic light bindings can target either an intersection IN node or a signal group. Group bindings are intended for pedestrian phases.
 - Manual and Auto intersection signal modes are implemented.
 - MTR blocker checks fail open when addon traffic state is stale, so paused or unloaded addon state should not indefinitely block MTR vehicles.
@@ -113,15 +119,15 @@ BUILD SUCCESSFUL
 
 Last verified date:
 
-2026-06-07
+2026-07-11
 
 Current jar:
 
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a.jar
+D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a.jar
 
 Current sources jar:
 
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.6.B03a-sources.jar
+D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a-sources.jar
 
 Current resourcepack export:
 
@@ -138,5 +144,5 @@ Known notes and remaining work
 - Spawn density controls are still basic and are based on spawn interval plus maxVehicles.
 - maxVehicles limits recent virtual departures, but dashboard controls for changing it are still not exposed.
 - Traffic still depends on MTR rail geometry, so road quality depends on the underlying rail graph.
-- Pedestrian lights currently use red/green pedestrian indications only. Yellow group state has no pedestrian glow overlay.
+- Pedestrian yellow uses a client-rendered blinking green overlay; its base block model and block-light emission remain off between flashes.
 - Traffic light glow placement should still be checked in-game from all four facings after model or texture changes.

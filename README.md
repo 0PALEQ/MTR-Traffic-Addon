@@ -4,11 +4,16 @@ Addon for minecraft transit railway featuring car traffic generation.
 
 ## Beta Status
 
-Current beta line: `26.6.B04a`.
+Current beta line: `26.7.B09a`.
 
-This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan/taxi/hatchback vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan/taxi/hatchback/Nissan Sentra vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
 
-**26.6.B04a changes:**
+**26.7.B09a highlights:**
+- Pedestrian signals blink their green indication during the yellow/clearance phase: 0.5 seconds on and 0.5 seconds off, synchronized to client world time.
+- Five Nissan Sentra color variants are embedded in the built-in vehicle resources: white, red, blue, black, and brown.
+- Dashboard workflow additions include inline connector-track renaming, copy/paste for spawn connector vehicle pools, and Crossing/Train intersection levels.
+
+**Earlier 26.6.B04a changes:**
 - Sinytra Connector compatibility: `fabricloader` version constraint relaxed to `>=0.15.0` so the mod runs on Forge via Sinytra Connector without a crash.
 - Routing over long distances: MTR graph fetch radius increased to `8192` blocks and connector route refresh radius increased to `30,000` blocks. Spawn and despawn connectors that are more than 512 blocks apart now build routes correctly.
 - Dashboard responsiveness: the panel resizes with the window and GUI scale. On narrow screens the map collapses and a toggle button shows it. Spawn interval and phase green duration use inline `[−]` / `[+]` controls with the current value displayed between them.
@@ -34,7 +39,7 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 
 The road vehicle resources are bundled inside the mod jar. Players do not need to install the old standalone vehicle resource pack when using a current build.
 
-Current built-in sedan and hatchback visuals:
+Current built-in vehicle visuals:
 
 - `mta_sedan`
 - `mta_sedan_white`
@@ -54,6 +59,11 @@ Current built-in sedan and hatchback visuals:
 - `mta_hatchback_orange`
 - `mta_hatchback_pink`
 - `mta_hatchback_red`
+- `mta_nissan_sentra_white`
+- `mta_nissan_sentra_red`
+- `mta_nissan_sentra_blue`
+- `mta_nissan_sentra_black`
+- `mta_nissan_sentra_brown`
 
 Current built-in traffic vehicle definitions:
 
@@ -75,10 +85,23 @@ Current built-in traffic vehicle definitions:
 - `hatchback_orange`
 - `hatchback_pink`
 - `hatchback_red`
+- `nissan_sentra_white`
+- `nissan_sentra_red`
+- `nissan_sentra_blue`
+- `nissan_sentra_black`
+- `nissan_sentra_brown`
 
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
 
-Traffic lights can be bound with the MTR brush from inside an intersection area. Lights can target IN nodes or intersection signal groups, so pedestrian lights can follow a whole crossing phase instead of a single node.
+Traffic lights can be bound with the MTR brush from inside an intersection area. Lights can target IN nodes or intersection signal groups, so pedestrian lights can follow a whole crossing phase instead of a single node. During a pedestrian yellow phase, the green indication blinks at a one-second cycle before the signal turns red.
+
+## Dashboard Quick Tutorial
+
+- Rename a connector track: open `Connectors`, double-click its row, type the new name, and press Enter. Submitting an empty name restores the generated default name.
+- Copy a vehicle pool: select a spawn connector, open `Vehicle Pool`, and press `Copy Vehicles`. Open another spawn connector's pool and press `Paste Vehicles`. Paste replaces the destination pool; it does not merge the two lists. This uses the dashboard's internal copy buffer, not the operating-system clipboard.
+- Change an intersection level: open `Intersections` and right-click an intersection row to toggle `Crossing` / `Train`. In Train mode, press `Find Nodes`, select a node on the map, and use `Train Node: On/Off` to choose train approaches. If no train nodes are explicitly selected, all detected IN nodes are used.
+
+See [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md) for the full Train-level and tollgate setup tutorial.
 
 For full addon usage, setup, world data, beta limitations, and release notes, see [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md).
 
