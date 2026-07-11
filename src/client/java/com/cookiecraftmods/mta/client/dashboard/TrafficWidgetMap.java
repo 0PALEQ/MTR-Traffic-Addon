@@ -2,6 +2,7 @@ package com.cookiecraftmods.mta.client.dashboard;
 
 import org.mtr.core.data.TransportMode;
 import org.mtr.core.tool.Utilities;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionLevel;
 import org.mtr.libraries.it.unimi.dsi.fastutil.doubles.DoubleDoubleImmutablePair;
 import org.mtr.mapping.holder.ClientPlayerEntity;
 import org.mtr.mapping.holder.ClientWorld;
@@ -26,6 +27,7 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 	private static final int COLOR_SPAWN = 0xFF4285F4;
 	private static final int COLOR_DESPAWN = 0xFFF4B400;
 	private static final int COLOR_INTERSECTION = 0x55FF6D00;
+	private static final int COLOR_TRAIN_INTERSECTION = 0x55D81B60;
 	private static final int COLOR_INTERSECTION_PREVIEW = 0x77FFD166;
 	private static final int COLOR_INTERSECTION_NODE_IN = 0xFF00C853;
 	private static final int COLOR_INTERSECTION_NODE_OUT = 0xFFD50000;
@@ -351,7 +353,7 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 		drawFromWorldCoords(intersection.centerX() + 0.5D, intersection.centerZ() + 0.5D, (x, z) -> {
 			graphicsHolder.push();
 			graphicsHolder.translate(getX2() + x.floatValue(), getY2() + z.floatValue(), 0);
-			IDrawing.drawStringWithFont(graphicsHolder, "I " + intersection.nodes().size(), 0, -TEXT_HEIGHT, GraphicsHolder.getDefaultLight());
+			IDrawing.drawStringWithFont(graphicsHolder, (intersection.level() == TrafficIntersectionLevel.TRAIN ? "T " : "C ") + intersection.nodes().size(), 0, -TEXT_HEIGHT, GraphicsHolder.getDefaultLight());
 			graphicsHolder.pop();
 		});
 	}
@@ -367,7 +369,8 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 
 	private void drawIntersection(GuiDrawing guiDrawing, ClientTrafficIntersectionEntry intersection, boolean selected) {
 		drawFromWorldCoords(intersection.minX(), intersection.minZ(), (x1, z1) -> drawFromWorldCoords(intersection.maxX(), intersection.maxZ(), (x2, z2) -> {
-			guiDrawing.drawRectangle(getX2() + Math.min(x1, x2), getY2() + Math.min(z1, z2), getX2() + Math.max(x1, x2), getY2() + Math.max(z1, z2), selected ? 0x6600A676 : COLOR_INTERSECTION);
+			final int color = intersection.level() == TrafficIntersectionLevel.TRAIN ? COLOR_TRAIN_INTERSECTION : COLOR_INTERSECTION;
+			guiDrawing.drawRectangle(getX2() + Math.min(x1, x2), getY2() + Math.min(z1, z2), getX2() + Math.max(x1, x2), getY2() + Math.max(z1, z2), selected ? 0x6600A676 : color);
 		}));
 		final String selectedNodeKey = selected ? selectedNodeSupplier.get() : null;
 		final List<Integer> selectedGroupNodeNumbers = selected ? selectedGroupNodeNumbersSupplier.get() : List.of();
@@ -525,7 +528,7 @@ public class TrafficWidgetMap extends ClickableWidgetExtension implements IGui {
 	}
 
 	private static String shortLabel(ClientTrafficDashboardEntry entry) {
-		return (entry.type().name().equals("SPAWN") ? "S" : "D") + " " + entry.group();
+		return entry.effectiveName();
 	}
 
 	private static Path cacheDirectory(String cacheKey) {

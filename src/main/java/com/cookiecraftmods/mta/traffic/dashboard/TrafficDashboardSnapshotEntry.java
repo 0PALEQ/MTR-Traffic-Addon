@@ -4,6 +4,7 @@ import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 
 public record TrafficDashboardSnapshotEntry(
 	String id,
+	String name,
 	TrafficPointType type,
 	long x,
 	long y,

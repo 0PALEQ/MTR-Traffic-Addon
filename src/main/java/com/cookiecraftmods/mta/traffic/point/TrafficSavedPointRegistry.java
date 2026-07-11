@@ -153,6 +153,20 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
+	public static boolean rename(String pointId, String name) {
+		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
+		if (definition == null) {
+			return false;
+		}
+
+		final String trimmedName = name == null ? null : name.trim();
+		DEFINITIONS.put(pointId, copyWithName(definition, trimmedName == null || trimmedName.isBlank() ? null : trimmedName));
+		if (currentServer != null) {
+			save(currentServer);
+		}
+		return true;
+	}
+
 	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph, long centerX, long centerZ, int radius) {
 		if (graph == null || graph.isEmpty()) {
 			return 0;
@@ -254,7 +268,31 @@ public final class TrafficSavedPointRegistry {
 			definition.connectorEndX(),
 			definition.connectorEndY(),
 			definition.connectorEndZ(),
+			definition.name(),
 			List.copyOf(vehiclePool)
+		);
+	}
+
+	private static TrafficPointDefinition copyWithName(TrafficPointDefinition definition, String name) {
+		return new TrafficPointDefinition(
+			definition.id(),
+			definition.type(),
+			definition.x(),
+			definition.y(),
+			definition.z(),
+			definition.group(),
+			definition.enabled(),
+			definition.maxVehicles(),
+			definition.spawnIntervalTicks(),
+			definition.targetGroup(),
+			definition.connectorStartX(),
+			definition.connectorStartY(),
+			definition.connectorStartZ(),
+			definition.connectorEndX(),
+			definition.connectorEndY(),
+			definition.connectorEndZ(),
+			name,
+			definition.effectiveVehiclePool()
 		);
 	}
 
@@ -276,6 +314,7 @@ public final class TrafficSavedPointRegistry {
 			edge.to().x(),
 			edge.to().y(),
 			edge.to().z(),
+			definition.name(),
 			definition.effectiveVehiclePool()
 		);
 	}

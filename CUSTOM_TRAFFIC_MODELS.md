@@ -62,4 +62,4 @@ src/main/resources/assets/mtr_traffic_addon_sedan/
 src/main/resources/data/mtr_traffic_addon_sedan/
 ```
 
-The sample registers nine `mta_sedan*` variants, including `mta_sedan_taxi`, and nine `mta_hatchback*` variants for the Traffic Dashboard vehicle pool. Both body styles use OBJ traffic model definitions for the supplied mesh renderer.
+The built-in resources register nine `mta_sedan*` variants (including `mta_sedan_taxi`), nine `mta_hatchback*` variants, and five `mta_nissan_sentra*` variants for the Traffic Dashboard vehicle pool. The Sentra uses the preferred MTR vehicle renderer exclusively; its OBJ contains baked Minecraft-oriented V coordinates to avoid renderer-dependent UV behavior.

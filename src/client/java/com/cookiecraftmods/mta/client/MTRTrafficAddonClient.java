@@ -7,6 +7,7 @@ import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.lights.TrafficLightBindingScreen;
 import com.cookiecraftmods.mta.client.lights.TrafficLightEmissiveRenderer;
+import com.cookiecraftmods.mta.client.tollgate.TollgateRenderer;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
 import com.cookiecraftmods.mta.client.render.custom.CustomTrafficModelRegistry;
@@ -14,6 +15,7 @@ import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.init.ModItems;
 import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetworking;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionLevel;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
@@ -40,6 +42,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 		ClientMtrVehicleResourceRegistry.initialize();     // Zasoby pojazdów z MTR
 		CustomTrafficModelRegistry.initialize();            // Niestandardowe modele pojazdów
 		TrafficLightEmissiveRenderer.initialize();          // Renderowanie emitowanych świateł
+		TollgateRenderer.initialize();
 
 		// USTAWIENIA RENDER LAYERS - które bloki są przezroczyste
 		BlockRenderLayerMap.INSTANCE.putBlocks(
@@ -49,7 +52,9 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			ModBlocks.TRAFFIC_LIGHTS_VERTICAL_POLE,
 			ModBlocks.TRAFFIC_LIGHTS_PRIMARY,
 			ModBlocks.PEDESTRIAN_LIGHTS,
-			ModBlocks.PEDESTRIAN_LIGHTS_POLE
+			ModBlocks.PEDESTRIAN_LIGHTS_POLE,
+			ModBlocks.TOLLGATE_POLE,
+			ModBlocks.TOLLGATE_BAR
 		);
 
 		// WŁAŚCIWOŚCI ITEMÓW - zmienia visual state na podstawie tagu NBT
@@ -88,6 +93,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 
 			for (int i = 0; i < count; i++) {
 				final String id = buffer.readUtf();
+				final String name = buffer.readUtf();
 				final TrafficPointType type = buffer.readEnum(TrafficPointType.class);
 				final BlockPos blockPos = new BlockPos((int) buffer.readLong(), (int) buffer.readLong(), (int) buffer.readLong());
 				final int group = buffer.readVarInt();
@@ -110,6 +116,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 
 				entries.add(new ClientTrafficDashboardEntry(
 					id,
+					name,
 					type,
 					blockPos,
 					group,
@@ -137,12 +144,18 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				final long maxZ = buffer.readLong();
 				final boolean enabled = buffer.readBoolean();
 				final boolean autoDetectNodes = buffer.readBoolean();
+				final TrafficIntersectionLevel level = buffer.readEnum(TrafficIntersectionLevel.class);
 				final TrafficIntersectionSignalMode signalMode = buffer.readEnum(TrafficIntersectionSignalMode.class);
 				final int phaseDurationTicks = buffer.readVarInt();
 				final int phaseOrderSize = buffer.readVarInt();
 				final List<Integer> phaseOrder = new ArrayList<>(phaseOrderSize);
 				for (int j = 0; j < phaseOrderSize; j++) {
 					phaseOrder.add(buffer.readVarInt());
+				}
+				final int trainNodeNumberCount = buffer.readVarInt();
+				final List<Integer> trainNodeNumbers = new ArrayList<>(trainNodeNumberCount);
+				for (int j = 0; j < trainNodeNumberCount; j++) {
+					trainNodeNumbers.add(buffer.readVarInt());
 				}
 				final int groupCount = buffer.readVarInt();
 				final List<TrafficIntersectionGroup> groups = new ArrayList<>(groupCount);
@@ -167,7 +180,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 						buffer.readVarInt()
 					));
 				}
-				intersections.add(new ClientTrafficIntersectionEntry(id, name, minX, minY, minZ, maxX, maxY, maxZ, enabled, autoDetectNodes, signalMode, phaseDurationTicks, phaseOrder, groups, nodes));
+				intersections.add(new ClientTrafficIntersectionEntry(id, name, minX, minY, minZ, maxX, maxY, maxZ, enabled, autoDetectNodes, level, signalMode, phaseDurationTicks, phaseOrder, trainNodeNumbers, groups, nodes));
 			}
 
 			client.execute(() -> TrafficDashboardClient.openOrUpdate(entries, intersections));

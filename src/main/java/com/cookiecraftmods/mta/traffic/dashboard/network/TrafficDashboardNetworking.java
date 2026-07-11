@@ -104,6 +104,7 @@ public final class TrafficDashboardNetworking {
 
 		for (TrafficDashboardSnapshotEntry entry : entries) {
 			buffer.writeUtf(entry.id());
+			buffer.writeUtf(entry.name());
 			buffer.writeEnum(entry.type());
 			buffer.writeLong(entry.x());
 			buffer.writeLong(entry.y());
@@ -138,11 +139,16 @@ public final class TrafficDashboardNetworking {
 			buffer.writeLong(intersection.maxZ());
 			buffer.writeBoolean(intersection.enabled());
 			buffer.writeBoolean(intersection.autoDetectNodes());
+			buffer.writeEnum(intersection.level());
 			buffer.writeEnum(intersection.signalMode());
 			buffer.writeVarInt(intersection.phaseDurationTicks());
 			buffer.writeVarInt(intersection.phaseOrder().size());
 			for (Integer phase : intersection.phaseOrder()) {
 				buffer.writeVarInt(phase);
+			}
+			buffer.writeVarInt(intersection.trainNodeNumbers().size());
+			for (Integer trainNodeNumber : intersection.trainNodeNumbers()) {
+				buffer.writeVarInt(trainNodeNumber);
 			}
 			buffer.writeVarInt(intersection.groups().size());
 			for (TrafficIntersectionGroup group : intersection.groups()) {
@@ -175,6 +181,7 @@ public final class TrafficDashboardNetworking {
 			.sorted(Comparator.comparing(TrafficPointDefinition::type).thenComparingLong(TrafficPointDefinition::x).thenComparingLong(TrafficPointDefinition::z))
 			.map(definition -> new TrafficDashboardSnapshotEntry(
 				definition.id(),
+				definition.effectiveName(),
 				definition.type(),
 				definition.x(),
 				definition.y(),
@@ -212,9 +219,11 @@ public final class TrafficDashboardNetworking {
 				definition.maxZ(),
 				definition.isEnabled(),
 				definition.effectiveAutoDetectNodes(),
+				definition.effectiveLevel(),
 				definition.effectiveSignalMode(),
 				definition.effectivePhaseDurationTicks(),
 				definition.phaseOrder(),
+				definition.trainNodeNumbers(),
 				definition.groups(),
 				definition.nodes()
 			))
@@ -227,6 +236,8 @@ public final class TrafficDashboardNetworking {
 			changed = TrafficSavedPointRegistry.toggleVehiclePool(pointId, value);
 		} else if ("vehicle_pool_replace".equals(action)) {
 			changed = TrafficSavedPointRegistry.replaceVehiclePool(pointId, value == null || value.isBlank() ? List.of() : List.of(value.split("\\R")));
+		} else if ("name".equals(action)) {
+			changed = TrafficSavedPointRegistry.rename(pointId, value);
 		} else {
 			changed = TrafficSavedPointRegistry.applyUpdate(pointId, action, delta);
 		}

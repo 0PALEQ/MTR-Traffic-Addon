@@ -25,6 +25,8 @@ public final class ModItems {
 	public static final Item TRAFFIC_LIGHTS_PRIMARY = registerItem("traffic_lights_primary", new TrafficLightsPrimaryBlockItem(ModBlocks.TRAFFIC_LIGHTS_PRIMARY, new Item.Properties()));
 	public static final Item PEDESTRIAN_LIGHTS = registerBlockItem("pedestrian_lights", ModBlocks.PEDESTRIAN_LIGHTS);
 	public static final Item PEDESTRIAN_LIGHTS_POLE = registerBlockItem("pedestrian_lights_pole", ModBlocks.PEDESTRIAN_LIGHTS_POLE);
+	public static final Item TOLLGATE_POLE = registerBlockItem("tollgate_pole", ModBlocks.TOLLGATE_POLE);
+	public static final Item TOLLGATE_BAR = registerBlockItem("tollgate_bar", ModBlocks.TOLLGATE_BAR);
 
 	private ModItems() {
 	}

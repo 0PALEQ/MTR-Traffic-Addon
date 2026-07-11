@@ -14,14 +14,17 @@ public record TrafficIntersectionDefinition(
 	long maxZ,
 	Boolean enabled,
 	Boolean autoDetectNodes,
+	TrafficIntersectionLevel level,
 	TrafficIntersectionSignalMode signalMode,
 	Integer phaseDurationTicks,
 	List<Integer> phaseOrder,
+	List<Integer> trainNodeNumbers,
 	List<TrafficIntersectionGroup> groups,
 	List<TrafficIntersectionNode> nodes
 ) {
 	public TrafficIntersectionDefinition {
 		phaseOrder = phaseOrder == null ? List.of() : List.copyOf(phaseOrder);
+		trainNodeNumbers = trainNodeNumbers == null ? List.of() : List.copyOf(trainNodeNumbers);
 		groups = groups == null ? List.of() : List.copyOf(groups);
 		nodes = nodes == null ? List.of() : List.copyOf(nodes);
 	}
@@ -40,6 +43,10 @@ public record TrafficIntersectionDefinition(
 
 	public boolean effectiveAutoDetectNodes() {
 		return autoDetectNodes == null || autoDetectNodes;
+	}
+
+	public TrafficIntersectionLevel effectiveLevel() {
+		return level == null ? TrafficIntersectionLevel.CROSSING : level;
 	}
 
 	public TrafficIntersectionSignalMode effectiveSignalMode() {

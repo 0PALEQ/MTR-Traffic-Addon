@@ -52,7 +52,10 @@ public final class TrafficManager {
 	private static final int MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN = 2048;
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
 	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;
-	private static final double MTR_SIGNAL_PATH_LOOKAHEAD_METERS = 512.0D;
+	private static final double MTR_SIGNAL_PATH_LOOKAHEAD_METERS = 256.0D;
+	private static final double MTR_SIGNAL_PATH_SAMPLE_STEP_METERS = 4.0D;
+	private static final int MTR_SIGNAL_PATH_MAX_SEGMENTS = 64;
+	private static final int MTR_SIGNAL_PATH_MAX_POINTS = 72;
 	private static final long SIGNAL_TICK_MILLIS = 50L;
 	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
 	private static final double DEFAULT_TRAFFIC_TICK_DURATION_SECONDS = 1.0D / 20.0D;
@@ -296,7 +299,7 @@ public final class TrafficManager {
 			segmentLengthMeters,
 			Math.max(0.0D, lengthMeters),
 			Math.max(0.0D, speedMetersPerMillisecond * 3600000.0D),
-			lastServerTick,
+			currentSignalTick(),
 			signalPathSegments
 		));
 	}
@@ -317,7 +320,7 @@ public final class TrafficManager {
 				}
 
 				for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-					if (lastServerTick - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
+					if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
 						continue;
 					}
 
@@ -359,6 +362,7 @@ public final class TrafficManager {
 				occupancy.distanceOnSegmentMeters(),
 				occupancy.segmentLengthMeters(),
 				occupancy.lengthMeters(),
+				occupancy.speedKph(),
 				occupancy.lastTick(),
 				occupancy.signalPathSegments()
 			));
@@ -372,23 +376,44 @@ public final class TrafficManager {
 		}
 
 		final List<MtrSignalPathSegment> segments = new ArrayList<>();
+		int sampledPointCount = 0;
 		for (int i = currentPathIndex; i < path.size(); i++) {
+			if (segments.size() >= MTR_SIGNAL_PATH_MAX_SEGMENTS || sampledPointCount >= MTR_SIGNAL_PATH_MAX_POINTS) {
+				break;
+			}
 			final PathData pathData = path.get(i);
 			final double distanceToSegmentStartMeters = Math.max(0.0D, pathData.getStartDistance() - railProgress);
-			if (distanceToSegmentStartMeters > MTR_SIGNAL_PATH_LOOKAHEAD_METERS) {
+			if (!Double.isFinite(distanceToSegmentStartMeters) || distanceToSegmentStartMeters > MTR_SIGNAL_PATH_LOOKAHEAD_METERS) {
 				break;
 			}
 
 			final double segmentLengthMeters = Math.max(0.001D, pathData.getEndDistance() - pathData.getStartDistance());
+			if (!Double.isFinite(segmentLengthMeters)) {
+				continue;
+			}
 			final double distanceOnSegmentMeters = i == currentPathIndex
 				? Math.min(segmentLengthMeters, Math.max(0.0D, railProgress - pathData.getStartDistance()))
 				: 0.0D;
+			final List<MtrSignalPathPoint> pathPoints = new ArrayList<>();
+			final double remainingLookaheadMeters = Math.max(0.0D, MTR_SIGNAL_PATH_LOOKAHEAD_METERS - distanceToSegmentStartMeters);
+			final double sampleEndDistance = Math.min(segmentLengthMeters, distanceOnSegmentMeters + remainingLookaheadMeters);
+			for (double distance = distanceOnSegmentMeters; distance < sampleEndDistance && sampledPointCount < MTR_SIGNAL_PATH_MAX_POINTS; distance += MTR_SIGNAL_PATH_SAMPLE_STEP_METERS) {
+				final org.mtr.core.tool.Vector position = pathData.getPosition(distance);
+				pathPoints.add(new MtrSignalPathPoint(position.x, position.y, position.z));
+				sampledPointCount++;
+			}
+			if (sampledPointCount < MTR_SIGNAL_PATH_MAX_POINTS) {
+				final org.mtr.core.tool.Vector endPosition = pathData.getPosition(sampleEndDistance);
+				pathPoints.add(new MtrSignalPathPoint(endPosition.x, endPosition.y, endPosition.z));
+				sampledPointCount++;
+			}
 			segments.add(new MtrSignalPathSegment(
 				pathData.getHexId(false),
 				pathData.getHexId(true),
 				distanceToSegmentStartMeters,
 				distanceOnSegmentMeters,
-				segmentLengthMeters
+				segmentLengthMeters,
+				pathPoints
 			));
 		}
 		return List.copyOf(segments);
@@ -441,8 +466,8 @@ public final class TrafficManager {
 
 		synchronized (SIMULATION_LOCK) {
 			removeVehiclesOutsideSimulationRangeAfterTimeout(nowMillis);
-			MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> lastServerTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 			final long signalTick = currentSignalTick();
+			MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
@@ -825,7 +850,7 @@ public final class TrafficManager {
 
 	private static boolean isMtrSegmentRangeOccupied(TrafficRouteSegment candidateSegment, double startDistanceMeters, double endDistanceMeters) {
 		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-			if (lastServerTick - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
+			if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
 				continue;
 			}
 
@@ -898,7 +923,7 @@ public final class TrafficManager {
 
 	private static boolean isMtrSegmentOccupiedAt(TrafficRouteSegment candidateSegment, double candidateDistanceMeters, double candidateHalfLengthMeters) {
 		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-			if (lastServerTick - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
+			if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
 				continue;
 			}
 
@@ -1448,6 +1473,7 @@ public final class TrafficManager {
 		double distanceOnSegmentMeters,
 		double segmentLengthMeters,
 		double lengthMeters,
+		double speedKph,
 		long lastTick,
 		List<MtrSignalPathSegment> pathSegments
 	) {
@@ -1461,8 +1487,15 @@ public final class TrafficManager {
 		String reverseConnectorId,
 		double distanceToSegmentStartMeters,
 		double distanceOnSegmentMeters,
-		double segmentLengthMeters
+		double segmentLengthMeters,
+		List<MtrSignalPathPoint> pathPoints
 	) {
+		public MtrSignalPathSegment {
+			pathPoints = pathPoints == null ? List.of() : List.copyOf(pathPoints);
+		}
+	}
+
+	public record MtrSignalPathPoint(double x, double y, double z) {
 	}
 
 	private record MtrVehicleOccupancy(

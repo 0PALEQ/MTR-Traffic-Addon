@@ -220,3 +220,8 @@ Parts missing from normal MTR vehicles:
 - `mta_hatchback_orange`
 - `mta_hatchback_pink`
 - `mta_hatchback_red`
+- `mta_nissan_sentra_white`
+- `mta_nissan_sentra_red`
+- `mta_nissan_sentra_blue`
+- `mta_nissan_sentra_black`
+- `mta_nissan_sentra_brown`

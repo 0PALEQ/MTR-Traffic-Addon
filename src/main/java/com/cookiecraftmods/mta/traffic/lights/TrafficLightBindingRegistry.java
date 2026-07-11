@@ -4,6 +4,7 @@ import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.init.ModBlocks;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionDefinition;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionLevel;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionRegistry;
@@ -104,6 +105,10 @@ public final class TrafficLightBindingRegistry {
 			player.displayClientMessage(Component.literal("Traffic light is not inside that intersection."), true);
 			return;
 		}
+		if (definition.effectiveLevel() != TrafficIntersectionLevel.CROSSING) {
+			player.displayClientMessage(Component.literal("Traffic lights can only be bound to Crossing intersections."), true);
+			return;
+		}
 		final TrafficLightBindingTargetType effectiveTargetType = targetType == null ? TrafficLightBindingTargetType.NODE : targetType;
 		if (effectiveTargetType == TrafficLightBindingTargetType.NODE) {
 			final boolean nodeExists = definition.nodes().stream().anyMatch(node -> node.type() == TrafficIntersectionNodeType.IN && node.number() == targetNumber);
@@ -131,6 +136,7 @@ public final class TrafficLightBindingRegistry {
 	private static void openBindMenu(ServerPlayer player, BlockPos blockPos) {
 		final List<TrafficIntersectionDefinition> intersections = TrafficIntersectionRegistry.getDefinitions().stream()
 			.filter(definition -> definition.dimensionId().equals(player.level().dimension().location().toString()))
+			.filter(definition -> definition.effectiveLevel() == TrafficIntersectionLevel.CROSSING)
 			.filter(definition -> definition.contains(blockPos.getX(), blockPos.getY(), blockPos.getZ()))
 			.sorted(Comparator.comparing(TrafficIntersectionDefinition::effectiveName, String.CASE_INSENSITIVE_ORDER))
 			.toList();

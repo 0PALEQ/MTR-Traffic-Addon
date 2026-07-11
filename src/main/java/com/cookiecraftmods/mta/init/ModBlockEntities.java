@@ -2,6 +2,7 @@ package com.cookiecraftmods.mta.init;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.traffic.lights.block.entity.TrafficLightBlockEntity;
+import com.cookiecraftmods.mta.traffic.tollgate.entity.TollgateBlockEntity;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -19,6 +20,16 @@ public final class ModBlockEntities {
 			ModBlocks.TRAFFIC_LIGHTS_PRIMARY,
 			ModBlocks.PEDESTRIAN_LIGHTS,
 			ModBlocks.PEDESTRIAN_LIGHTS_POLE
+		).build()
+	);
+
+	public static final BlockEntityType<TollgateBlockEntity> TOLLGATE = Registry.register(
+		BuiltInRegistries.BLOCK_ENTITY_TYPE,
+		new ResourceLocation(MTRTrafficAddon.MOD_ID, "tollgate"),
+		FabricBlockEntityTypeBuilder.create(
+			TollgateBlockEntity::new,
+			ModBlocks.TOLLGATE_POLE,
+			ModBlocks.TOLLGATE_BAR
 		).build()
 	);
 

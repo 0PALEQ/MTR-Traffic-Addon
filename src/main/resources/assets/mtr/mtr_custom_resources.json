@@ -494,6 +494,146 @@
       "hasGangway2": false,
       "hasBarrier1": false,
       "hasBarrier2": false
+    },
+    {
+      "id": "mta_nissan_sentra_white",
+      "name": "Nissan Sentra White",
+      "color": "FFFFFF",
+      "transportMode": "TRAIN",
+      "length": 4.4,
+      "width": 2.0,
+      "height": 1.4,
+      "description": "White Nissan Sentra model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:white", "model:mesh", "body:sedan", "make:nissan", "model_name:sentra"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/nissan_sentra.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/nissan_sentra_white.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/nissan_sentra.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.4,
+      "bogie2Position": 1.4,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_nissan_sentra_red",
+      "name": "Nissan Sentra Red",
+      "color": "AB2819",
+      "transportMode": "TRAIN",
+      "length": 4.4,
+      "width": 2.0,
+      "height": 1.4,
+      "description": "Red Nissan Sentra model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:red", "model:mesh", "body:sedan", "make:nissan", "model_name:sentra"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/nissan_sentra.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/nissan_sentra_red.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/nissan_sentra.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.4,
+      "bogie2Position": 1.4,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_nissan_sentra_blue",
+      "name": "Nissan Sentra Blue",
+      "color": "0074D9",
+      "transportMode": "TRAIN",
+      "length": 4.4,
+      "width": 2.0,
+      "height": 1.4,
+      "description": "Blue Nissan Sentra model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:blue", "model:mesh", "body:sedan", "make:nissan", "model_name:sentra"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/nissan_sentra.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/nissan_sentra_blue.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/nissan_sentra.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.4,
+      "bogie2Position": 1.4,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_nissan_sentra_black",
+      "name": "Nissan Sentra Black",
+      "color": "151515",
+      "transportMode": "TRAIN",
+      "length": 4.4,
+      "width": 2.0,
+      "height": 1.4,
+      "description": "Black Nissan Sentra model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:black", "model:mesh", "body:sedan", "make:nissan", "model_name:sentra"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/nissan_sentra.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/nissan_sentra_black.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/nissan_sentra.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.4,
+      "bogie2Position": 1.4,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
+    },
+    {
+      "id": "mta_nissan_sentra_brown",
+      "name": "Nissan Sentra Brown",
+      "color": "5C4D43",
+      "transportMode": "TRAIN",
+      "length": 4.4,
+      "width": 2.0,
+      "height": 1.4,
+      "description": "Brown Nissan Sentra model for MTR Traffic Addon road traffic.",
+      "tags": ["family:mtr_traffic_addon_sedan", "type:road", "variant:brown", "model:mesh", "body:sedan", "make:nissan", "model_name:sentra"],
+      "models": [
+        {
+          "modelResource": "mtr_traffic_addon_sedan:models/vehicle/nissan_sentra.obj",
+          "textureResource": "mtr_traffic_addon_sedan:textures/vehicle/nissan_sentra_brown.png",
+          "modelPropertiesResource": "mtr_traffic_addon_sedan:properties/vehicle/nissan_sentra.json",
+          "positionDefinitionsResource": "mtr_traffic_addon_sedan:properties/definition/origin.json",
+          "flipTextureV": false
+        }
+      ],
+      "bogie1Position": -1.4,
+      "bogie2Position": 1.4,
+      "couplingPadding1": 0.0,
+      "couplingPadding2": 0.0,
+      "hasGangway1": false,
+      "hasGangway2": false,
+      "hasBarrier1": false,
+      "hasBarrier2": false
     }
   ],
   "signs": [],

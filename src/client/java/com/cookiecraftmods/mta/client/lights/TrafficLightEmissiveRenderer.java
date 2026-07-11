@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.List;
 
 public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<TrafficLightBlockEntity> {
+	private static final int PEDESTRIAN_BLINK_HALF_PERIOD_TICKS = 10;
 	private static final ResourceLocation PRIMARY_RED = model("traffic_lights_primary_red_glow");
 	private static final ResourceLocation PRIMARY_YELLOW = model("traffic_lights_primary_yellow_glow");
 	private static final ResourceLocation PRIMARY_GREEN = model("traffic_lights_primary_green_glow");
@@ -70,6 +71,9 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 	@Override
 	public void render(TrafficLightBlockEntity blockEntity, float tickDelta, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
 		final BlockState state = blockEntity.getBlockState();
+		if (isPedestrianYellow(state) && !pedestrianBlinkOn(blockEntity, tickDelta)) {
+			return;
+		}
 		final ResourceLocation modelLocation = modelFor(state);
 		if (modelLocation == null) {
 			return;
@@ -144,17 +148,28 @@ public class TrafficLightEmissiveRenderer implements BlockEntityRenderer<Traffic
 	private static ResourceLocation pedestrianModel(TrafficLightSignalState signal) {
 		return switch (signal) {
 			case RED -> PEDESTRIAN_RED;
-			case GREEN -> PEDESTRIAN_GREEN;
-			case YELLOW, OFF -> null;
+			case YELLOW, GREEN -> PEDESTRIAN_GREEN;
+			case OFF -> null;
 		};
 	}
 
 	private static ResourceLocation pedestrianPoleModel(TrafficLightSignalState signal) {
 		return switch (signal) {
 			case RED -> PEDESTRIAN_POLE_RED;
-			case GREEN -> PEDESTRIAN_POLE_GREEN;
-			case YELLOW, OFF -> null;
+			case YELLOW, GREEN -> PEDESTRIAN_POLE_GREEN;
+			case OFF -> null;
 		};
+	}
+
+	private static boolean isPedestrianYellow(BlockState state) {
+		return (state.is(ModBlocks.PEDESTRIAN_LIGHTS) || state.is(ModBlocks.PEDESTRIAN_LIGHTS_POLE))
+			&& state.getValue(TrafficLightsPedestrianBlock.SIGNAL) == TrafficLightSignalState.YELLOW;
+	}
+
+	private static boolean pedestrianBlinkOn(TrafficLightBlockEntity blockEntity, float tickDelta) {
+		final long gameTime = blockEntity.getLevel() == null ? 0L : blockEntity.getLevel().getGameTime();
+		final long blinkStep = (long) Math.floor((gameTime + tickDelta) / PEDESTRIAN_BLINK_HALF_PERIOD_TICKS);
+		return (blinkStep & 1L) == 0L;
 	}
 
 	private static Direction facing(BlockState state) {

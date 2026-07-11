@@ -1,0 +1,10 @@
+{
+  "id": "nissan_sentra_blue",
+  "type": "car",
+  "lengthMeters": 4.4,
+  "maxSpeedKph": 70,
+  "accelerationMetersPerSecondSquared": 1.8,
+  "brakingMetersPerSecondSquared": 3.0,
+  "spawnWeight": 8,
+  "visualId": "mta_nissan_sentra_blue"
+}
