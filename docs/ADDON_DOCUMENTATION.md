@@ -1,17 +1,17 @@
 # MTR Traffic Addon Documentation
 
-Version line: `26.7.B09a`
+Version line: `26.7.0`
 
-MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, vehicle and pedestrian traffic light blocks, intersection areas, manual/auto signal phases, and built-in sedan/taxi/hatchback/Nissan Sentra resources.
+MTR Traffic Addon adds lightweight road-traffic simulation on top of Minecraft Transit Railway rails. It uses MTR rail geometry as route geometry, then renders configured traffic vehicles along spawn-to-despawn routes. The addon also provides a traffic dashboard, road traffic connector tools, an MTR route-path blocker, universal editable road signs, vehicle and pedestrian traffic lights, Crossing/Train intersections, animated tollgates, and built-in sedan/taxi/hatchback/Nissan Sentra resources.
 
-This document is the main user and maintainer documentation for the addon. For custom vehicle model authoring, also see `docs/RESOURCE_PACK_AUTHORING.md` and `CUSTOM_TRAFFIC_MODELS.md`.
+This document is the main user and maintainer documentation for the addon. See the [full 26.7.0 release notes](RELEASE_NOTES_26.7.0.md) for the complete change list and upgrade instructions. For specialized authoring, see [Resource Pack Authoring](RESOURCE_PACK_AUTHORING.md), [Custom Traffic Models](../CUSTOM_TRAFFIC_MODELS.md), and [Universal Road Signs](../ROAD_SIGNS.md).
 
 ## Requirements
 
 - Minecraft `1.20.1`
 - Fabric Loader `0.15.0` or newer (Sinytra Connector ships `0.18.x`, which is supported)
 - Fabric API
-- Minecraft Transit Railway `4.0.4` or newer
+- Minecraft Transit Railway `4.0.4` or newer; this release is built against `4.0.5`
 - Java `17` or newer at runtime
 - Java `21` or newer to run the current Gradle/Loom build
 
@@ -35,8 +35,13 @@ Items:
 - `Traffic Lights Primary`
 - `Pedestrian Lights`
 - `Pedestrian Lights Pole`
+- `Tollgate Pole`
+- `Tollgate Bar`
+- `Universal Road Sign`
 
 The spawn and despawn connector items inherit MTR rail modifier behavior. They create styled MTR rail sections and register those sections as traffic spawn or despawn points. The path blocker instead uses MTR's two-node signal-connector selection workflow to modify an existing rail.
+
+Every one of these 13 registered items has a survival crafting recipe and a recipe-book unlock advancement. Included language files are English (`en_us`), Polish (`pl_pl`), German (`de_de`), Japanese (`ja_jp`), French (`fr_fr`), Spanish (`es_es`), Czech (`cs_cz`), and Simplified Chinese (`zh_cn`).
 
 ## Core Concepts
 
@@ -66,7 +71,7 @@ The addon uses MTR rails as the path graph. In practice, road lanes should be bu
 9. Make sure the spawn and despawn connectors are enabled.
 10. Wait for active vehicles to appear on the route.
 
-Current beta behavior requires a spawn connector to have a non-empty Vehicle Pool. If the Vehicle Pool is empty, the spawn point is skipped.
+A spawn connector must have a non-empty Vehicle Pool. If the Vehicle Pool is empty, the spawn point is skipped.
 
 ## Traffic Dashboard
 
@@ -77,9 +82,9 @@ The dashboard has two main sections:
 - `Connectors`
 - `Intersections`
 
-The panel width adapts to the window size and GUI scale. On narrow screens (effective width below 520 px) the map collapses; a `Map ►` / `← Panel` toggle button switches between the list panel and the full-screen map. On wider screens the panel and map share space side by side. The map overlay buttons (zoom, Top/Y view) are placed in the bottom-right corner of the map area and are always clickable regardless of the map being active underneath them.
+The panel width adapts to the window size and GUI scale. On narrow screens (effective width below 520 px) the map collapses; a `Map` / `Panel` toggle button switches between the list panel and the full-screen map. On wider screens the panel and map share space side by side. Connector and intersection searches remain above their lists, and row action buttons remain separate from the row selection target.
 
-The map can focus on selected connectors or intersections. It can also switch between top-view and current-Y overlays.
+The map can focus on a selected connector or intersection. The `Fit` action frames all configured connectors and intersections; drag and scroll continue to pan and scale the view. Map tiles are cached locally per world/server to reduce repeated rebuilding.
 
 ### Connector Controls
 
@@ -203,6 +208,18 @@ Use `MTR Path Blocker Connector` to prevent MTR's siding/depot pathfinder from c
 The blocker is stored on the rail and preserves its geometry, existing resource-pack styles, speed, direction settings, and normal MTR signal colors. A blocked rail is omitted from new MTR path searches, allowing an alternate rail to be chosen when one exists. It does not rewrite paths that MTR generated earlier and does not forcibly stop a train already using one of those paths, so regenerate the affected depot routes after adding or removing a blocker.
 
 The shapeless recipe combines one red MTR signal connector with one obsidian block.
+
+## Universal Road Signs
+
+Place a `Universal Road Sign`, hold the MTR brush, and right-click the block to edit it. The editor supports:
+
+- four built-in sign bases and additional resource-pack bases
+- up to four Unicode text lines
+- per-sign text, background, and edge colors
+- width from `0.25` to `8.0` blocks and height from `0.25` to `4.0` blocks
+- local PNG import with alpha transparency and an option to match the image ratio
+
+Imported images are validated by both client and server, saved with the world, and synchronized to clients automatically. Resource packs can add country-specific bases without Java code. See [Universal Road Signs](../ROAD_SIGNS.md) for the image limits, multiplayer behavior, complete JSON format, and a resource-pack example.
 
 ## Intersections
 
@@ -508,7 +525,7 @@ MTR vehicles also ignore addon intersection lights when that intersection is out
 
 Auto intersections queue MTR demand using a short lookahead over each MTR vehicle's remaining route path. This lets an MTR vehicle stopped before the actual intersection entry track still request the correct incoming signal group.
 
-This is intentional beta behavior. It prioritizes keeping MTR usable over perfectly preserving frozen traffic-light state.
+This is intentional fail-open behavior. It prioritizes keeping MTR usable over preserving frozen traffic-light state.
 
 ## Saved World Data
 
@@ -521,11 +538,11 @@ The addon writes world data under:
 Files:
 
 - `traffic_connector_points.json`
-- `mta_exclusive_rails.json`
 - `traffic_intersections.json`
 - `traffic_light_bindings.json`
+- `road_sign_images/` for content-addressed PNG files used by placed signs
 
-These files are world-specific. Back them up before large manual edits.
+Road-sign text and appearance values are stored in each sign's block entity, while an MTR path block is stored on the affected rail. Upgraded worlds can retain an old `mta_exclusive_rails.json` file, but 26.7.0 no longer reads or writes the removed MTA-exclusive rail system. These files are world-specific; back them up before upgrading or making large manual edits.
 
 ## Build and Release
 
@@ -537,19 +554,21 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\gradlew.bat build
 ```
 
-Expected beta jar:
+Expected Gradle Fabric jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.7.B09a.jar
+build/libs/mtr-traffic-addon-26.7.0.jar
 ```
 
 The sources jar is also generated:
 
 ```text
-build/libs/mtr-traffic-addon-26.7.B09a-sources.jar
+build/libs/mtr-traffic-addon-26.7.0-sources.jar
 ```
 
-Before publishing a beta:
+The prepared distribution copy can use a loader-specific filename such as `build/libs/mta-26.7.0-fabric-1.20.1.jar`. In the current workspace that file is byte-identical to the Gradle Fabric jar above.
+
+Before publishing a release:
 
 1. Build with Java 21+.
 2. Confirm the jar version matches `gradle.properties`.
@@ -562,7 +581,12 @@ Before publishing a beta:
 9. Rename a connector by double-clicking its row, pressing Enter, and confirming the name survives a dashboard refresh.
 10. Copy a spawn connector vehicle pool, paste it into another spawn connector, and confirm the destination pool is replaced.
 11. Right-click an intersection row to switch it to Train, configure train nodes, and confirm nearby tollgates respond to an approaching MTR train.
-12. Pause/open menus near a red intersection and confirm MTR vehicles are not permanently stuck after stale MTA ticks.
+12. Toggle an MTR Path Blocker Connector, regenerate the affected depot route, and confirm the pathfinder selects an available alternative.
+13. Edit a Universal Road Sign with the MTR brush, save text/colors/size, and test one valid PNG upload in multiplayer.
+14. Confirm all 13 recipes and their recipe-book advancements load without data-pack errors.
+15. Reload resources and verify all eight included locale JSON files parse successfully.
+16. Test startup and a saved world on Forge 1.20.1 through Sinytra Connector when publishing a Forge-compatible artifact.
+17. Pause/open menus near a red intersection and confirm MTR vehicles are not permanently stuck after stale addon ticks.
 
 ## Troubleshooting
 
@@ -595,7 +619,7 @@ Intersection has no nodes:
 
 MTR vehicles remain blocked:
 
-- Build/run the current beta with stale-tick fail-open changes.
+- Build/run release 26.7.0 or newer with stale-tick fail-open changes.
 - Check whether another MTR or addon vehicle is actually occupying the rail section.
 - Clear addon vehicles from the dashboard.
 - If the issue only happens after a long pause or far away from the intersection, capture logs and the relevant world data JSON.
@@ -612,7 +636,7 @@ Build fails with a Java version error:
 - Set `JAVA_HOME` to JDK 21 or newer before running Gradle.
 - The default runtime Java 17 is not enough for the current Loom plugin.
 
-## Known Beta Limitations
+## Known Limitations
 
 - Spawn density control is still basic and is based on spawn interval plus `maxVehicles`.
 - `maxVehicles` is present in data/snapshots and limits simultaneously materialized vehicles per spawn, but its dashboard controls are still not exposed.

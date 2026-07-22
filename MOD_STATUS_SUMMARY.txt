@@ -1,149 +1,68 @@
 MTR Traffic Addon - Status Summary
-Updated: 2026-07-11
-Version covered: 26.7.B09a
+Updated: 2026-07-22
+Version covered: 26.7.0
+
+Release documentation
+=====================
+
+- Full release notes:
+  docs\RELEASE_NOTES_26.7.0.md
+- Main user and maintainer guide:
+  docs\ADDON_DOCUMENTATION.md
+- Universal Road Sign guide:
+  ROAD_SIGNS.md
+- Resource-pack guide:
+  docs\RESOURCE_PACK_AUTHORING.md
 
 Current working state
 =====================
 
-- The mod builds as a Fabric 1.20.1 addon for Minecraft Transit Railway 4.0.4+.
-- Current build output in this workspace:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a.jar
-- Current sources jar:
-  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a-sources.jar
-- The standalone road vehicle resource pack export remains:
+- The mod targets Minecraft 1.20.1 and Fabric, with Forge support through Sinytra Connector.
+- Fabric metadata accepts Minecraft Transit Railway 4.0.4 or newer. The current compile dependency is MTR FABRIC-4.0.5+1.20.1 from Modrinth Maven.
+- Gradle/Fabric Loom requires Java 21 or newer to run. The published mod targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+- Standard Gradle Fabric artifact:
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.0.jar
+- Prepared Fabric distribution copy (byte-identical to the standard artifact):
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mta-26.7.0-fabric-1.20.1.jar
+- Current sources artifact:
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.0-sources.jar
+- The standalone road-vehicle resource-pack source and ZIP export remain at:
+  D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan
   D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan.zip
-- Gradle/Fabric Loom requires Java 21 or newer to run. The latest verified build used Microsoft JDK 21 from C:\Users\opale\.jdks\ms-21.0.8. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
-- The MTR compile dependency resolves through Modrinth Maven (`maven.modrinth:minecraft-transit-railway:FABRIC-4.0.4+1.20.1`) instead of CurseMaven, avoiding CurseForge media 403 failures in CI.
-- Current branch has uncommitted work for 26.7.B09a, including code/resource changes and this documentation refresh.
 
 Current feature status
 ======================
 
-- Built-in sedan, hatchback, and Nissan Sentra traffic vehicles remain available as embedded resources. The normalized Sentra OBJ uses the MTR vehicle renderer.
-- The built-in sedan vehicle set includes the taxi variant:
-  mta_sedan_taxi / sedan_taxi
-- The built-in hatchback vehicle set includes nine visual/resource variants:
-  mta_hatchback, mta_hatchback_white, mta_hatchback_gray, mta_hatchback_blue, mta_hatchback_brown, mta_hatchback_green, mta_hatchback_orange, mta_hatchback_pink, mta_hatchback_red
-- The built-in Nissan Sentra set includes five visual/resource variants:
-  mta_nissan_sentra_white, mta_nissan_sentra_red, mta_nissan_sentra_blue, mta_nissan_sentra_black, mta_nissan_sentra_brown
-- OBJ custom traffic models support .mtl material libraries, usemtl material selection, and map_Kd per-face texture selection. Faces without material textures use the model definition default texture.
-- Traffic vehicles now carry route pitch to the client, and render with a small deterministic pitch variation plus deterministic lateral offset so vehicles do not overlap as perfectly on the same route centerline.
-- Traffic dashboard controls for connector state, intersection state, signal modes, and vehicle pools remain present.
-- Connector rows support inline renaming by double-clicking a row and submitting with Enter; blank names restore the generated default.
-- Spawn connector vehicle pools can be copied and pasted between connectors. Paste replaces the destination pool and uses an internal dashboard buffer.
-- Intersection rows can be right-clicked to toggle Crossing/Train level. Train level supports selectable train nodes and automatic road-signal/tollgate control for approaching MTR trains.
-- Traffic spawn/despawn connectors still use MTR rail geometry and saved connector metadata.
-- Traffic light blocks, pole attachment models, glow overlays, and brush binding behavior are implemented.
-- Pedestrian Lights and Pedestrian Lights Pole blocks are implemented, exposed in the creative tab, mineable with pickaxe, and bindable with the MTR brush.
-- Pedestrian yellow/clearance state blinks the green emissive overlay for 10 ticks on and 10 ticks off, synchronized to client world time.
-- Traffic light bindings can target either an intersection IN node or a signal group. Group bindings are intended for pedestrian phases.
-- Manual and Auto intersection signal modes are implemented.
-- MTR blocker checks fail open when addon traffic state is stale, so paused or unloaded addon state should not indefinitely block MTR vehicles.
-- Traffic simulation runs on a dedicated wall-clock simulation thread instead of moving addon vehicles directly in the Minecraft server tick path.
-- Spawn connectors create deterministic virtual route streams globally. Vehicles are materialized only when their calculated route position is near a player and has clearance from active addon/MTR vehicles.
-- Mid-route materialization now accepts the full player simulation radius instead of rejecting candidates inside server-derived visibility distance. This removes a Forge/Sinytra-specific failure mode when server view distance covered the practical route.
-- Vehicle rendering and materialization are distance limited by config. Defaults are automatic:
-  - visibility distance = render distance - 2 chunks
-  - simulation distance = visibility distance + materialization margin
-  - materialization margin = 2 chunks
-  - unrendered active vehicles are removed after 30 seconds
-- Active addon vehicles outside every player's simulation distance are removed and can be recreated later from the virtual stream.
-- MTR vehicles ignore addon intersection lights when no player is close enough for that intersection to be actively simulated.
-- MTR intersection demand detection uses route lookahead, so MTR vehicles stopped before an entry rail can still queue the correct intersection input group.
-
-26.6.B03a changelog
-===================
-
-Vehicles and rendering
-----------------------
-
-- Added the built-in taxi sedan resources:
-  - mta_sedan_taxi
-  - sedan_taxi
-  - sedan_taxi.obj / sedan_taxi.mtl
-  - sedan_taxi.png / taxi_sign.png
-- Added the built-in hatchback resources:
-  - mta_hatchback / hatchback
-  - mta_hatchback_white / hatchback_white
-  - mta_hatchback_gray / hatchback_gray
-  - mta_hatchback_blue / hatchback_blue
-  - mta_hatchback_brown / hatchback_brown
-  - mta_hatchback_green / hatchback_green
-  - mta_hatchback_orange / hatchback_orange
-  - mta_hatchback_pink / hatchback_pink
-  - mta_hatchback_red / hatchback_red
-  - hatchback.obj and hatchback texture variants
-- Hatchback OBJ rendering uses per-variant default textures from traffic model definitions instead of a fixed MTL map_Kd texture.
-- Added OBJ material-library loading for traffic models.
-- Added per-face texture selection from MTL map_Kd entries.
-- Added route pitch to traffic debug snapshots, server networking, client interpolation, and custom/MTR/placeholder render state.
-- Added deterministic lateral vehicle offset and small deterministic custom-render pitch variation.
-
-Traffic lights and bindings
----------------------------
-
-- Added Pedestrian Lights and Pedestrian Lights Pole blocks, items, blockstates, models, textures, loot tables, translations, creative-tab entries, pickaxe tags, and emissive overlays.
-- Added TrafficLightBindingTargetType with NODE and GROUP target modes.
-- Updated saved traffic light bindings to retain backwards compatibility with old node-only bindings while supporting group targets.
-- Updated the brush binding screen/networking to list signal groups before IN nodes and send target type plus target number.
-- Added group signal-state lookup so bound lights can follow a whole signal group.
-
-Simulation and spacing
-----------------------
-
-- Added materialization clearance checks against active addon vehicles and recently observed MTR vehicles.
-- Added skipped virtual vehicle tracking so unsafe virtual departures are not retried every simulation pass.
-- Added next-segment entry limits to prevent vehicles entering occupied/full segments.
-- Refined signal occupancy checks to apply at signal entry boundaries instead of every segment that shares a signal color.
-- Spawn connector route traversal now prefers saved node direction, while retaining reverse traversal for old saved spawn points.
-- Despawn connector segments remain protected from vehicle materialization.
-
-Documentation
--------------
-
-- Updated README with 26.6.B03a status, taxi/hatchback resources, pedestrian/group binding behavior, and clearance-aware materialization.
-- Updated docs/ADDON_DOCUMENTATION.md with B03a runtime behavior, pedestrian lights, group bindings, OBJ MTL texture support, taxi/hatchback resources, and current jar names.
-- Updated docs/RESOURCE_PACK_AUTHORING.md and CUSTOM_TRAFFIC_MODELS.md with taxi/hatchback IDs and OBJ material texture support.
-- Updated the standalone resource pack README and pack metadata to describe road vehicle resources instead of sedan-only resources.
+- Spawn/despawn connectors create traffic routes over MTR rail geometry and store per-spawn vehicle pools, intervals, names, directions, enabled state, and materialization limits.
+- Traffic runs on a dedicated 50 ms wall-clock simulation loop with deterministic virtual departures, distance-based materialization, spacing and congestion handling, and asynchronous per-player network filtering.
+- The localized responsive dashboard supports connector/intersection search, inline connector renaming, Locate/Pool row actions, vehicle-pool copy/paste, map fitting/caching, and Crossing/Train intersection levels.
+- Manual and automatic road intersections, node/group traffic-light bindings, pedestrian clearance blinking, train detection, tollgate poles, and animated tollgate bars are implemented.
+- The MTR Path Blocker Connector toggles a marker on an existing rail so new MTR siding/depot path searches omit that segment while preserving the rail's other properties.
+- The Universal Road Sign supports resource-pack bases, four Unicode text lines, text/background/edge colors, custom dimensions, imported PNG artwork, server-side validation, and world-backed multiplayer image synchronization.
+- Built-in vehicle resources include sedans, taxi, hatchbacks, and five Nissan Sentra colors.
+- All 13 registered addon items have crafting recipes and recipe-book unlock advancements.
+- Included languages are English, Polish, German, Japanese, French, Spanish, Czech, and Simplified Chinese.
 
 Build verification
 ==================
 
-Last verified command:
+- Last verified: 2026-07-22
+- Result: BUILD SUCCESSFUL
+- Verified command:
 
-JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
-.\gradlew.bat build --refresh-dependencies
+  JAVA_HOME=C:\Users\opale\.jdks\ms-21.0.8
+  .\gradlew.bat build
 
-Result:
-
-BUILD SUCCESSFUL
-
-Last verified date:
-
-2026-07-11
-
-Current jar:
-
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a.jar
-
-Current sources jar:
-
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\build\libs\mtr-traffic-addon-26.7.B09a-sources.jar
-
-Current resourcepack export:
-
-D:\MODS-WORKSPACES\MTR Traffic Addon\mta\resourcepacks\mtr-traffic-addon-sedan.zip
+- The generated Fabric jar embeds version 26.7.0 and contains 13 recipes, 8 locale files, and 4 built-in road-sign bases.
 
 Known notes and remaining work
 ==============================
 
-- Set JAVA_HOME to Java 21+ before release builds because Fabric Loom requires it.
-- Large-network traffic behavior should be tested in-game on a real server with multiple players and long route networks.
-- The wall-clock simulation loop should still be watched for thread-safety regressions around MTR vehicle occupancy, intersections, dashboard snapshots, and materialization.
-- Auto intersections still depend on graph snapshots and recent vehicle observations near players.
-- MTR-only remote intersections intentionally fail open when no player is nearby; this is a performance tradeoff.
-- Spawn density controls are still basic and are based on spawn interval plus maxVehicles.
-- maxVehicles limits simultaneously materialized vehicles per spawn; virtual scanning still covers every departure that could remain on the route. Dashboard controls for changing maxVehicles are not exposed.
-- Traffic still depends on MTR rail geometry, so road quality depends on the underlying rail graph.
-- Pedestrian yellow uses a client-rendered blinking green overlay; its base block model and block-light emission remain off between flashes.
-- Traffic light glow placement should still be checked in-game from all four facings after model or texture changes.
+- Back up world data before upgrading and regenerate affected MTR depot routes after toggling a path blocker.
+- The removed MTA-exclusive 20-120 speed connector items are no longer registered; spawn/despawn connectors and the MTR Path Blocker Connector are the supported tools.
+- Large-network behavior should continue to be tested with multiple players and long route networks.
+- Automatic and Train intersections depend on recent graph and vehicle observations near players and intentionally fail open when state is stale or remote.
+- Spawn density controls remain based on spawn interval and maxVehicles; dashboard controls for maxVehicles are not exposed.
+- Traffic quality depends on the underlying MTR rail graph, and fallback graph requests cover 8192 blocks around a player.
+- Custom traffic-model support currently focuses on OBJ resources.
+- Unused imported road-sign PNGs remain stored with the world and are not garbage-collected automatically.

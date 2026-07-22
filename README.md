@@ -2,23 +2,22 @@
 
 Addon for minecraft transit railway featuring car traffic generation.
 
-## Beta Status
+## Current Release
 
-Current beta line: `26.7.B09a`.
+Current release: `26.7.0` for Minecraft `1.20.1, 1.20.4, 1.21.1`.
 
-This build includes MTR route traffic, traffic dashboard controls, configurable spawn/despawn connectors, vehicle and pedestrian traffic light blocks, manual/auto intersection signals, bundled sedan/taxi/hatchback/Nissan Sentra vehicle resources, and fail-open handling so stale paused traffic/intersection state does not keep MTR vehicles blocked indefinitely.
+This release adds universal editable road signs, the MTR Path Blocker Connector, train-controlled intersections and tollgates, survival recipes for every registered addon item, eight included languages, five Nissan Sentra variants, a localized responsive dashboard, and major traffic simulation and networking improvements.
 
-**26.7.B09a highlights:**
-- Pedestrian signals blink their green indication during the yellow/clearance phase: 0.5 seconds on and 0.5 seconds off, synchronized to client world time.
-- Five Nissan Sentra color variants are embedded in the built-in vehicle resources: white, red, blue, black, and brown.
-- Dashboard workflow additions include inline connector-track renaming, copy/paste for spawn connector vehicle pools, and Crossing/Train intersection levels.
-- Mid-route virtual vehicles can materialize anywhere inside player simulation distance. The simulator scans every departure that could still be on the route, while `maxVehicles` limits only the number materialized from each spawn. Materialization no longer depends on an outer band derived from server view distance, fixing fresh Forge/Sinytra worlds that otherwise considered only the newest, spawn-side departure.
+**26.7.0 highlights:**
 
-**Earlier 26.6.B04a changes:**
-- Sinytra Connector compatibility: `fabricloader` version constraint relaxed to `>=0.15.0` so the mod runs on Forge via Sinytra Connector without a crash.
-- Routing over long distances: MTR graph fetch radius increased to `8192` blocks and connector route refresh radius increased to `30,000` blocks. Spawn and despawn connectors that are more than 512 blocks apart now build routes correctly.
-- Dashboard responsiveness: the panel resizes with the window and GUI scale. On narrow screens the map collapses and a toggle button shows it. Spawn interval and phase green duration use inline `[−]` / `[+]` controls with the current value displayed between them.
-- Dashboard intersection layout: action buttons are anchored below the signal groups list instead of overlapping it. All buttons in the map area are now clickable.
+- Customize road signs with up to four Unicode text lines, dimensions, text/background/edge colors, imported PNG artwork, and resource-pack-defined bases.
+- Block an existing rail from newly generated MTR siding/depot paths without replacing its geometry, style, speed, direction, or normal signal colors.
+- Configure `Crossing` or `Train` intersections with selectable train approaches, animated tollgate poles/bars, and blinking pedestrian clearance signals.
+- Run larger traffic networks through a dedicated 20 Hz simulation loop, asynchronous per-player snapshots, spatial filtering, deterministic virtual departures, and reliable mid-route materialization.
+- Search and rename connectors, copy/paste vehicle pools, use row-level Locate/Pool actions, and fit the dashboard map to configured content.
+- Craft all 13 addon items and use the interface in English, Polish, German, Japanese, French, Spanish, Czech, or Simplified Chinese.
+
+Read the [full 26.7.0 release notes](docs/RELEASE_NOTES_26.7.0.md) for all features, fixes, compatibility changes, upgrade instructions, and known limitations.
 
 Traffic vehicle visibility and simulation distances are `auto` by default in `config/mtr-traffic-addon.properties`. Auto visibility distance follows render distance minus 2 chunks, and auto simulation/materialization distance follows visibility distance plus `trafficVehicleMaterializationMarginChunks` chunks. The default margin is 2 chunks. Either distance value can be set to a fixed block distance if a server owner wants an explicit cap.
 
@@ -35,6 +34,13 @@ $env:JAVA_HOME='C:\Users\opale\.jdks\ms-21.0.8'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\gradlew.bat build
 ```
+
+Standard Gradle artifacts:
+
+- `build/libs/mtr-traffic-addon-26.7.0.jar`
+- `build/libs/mtr-traffic-addon-26.7.0-sources.jar`
+
+The prepared Fabric distribution copy in this workspace is named `build/libs/mta-26.7.0-fabric-1.20.1.jar`.
 
 ## Built-In Vehicle Resources
 
@@ -98,6 +104,8 @@ Traffic lights can be bound with the MTR brush from inside an intersection area.
 
 The `MTR Path Blocker Connector` closes an existing rail to MTR route searches without replacing its geometry, custom resource-pack style, or ordinary signal colors. Select the rail's two endpoint nodes as with an MTR signal connector; select the same rail again to reopen it. Regenerate the affected MTR depot route after changing a blocker, because paths that MTR already generated are not rewritten in place.
 
+The `Universal Road Sign` is edited with the MTR brush and supports selectable bases, up to four Unicode text lines, custom dimensions and colors, and imported PNG artwork. Resource packs can add country-specific bases without addon code. See [ROAD_SIGNS.md](ROAD_SIGNS.md) for the player and pack-author guide.
+
 ## Dashboard Quick Tutorial
 
 - Rename a connector track: open `Connectors`, double-click its row, type the new name, and press Enter. Submitting an empty name restores the generated default name.
@@ -106,7 +114,7 @@ The `MTR Path Blocker Connector` closes an existing rail to MTR route searches w
 
 See [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md) for the full Train-level and tollgate setup tutorial.
 
-For full addon usage, setup, world data, beta limitations, and release notes, see [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md).
+For full addon usage, setup, world data, and known limitations, see [docs/ADDON_DOCUMENTATION.md](docs/ADDON_DOCUMENTATION.md). For the complete change list, see the [26.7.0 release notes](docs/RELEASE_NOTES_26.7.0.md).
 
 Author: opaleq
 Website: https://cookiecraftmods.com
