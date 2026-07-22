@@ -5,6 +5,7 @@ import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPedestrianBlock
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPoleTopBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsPrimaryBlock;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightsVerticalPoleBlock;
+import com.cookiecraftmods.mta.traffic.sign.RoadSignBlock;
 import com.cookiecraftmods.mta.traffic.tollgate.TollgateBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -26,6 +27,7 @@ public final class ModBlocks {
 	public static final Block PEDESTRIAN_LIGHTS_POLE = registerBlock("pedestrian_lights_pole", new TrafficLightsPedestrianBlock(poleProperties().lightLevel(TrafficLightsPedestrianBlock::lightLevel)));
 	public static final Block TOLLGATE_POLE = registerBlock("tollgate_pole", new TollgateBlock(poleProperties(), true));
 	public static final Block TOLLGATE_BAR = registerBlock("tollgate_bar", new TollgateBlock(poleProperties(), false));
+	public static final Block ROAD_SIGN = registerBlock("road_sign", new RoadSignBlock(poleProperties()));
 
 	private ModBlocks() {
 	}

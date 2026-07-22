@@ -7,6 +7,10 @@ import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugSnapshot;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugState;
 import com.cookiecraftmods.mta.client.lights.TrafficLightBindingScreen;
 import com.cookiecraftmods.mta.client.lights.TrafficLightEmissiveRenderer;
+import com.cookiecraftmods.mta.client.sign.RoadSignBaseRegistry;
+import com.cookiecraftmods.mta.client.sign.RoadSignEditScreen;
+import com.cookiecraftmods.mta.client.sign.RoadSignImageRegistry;
+import com.cookiecraftmods.mta.client.sign.RoadSignRenderer;
 import com.cookiecraftmods.mta.client.tollgate.TollgateRenderer;
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.client.render.ClientTrafficRenderDispatcher;
@@ -20,6 +24,8 @@ import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
 import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
+import com.cookiecraftmods.mta.traffic.sign.entity.RoadSignBlockEntity;
+import com.cookiecraftmods.mta.traffic.sign.network.RoadSignNetworking;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -43,6 +49,9 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 		CustomTrafficModelRegistry.initialize();            // Niestandardowe modele pojazdów
 		TrafficLightEmissiveRenderer.initialize();          // Renderowanie emitowanych świateł
 		TollgateRenderer.initialize();
+		RoadSignBaseRegistry.initialize();
+		RoadSignImageRegistry.initialize();
+		RoadSignRenderer.initialize();
 
 		// USTAWIENIA RENDER LAYERS - które bloki są przezroczyste
 		BlockRenderLayerMap.INSTANCE.putBlocks(
@@ -54,13 +63,15 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			ModBlocks.PEDESTRIAN_LIGHTS,
 			ModBlocks.PEDESTRIAN_LIGHTS_POLE,
 			ModBlocks.TOLLGATE_POLE,
-			ModBlocks.TOLLGATE_BAR
+			ModBlocks.TOLLGATE_BAR,
+			ModBlocks.ROAD_SIGN
 		);
 
 		// WŁAŚCIWOŚCI ITEMÓW - zmienia visual state na podstawie tagu NBT
 		// Connector zmienia wygląd gdy ma zapisaną pozycję
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
+		ItemProperties.register(ModItems.SIGNAL_PATH_BLOCKER_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 
 		// NETWORK PACKET LISTENERS - odbieranie danych z serwera
 		// Debug snapshot - pozycje pojazdów dla debugowania
@@ -220,6 +231,27 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				intersections.add(new TrafficLightBindingScreen.IntersectionOption(id, name, groups, nodes));
 			}
 			client.execute(() -> client.setScreen(new TrafficLightBindingScreen(blockPos, intersections)));
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(RoadSignNetworking.OPEN_EDITOR_PACKET_ID, (client, handler, buffer, responseSender) -> {
+			final BlockPos blockPos = buffer.readBlockPos();
+			final ResourceLocation parsedBaseId = ResourceLocation.tryParse(buffer.readUtf(RoadSignNetworking.MAX_BASE_ID_LENGTH));
+			final ResourceLocation baseId = parsedBaseId == null ? RoadSignBlockEntity.DEFAULT_BASE_ID : parsedBaseId;
+			final int lineCount = buffer.readVarInt();
+			if (lineCount < 0 || lineCount > RoadSignBlockEntity.MAX_LINES) {
+				return;
+			}
+			final List<String> lines = new ArrayList<>(Math.max(0, lineCount));
+			for (int index = 0; index < lineCount; index++) {
+				lines.add(buffer.readUtf(RoadSignBlockEntity.MAX_LINE_LENGTH));
+			}
+			final int textColor = buffer.readInt();
+			final float signWidth = buffer.readFloat();
+			final float signHeight = buffer.readFloat();
+			final int backgroundColor = buffer.readInt();
+			final int edgeColor = buffer.readInt();
+			final String imageId = buffer.readUtf(com.cookiecraftmods.mta.traffic.sign.image.RoadSignImageData.IMAGE_ID_LENGTH);
+			client.execute(() -> client.setScreen(new RoadSignEditScreen(blockPos, baseId, lines, textColor, signWidth, signHeight, backgroundColor, edgeColor, imageId)));
 		});
 
 		// EVENT LISTENERY - czyszczenie przy rozłączeniu i renderowanie

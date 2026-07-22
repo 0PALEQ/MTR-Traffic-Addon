@@ -8,6 +8,7 @@
     "mtr-traffic-addon:pedestrian_lights",
     "mtr-traffic-addon:pedestrian_lights_pole",
     "mtr-traffic-addon:tollgate_pole",
-    "mtr-traffic-addon:tollgate_bar"
+    "mtr-traffic-addon:tollgate_bar",
+    "mtr-traffic-addon:road_sign"
   ]
 }

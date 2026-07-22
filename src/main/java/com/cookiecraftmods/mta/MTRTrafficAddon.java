@@ -11,6 +11,7 @@ import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionRegistry;
 import com.cookiecraftmods.mta.traffic.lights.TrafficLightBindingRegistry;
 import com.cookiecraftmods.mta.traffic.lights.network.TrafficLightBindingNetworking;
 import com.cookiecraftmods.mta.traffic.network.TrafficNetworking;
+import com.cookiecraftmods.mta.traffic.sign.network.RoadSignNetworking;
 import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
 import com.cookiecraftmods.mta.traffic.vehicle.TrafficVehicleDefinitionRegistry;
@@ -34,6 +35,7 @@ public class MTRTrafficAddon implements ModInitializer {
 		TrafficIntersectionRegistry.initialize();
 		TrafficLightBindingNetworking.initialize();
 		TrafficLightBindingRegistry.initialize();
+		RoadSignNetworking.initialize();
 		TrafficDashboardNetworking.initialize();
 		TrafficNetworking.initialize();
 		TrafficManager.initialize();

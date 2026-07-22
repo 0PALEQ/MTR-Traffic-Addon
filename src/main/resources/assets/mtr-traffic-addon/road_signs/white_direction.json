@@ -1,0 +1,19 @@
+{
+  "translation_key": "gui.mtr-traffic-addon.road_sign.base.white_direction",
+  "width": 2.25,
+  "height": 0.75,
+  "thickness": 0.0625,
+  "background_color": "#F2F2ED",
+  "border_color": "#1B1B1B",
+  "back_color": "#70777C",
+  "border": 0.035,
+  "text": {
+    "color": "#1B1B1B",
+    "x": 0.07,
+    "y": 0.12,
+    "width": 0.86,
+    "height": 0.76,
+    "max_lines": 2,
+    "alignment": "center"
+  }
+}

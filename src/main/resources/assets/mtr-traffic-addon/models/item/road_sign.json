@@ -1,0 +1,43 @@
+{
+  "textures": {
+    "border": "minecraft:block/white_concrete",
+    "face": "minecraft:block/blue_concrete",
+    "back": "minecraft:block/gray_concrete",
+    "particle": "minecraft:block/blue_concrete"
+  },
+  "elements": [
+    {
+      "from": [1, 3, 7.5],
+      "to": [15, 13, 8.5],
+      "faces": {
+        "north": { "uv": [1, 3, 15, 13], "texture": "#border" },
+        "east": { "uv": [7.5, 3, 8.5, 13], "texture": "#back" },
+        "south": { "uv": [1, 3, 15, 13], "texture": "#back" },
+        "west": { "uv": [7.5, 3, 8.5, 13], "texture": "#back" },
+        "up": { "uv": [1, 7.5, 15, 8.5], "texture": "#back" },
+        "down": { "uv": [1, 7.5, 15, 8.5], "texture": "#back" }
+      }
+    },
+    {
+      "from": [1.75, 3.75, 7.4375],
+      "to": [14.25, 12.25, 7.5],
+      "faces": {
+        "north": { "uv": [1.75, 3.75, 14.25, 12.25], "texture": "#face" }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [30, 225, 0],
+      "translation": [0, 0, 0],
+      "scale": [0.8, 0.8, 0.8]
+    },
+    "ground": {
+      "translation": [0, 2, 0],
+      "scale": [0.5, 0.5, 0.5]
+    },
+    "fixed": {
+      "scale": [0.75, 0.75, 0.75]
+    }
+  }
+}

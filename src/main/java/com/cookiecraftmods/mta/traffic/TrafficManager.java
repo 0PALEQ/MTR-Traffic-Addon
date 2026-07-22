@@ -702,6 +702,12 @@ public final class TrafficManager {
 			if (!spawn.isEnabled() || spawn.effectiveVehiclePool().isEmpty()) {
 				continue;
 			}
+			int remainingMaterializationSlots = Math.max(0, spawn.effectiveMaxVehicles() - (int) vehiclesToCheck.stream()
+				.filter(vehicle -> spawn.id().equals(vehicle.spawnPointId()))
+				.count());
+			if (remainingMaterializationSlots == 0) {
+				continue;
+			}
 
 			final List<VirtualRouteCandidate> routeCandidates = ROUTE_CANDIDATES_BY_SPAWN_ID.computeIfAbsent(spawn.id(), ignored -> buildVirtualRouteCandidates(latestGraph, spawn));
 			if (routeCandidates.isEmpty()) {
@@ -710,12 +716,12 @@ public final class TrafficManager {
 
 			final long intervalMillis = Math.max(1L, spawn.effectiveSpawnIntervalTicks() * SIGNAL_TICK_MILLIS);
 			final long latestDepartureIndex = Math.floorDiv(nowMillis, intervalMillis);
-			final int virtualVehicleCount = virtualDepartureScanCount(routeCandidates, anyDefinition.get(), spawn, intervalMillis);
+			final int virtualVehicleCount = virtualDepartureScanCount(routeCandidates, anyDefinition.get(), intervalMillis);
 			for (long departureIndex = latestDepartureIndex; departureIndex > latestDepartureIndex - virtualVehicleCount; departureIndex--) {
 				final VirtualRouteCandidate candidate = routeCandidates.get(Math.floorMod(departureIndex, routeCandidates.size()));
 				final TrafficVehicleDefinition definition = withSpawnVehiclePoolOverride(anyDefinition.get(), spawn, departureIndex);
 				final VirtualVehicleSample sample = sampleVirtualVehicle(candidate.route(), definition, nowMillis - departureIndex * intervalMillis);
-				if (sample == null || !isPositionInMaterializationRange(dimensionId, sample.position().x(), sample.position().z(), sampleIsOnSpawnConnector(candidate.route(), sample))) {
+				if (sample == null || !isPositionInMaterializationRange(dimensionId, sample.position().x(), sample.position().z())) {
 					continue;
 				}
 
@@ -734,6 +740,10 @@ public final class TrafficManager {
 				vehiclesToAdd.add(vehicle);
 				vehiclesToCheck.add(vehicle);
 				activeIds.add(vehicleId);
+				remainingMaterializationSlots--;
+				if (remainingMaterializationSlots == 0) {
+					break;
+				}
 			}
 		}
 
@@ -743,14 +753,13 @@ public final class TrafficManager {
 		}
 	}
 
-	private static int virtualDepartureScanCount(List<VirtualRouteCandidate> routeCandidates, TrafficVehicleDefinition definition, TrafficPointDefinition spawn, long intervalMillis) {
+	private static int virtualDepartureScanCount(List<VirtualRouteCandidate> routeCandidates, TrafficVehicleDefinition definition, long intervalMillis) {
 		long maxRouteDurationMillis = 0L;
 		for (VirtualRouteCandidate candidate : routeCandidates) {
 			maxRouteDurationMillis = Math.max(maxRouteDurationMillis, routeTravelDurationMillis(candidate.route(), definition));
 		}
 		final long routeDepartureCount = Math.max(1L, Math.floorDiv(maxRouteDurationMillis + intervalMillis - 1L, intervalMillis) + 1L);
-		final long requestedCount = Math.min(Math.max(1, spawn.effectiveMaxVehicles()), routeDepartureCount);
-		return (int) Math.min(MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN, requestedCount);
+		return (int) Math.min(MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN, routeDepartureCount);
 	}
 
 	private static long routeTravelDurationMillis(TrafficRoute route, TrafficVehicleDefinition definition) {
@@ -787,11 +796,6 @@ public final class TrafficManager {
 
 	private static boolean sampleIsNearSpawnCorridor(VirtualVehicleSample sample) {
 		return sample.segmentIndex() == 0 || sample.segmentIndex() == 1 && sample.distanceOnSegmentMeters() <= SPAWN_CONNECTED_NODE_CLEARANCE_METERS;
-	}
-
-	private static boolean sampleIsOnSpawnConnector(TrafficRoute route, VirtualVehicleSample sample) {
-		final List<TrafficRouteSegment> segments = route.segments();
-		return sample.segmentIndex() >= 0 && sample.segmentIndex() < segments.size() && segments.get(sample.segmentIndex()).spawnConnector();
 	}
 
 	private static boolean isSpawnCorridorOccupied(List<TrafficRouteSegment> segments, List<TrafficVehicle> vehiclesToCheck) {
@@ -1106,12 +1110,11 @@ public final class TrafficManager {
 		return false;
 	}
 
-	private static boolean isPositionInMaterializationRange(String dimensionId, double x, double z, boolean allowVisibleSpawnConnector) {
+	private static boolean isPositionInMaterializationRange(String dimensionId, double x, double z) {
 		if (dimensionId == null) {
 			return false;
 		}
 
-		boolean insideSimulationRange = false;
 		for (SimulationPlayerSnapshot player : playerSnapshots) {
 			if (!dimensionId.equals(player.dimensionId())) {
 				continue;
@@ -1120,17 +1123,12 @@ public final class TrafficManager {
 			final double dx = x - player.x();
 			final double dz = z - player.z();
 			final double distanceSquared = dx * dx + dz * dz;
-			final double visibilityDistanceBlocks = TrafficAddonConfig.trafficVehicleVisibilityDistanceBlocks(player.viewDistanceChunks());
-			if (!allowVisibleSpawnConnector && distanceSquared <= visibilityDistanceBlocks * visibilityDistanceBlocks) {
-				return false;
-			}
-
 			final double simulationDistanceBlocks = TrafficAddonConfig.trafficVehicleSimulationDistanceBlocks(player.viewDistanceChunks());
 			if (distanceSquared <= simulationDistanceBlocks * simulationDistanceBlocks) {
-				insideSimulationRange = true;
+				return true;
 			}
 		}
-		return insideSimulationRange;
+		return false;
 	}
 
 	public static boolean isIntersectionInSimulationRange(TrafficIntersectionDefinition definition) {

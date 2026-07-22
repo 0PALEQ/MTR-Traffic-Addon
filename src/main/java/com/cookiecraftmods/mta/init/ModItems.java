@@ -5,6 +5,7 @@ import com.cookiecraftmods.mta.traffic.dashboard.item.TrafficDashboardItem;
 import com.cookiecraftmods.mta.traffic.lights.item.TrafficLightsPrimaryBlockItem;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.point.connector.TrafficConnectorItem;
+import com.cookiecraftmods.mta.traffic.signal.SignalPathBlockerConnectorItem;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -18,6 +19,7 @@ public final class ModItems {
 
 	public static final Item TRAFFIC_SPAWN_CONNECTOR = registerItem("traffic_spawn_connector", new TrafficConnectorItem(TrafficPointType.SPAWN));
 	public static final Item TRAFFIC_DESPAWN_CONNECTOR = registerItem("traffic_despawn_connector", new TrafficConnectorItem(TrafficPointType.DESPAWN));
+	public static final Item SIGNAL_PATH_BLOCKER_CONNECTOR = registerItem("signal_path_blocker_connector", new SignalPathBlockerConnectorItem());
 
 	public static final Item TRAFFIC_LIGHTS_POLE_BOTTOM = registerBlockItem("traffic_lights_pole_bottom", ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM);
 	public static final Item TRAFFIC_LIGHTS_POLE = registerBlockItem("traffic_lights_pole", ModBlocks.TRAFFIC_LIGHTS_POLE);
@@ -27,6 +29,7 @@ public final class ModItems {
 	public static final Item PEDESTRIAN_LIGHTS_POLE = registerBlockItem("pedestrian_lights_pole", ModBlocks.PEDESTRIAN_LIGHTS_POLE);
 	public static final Item TOLLGATE_POLE = registerBlockItem("tollgate_pole", ModBlocks.TOLLGATE_POLE);
 	public static final Item TOLLGATE_BAR = registerBlockItem("tollgate_bar", ModBlocks.TOLLGATE_BAR);
+	public static final Item ROAD_SIGN = registerBlockItem("road_sign", ModBlocks.ROAD_SIGN);
 
 	private ModItems() {
 	}

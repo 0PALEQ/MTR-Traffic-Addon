@@ -5,6 +5,7 @@
 	"mixins": [
 		"RailSchemaAccessor",
 		"RailTypeMixin",
+		"SidingPathFinderMixin",
 		"SimulatorMixin",
 		"VehicleMixin",
 		"VehicleSchemaAccessor"

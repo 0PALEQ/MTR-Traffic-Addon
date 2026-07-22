@@ -1,6 +1,7 @@
 package com.cookiecraftmods.mta.mixin;
 
 import com.cookiecraftmods.mta.traffic.point.connector.TrafficConnectorStyles;
+import com.cookiecraftmods.mta.traffic.signal.SignalPathBlocker;
 import org.mtr.core.data.Rail;
 import org.mtr.mod.data.RailType;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +18,9 @@ public class RailTypeMixin {
 		}
 
 		//Do something with the goddamn color
-		if (rail.getStyles().contains(TrafficConnectorStyles.SPAWN_STYLE)) {
+		if (SignalPathBlocker.isBlocked(rail)) {
+			cir.setReturnValue(SignalPathBlocker.RAIL_COLOR);
+		} else if (rail.getStyles().contains(TrafficConnectorStyles.SPAWN_STYLE)) {
 			cir.setReturnValue(TrafficConnectorStyles.SPAWN_COLOR);
 		} else if (rail.getStyles().contains(TrafficConnectorStyles.DESPAWN_STYLE)) {
 			cir.setReturnValue(TrafficConnectorStyles.DESPAWN_COLOR);

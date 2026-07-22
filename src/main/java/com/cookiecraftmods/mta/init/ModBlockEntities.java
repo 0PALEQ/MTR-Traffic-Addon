@@ -2,6 +2,7 @@ package com.cookiecraftmods.mta.init;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.traffic.lights.block.entity.TrafficLightBlockEntity;
+import com.cookiecraftmods.mta.traffic.sign.entity.RoadSignBlockEntity;
 import com.cookiecraftmods.mta.traffic.tollgate.entity.TollgateBlockEntity;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.core.Registry;
@@ -31,6 +32,12 @@ public final class ModBlockEntities {
 			ModBlocks.TOLLGATE_POLE,
 			ModBlocks.TOLLGATE_BAR
 		).build()
+	);
+
+	public static final BlockEntityType<RoadSignBlockEntity> ROAD_SIGN = Registry.register(
+		BuiltInRegistries.BLOCK_ENTITY_TYPE,
+		new ResourceLocation(MTRTrafficAddon.MOD_ID, "road_sign"),
+		FabricBlockEntityTypeBuilder.create(RoadSignBlockEntity::new, ModBlocks.ROAD_SIGN).build()
 	);
 
 	private ModBlockEntities() {

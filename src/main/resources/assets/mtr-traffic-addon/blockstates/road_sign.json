@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "mtr-traffic-addon:block/road_sign_empty" },
+    "facing=east": { "model": "mtr-traffic-addon:block/road_sign_empty" },
+    "facing=south": { "model": "mtr-traffic-addon:block/road_sign_empty" },
+    "facing=west": { "model": "mtr-traffic-addon:block/road_sign_empty" }
+  }
+}

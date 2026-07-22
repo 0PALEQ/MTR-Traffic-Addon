@@ -41,6 +41,7 @@ Current feature status
 - MTR blocker checks fail open when addon traffic state is stale, so paused or unloaded addon state should not indefinitely block MTR vehicles.
 - Traffic simulation runs on a dedicated wall-clock simulation thread instead of moving addon vehicles directly in the Minecraft server tick path.
 - Spawn connectors create deterministic virtual route streams globally. Vehicles are materialized only when their calculated route position is near a player and has clearance from active addon/MTR vehicles.
+- Mid-route materialization now accepts the full player simulation radius instead of rejecting candidates inside server-derived visibility distance. This removes a Forge/Sinytra-specific failure mode when server view distance covered the practical route.
 - Vehicle rendering and materialization are distance limited by config. Defaults are automatic:
   - visibility distance = render distance - 2 chunks
   - simulation distance = visibility distance + materialization margin
@@ -142,7 +143,7 @@ Known notes and remaining work
 - Auto intersections still depend on graph snapshots and recent vehicle observations near players.
 - MTR-only remote intersections intentionally fail open when no player is nearby; this is a performance tradeoff.
 - Spawn density controls are still basic and are based on spawn interval plus maxVehicles.
-- maxVehicles limits recent virtual departures, but dashboard controls for changing it are still not exposed.
+- maxVehicles limits simultaneously materialized vehicles per spawn; virtual scanning still covers every departure that could remain on the route. Dashboard controls for changing maxVehicles are not exposed.
 - Traffic still depends on MTR rail geometry, so road quality depends on the underlying rail graph.
 - Pedestrian yellow uses a client-rendered blinking green overlay; its base block model and block-light emission remain off between flashes.
 - Traffic light glow placement should still be checked in-game from all four facings after model or texture changes.

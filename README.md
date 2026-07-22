@@ -12,6 +12,7 @@ This build includes MTR route traffic, traffic dashboard controls, configurable 
 - Pedestrian signals blink their green indication during the yellow/clearance phase: 0.5 seconds on and 0.5 seconds off, synchronized to client world time.
 - Five Nissan Sentra color variants are embedded in the built-in vehicle resources: white, red, blue, black, and brown.
 - Dashboard workflow additions include inline connector-track renaming, copy/paste for spawn connector vehicle pools, and Crossing/Train intersection levels.
+- Mid-route virtual vehicles can materialize anywhere inside player simulation distance. The simulator scans every departure that could still be on the route, while `maxVehicles` limits only the number materialized from each spawn. Materialization no longer depends on an outer band derived from server view distance, fixing fresh Forge/Sinytra worlds that otherwise considered only the newest, spawn-side departure.
 
 **Earlier 26.6.B04a changes:**
 - Sinytra Connector compatibility: `fabricloader` version constraint relaxed to `>=0.15.0` so the mod runs on Forge via Sinytra Connector without a crash.
@@ -94,6 +95,8 @@ Current built-in traffic vehicle definitions:
 For adding or updating MTR vehicle visuals, see [docs/RESOURCE_PACK_AUTHORING.md](docs/RESOURCE_PACK_AUTHORING.md).
 
 Traffic lights can be bound with the MTR brush from inside an intersection area. Lights can target IN nodes or intersection signal groups, so pedestrian lights can follow a whole crossing phase instead of a single node. During a pedestrian yellow phase, the green indication blinks at a one-second cycle before the signal turns red.
+
+The `MTR Path Blocker Connector` closes an existing rail to MTR route searches without replacing its geometry, custom resource-pack style, or ordinary signal colors. Select the rail's two endpoint nodes as with an MTR signal connector; select the same rail again to reopen it. Regenerate the affected MTR depot route after changing a blocker, because paths that MTR already generated are not rewritten in place.
 
 ## Dashboard Quick Tutorial
 

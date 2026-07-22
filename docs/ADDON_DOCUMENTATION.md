@@ -27,6 +27,7 @@ Items:
 
 - `Traffic Spawn Connector`
 - `Traffic Despawn Connector`
+- `MTR Path Blocker Connector`
 - `Traffic Dashboard`
 - `Traffic Lights Pole Bottom`
 - `Traffic Lights Pole`
@@ -35,7 +36,7 @@ Items:
 - `Pedestrian Lights`
 - `Pedestrian Lights Pole`
 
-The two connector items inherit MTR rail modifier behavior. They create styled MTR rail sections and register those sections as traffic spawn or despawn points.
+The spawn and despawn connector items inherit MTR rail modifier behavior. They create styled MTR rail sections and register those sections as traffic spawn or despawn points. The path blocker instead uses MTR's two-node signal-connector selection workflow to modify an existing rail.
 
 ## Core Concepts
 
@@ -108,7 +109,7 @@ Notes:
 
 - Spawn interval is clamped between `20` and `1200` ticks.
 - Spawn interval controls the virtual departure cadence for spawn connectors.
-- `maxVehicles` limits how many recent virtual departures from a spawn connector may be considered for materialization near players.
+- `maxVehicles` limits how many vehicles from a spawn connector may be materialized at the same time. It does not limit how far back the simulator scans for virtual departures that could still be travelling along the route.
 - Despawn connectors do not have vehicle pools.
 
 ### Vehicle Pool
@@ -189,6 +190,19 @@ data/mtr-traffic-addon/traffic_connector_points.json
 ```
 
 If a connector's underlying rail no longer exists, route refresh may remove the stale connector point.
+
+### Blocking an MTR Route Search
+
+Use `MTR Path Blocker Connector` to prevent MTR's siding/depot pathfinder from choosing one existing rail segment:
+
+1. Select the first endpoint node of the existing rail.
+2. Select its second endpoint node.
+3. The action-bar message confirms that MTR pathfinding is blocked on the rail.
+4. Select the same two endpoints again to remove the blocker.
+
+The blocker is stored on the rail and preserves its geometry, existing resource-pack styles, speed, direction settings, and normal MTR signal colors. A blocked rail is omitted from new MTR path searches, allowing an alternate rail to be chosen when one exists. It does not rewrite paths that MTR generated earlier and does not forcibly stop a train already using one of those paths, so regenerate the affected depot routes after adding or removing a blocker.
+
+The shapeless recipe combines one red MTR signal connector with one obsidian block.
 
 ## Intersections
 
@@ -423,7 +437,7 @@ Traffic vehicle distance limits live in `config/mtr-traffic-addon.properties`.
 - `trafficVehicleMaterializationMarginChunks=2` controls how many chunks outside visibility distance virtual vehicles are materialized when simulation distance is `auto`.
 - `trafficVehicleUnrenderedLifetimeSeconds=30` removes active vehicles that have not been sent to any player for this many seconds. Set it to `0` to disable this timeout.
 
-Either distance value can be changed from `auto` to a fixed block distance. Simulation distance is never allowed below visibility distance. Spawn connectors continue to produce virtual departures even when no player is nearby, but vehicles are only materialized into active world traffic when their calculated route position falls inside a player's simulation radius. Active route vehicles outside every player's simulation radius are removed and can be recreated later from the same virtual stream.
+Either distance value can be changed from `auto` to a fixed block distance. Simulation distance is never allowed below visibility distance. Spawn connectors continue to produce virtual departures even when no player is nearby, but vehicles are only materialized into active world traffic when their calculated route position falls inside a player's simulation radius. Mid-route materialization is allowed throughout that radius, including inside visibility distance; this avoids loader-specific server view-distance reporting from suppressing materialization on Forge/Sinytra. Active route vehicles outside every player's simulation radius are removed and can be recreated later from the same virtual stream.
 
 Virtual vehicles are not materialized on despawn connector track segments. Spawn-side materialization is allowed only when the spawn entry and sampled segment have clearance from active addon vehicles and recently observed MTR vehicles.
 
@@ -477,7 +491,7 @@ Graph request radius is `8192` blocks. Connector route pruning/repair uses a rad
 
 Spawn connectors prefer their saved node direction when building routes. Existing saved spawn points with the opposite node order can still fall back to the reverse traversal for compatibility.
 
-Materialization clearance checks prevent new virtual vehicles from appearing on top of active addon vehicles or recently observed MTR vehicles. Vehicles that cannot materialize safely are skipped for that virtual departure instead of retrying every simulation pass.
+Materialization clearance checks prevent new virtual vehicles from appearing on top of active addon vehicles or recently observed MTR vehicles. Vehicles that cannot materialize safely are skipped for that virtual departure instead of retrying every simulation pass. Because a virtual vehicle may now materialize inside visible range when a player joins or moves into the middle of a route, it can appear at its wall-clock route position rather than waiting to enter from outside render distance.
 
 Traffic spacing now also limits entry into the next segment when the target segment is occupied or effectively full. Signal-section occupancy checks apply at signal entry boundaries rather than across every segment that shares the same signal color.
 
@@ -601,7 +615,7 @@ Build fails with a Java version error:
 ## Known Beta Limitations
 
 - Spawn density control is still basic and is based on spawn interval plus `maxVehicles`.
-- `maxVehicles` is present in data/snapshots and limits recent virtual departures, but its dashboard controls are still not exposed.
+- `maxVehicles` is present in data/snapshots and limits simultaneously materialized vehicles per spawn, but its dashboard controls are still not exposed.
 - Traffic uses MTR rail geometry, so road layout quality depends on the underlying rail graph.
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
