@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,7 +109,7 @@ public final class RoadSignImageRegistry {
 			PENDING_REQUESTS.remove(validated.id());
 			return;
 		}
-		final NativeImage nativeImage = NativeImage.read(data);
+		final NativeImage nativeImage = NativeImage.read(new ByteArrayInputStream(data));
 		if (nativeImage.getWidth() != validated.width() || nativeImage.getHeight() != validated.height()) {
 			nativeImage.close();
 			throw new IOException("Decoded image dimensions changed during validation");
