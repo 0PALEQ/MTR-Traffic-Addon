@@ -21,7 +21,6 @@ import java.util.List;
 
 public final class SignalPathBlockerConnectorItem extends ItemSignalModifier {
 	public SignalPathBlockerConnectorItem() {
-		// The color is unused because this item overrides the native signal modification.
 		super(true, 0, new ItemSettings());
 	}
 

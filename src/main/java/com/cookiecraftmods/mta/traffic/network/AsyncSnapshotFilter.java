@@ -47,14 +47,12 @@ public final class AsyncSnapshotFilter {
 							uuid -> new PlayerSnapshotCache()
 						);
 
-						// Query nearby vehicles using spatial index
 						final List<TrafficVehicle> visibleVehicles = spatialIndex.queryNearby(
 							player.getX(),
 							player.getZ(),
 							maxDistanceSquared
 						);
 
-						// Encode snapshot buffer
 						final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 						final List<UUID> vehicleIds = new ArrayList<>(visibleVehicles.size());
 
@@ -74,7 +72,6 @@ public final class AsyncSnapshotFilter {
 							vehicleIds.add(vehicle.id());
 						}
 
-						// Atomically update cache
 						cache.buffer = buffer.array();
 						cache.vehicleIds = vehicleIds;
 						cache.generatedAtNanos = nowNanos;
@@ -84,7 +81,6 @@ public final class AsyncSnapshotFilter {
 				}
 			});
 		} catch (RejectedExecutionException ignored) {
-			// Server shutdown can race the end-tick callback; skip this frame instead of crashing.
 		}
 	}
 

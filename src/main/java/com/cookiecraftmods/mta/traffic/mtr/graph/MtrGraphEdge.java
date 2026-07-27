@@ -5,7 +5,6 @@ import com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint;
 import java.util.Collections;
 import java.util.List;
 
-//This is broken af
 
 public record MtrGraphEdge(
 	String railId,

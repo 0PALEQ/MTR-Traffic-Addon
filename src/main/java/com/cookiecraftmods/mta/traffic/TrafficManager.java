@@ -798,6 +798,9 @@ public final class TrafficManager {
 		return sample.segmentIndex() == 0 || sample.segmentIndex() == 1 && sample.distanceOnSegmentMeters() <= SPAWN_CONNECTED_NODE_CLEARANCE_METERS;
 	}
 
+	//__________________________________________________________________________
+	//segment occupancy check below
+
 	private static boolean isSpawnCorridorOccupied(List<TrafficRouteSegment> segments, List<TrafficVehicle> vehiclesToCheck) {
 		if (segments.isEmpty()) {
 			return true;
@@ -950,6 +953,10 @@ public final class TrafficManager {
 		return false;
 	}
 
+	//_________________________________________________
+	//Distance calculations
+	// these are currently resource heavy and require optimization
+
 	private static Double distanceOnSamePhysicalSegment(TrafficRouteSegment candidateSegment, TrafficRouteSegment otherSegment, double otherDistanceMeters) {
 		if (sameDirectedSegment(candidateSegment, otherSegment)) {
 			return otherDistanceMeters;
@@ -1043,6 +1050,9 @@ public final class TrafficManager {
 
 		return Optional.ofNullable(bestResult);
 	}
+
+	//_____________________________________________________________________
+	//vehicles timeout removal
 
 	private static void removeVehiclesOutsideSimulationRangeAfterTimeout(long nowMillis) {
 		if (ACTIVE_VEHICLES.isEmpty()) {
@@ -1339,8 +1349,6 @@ public final class TrafficManager {
 			return traversals;
 		}
 
-		// Existing saved spawn points may have been created with the opposite node order.
-		// Keep them usable, but do not prefer the far node when the saved direction exists.
 		addConnectorTraversal(traversals, graph, endNode, startNode, point);
 		return traversals;
 	}

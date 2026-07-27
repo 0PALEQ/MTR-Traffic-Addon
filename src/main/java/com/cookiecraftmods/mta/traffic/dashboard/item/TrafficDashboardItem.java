@@ -9,7 +9,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
-//Dont' touch
 public class TrafficDashboardItem extends Item {
 	public TrafficDashboardItem(Properties properties) {
 		super(properties);

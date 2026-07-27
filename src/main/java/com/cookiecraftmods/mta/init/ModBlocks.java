@@ -22,7 +22,6 @@ public final class ModBlocks {
 	
 	public static final Block TRAFFIC_LIGHTS_PRIMARY = registerBlock("traffic_lights_primary", new TrafficLightsPrimaryBlock(poleProperties().lightLevel(TrafficLightsPrimaryBlock::lightLevel)));
 	
-	// to bedzie potem zmienione bo wygląda i działa jak gowno
 	public static final Block PEDESTRIAN_LIGHTS = registerBlock("pedestrian_lights", new TrafficLightsPedestrianBlock(poleProperties().lightLevel(TrafficLightsPedestrianBlock::lightLevel)));
 	public static final Block PEDESTRIAN_LIGHTS_POLE = registerBlock("pedestrian_lights_pole", new TrafficLightsPedestrianBlock(poleProperties().lightLevel(TrafficLightsPedestrianBlock::lightLevel)));
 	public static final Block TOLLGATE_POLE = registerBlock("tollgate_pole", new TollgateBlock(poleProperties(), true));
@@ -35,7 +34,6 @@ public final class ModBlocks {
 	public static void initialize() {
 	}
 
-	// Wspólne ustawienia dla wszystkich słupów
 	private static BlockBehaviour.Properties poleProperties() {
 		return BlockBehaviour.Properties.of()
 			.mapColor(MapColor.METAL)
@@ -44,7 +42,6 @@ public final class ModBlocks {
 			.noOcclusion();
 	}
 
-	// Rejestracja bloków w grze
 	private static Block registerBlock(String path, Block block) {
 		return Registry.register(BuiltInRegistries.BLOCK, new ResourceLocation(MTRTrafficAddon.MOD_ID, path), block);
 	}
