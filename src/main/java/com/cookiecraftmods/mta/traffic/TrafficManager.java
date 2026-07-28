@@ -702,12 +702,6 @@ public final class TrafficManager {
 			if (!spawn.isEnabled() || spawn.effectiveVehiclePool().isEmpty()) {
 				continue;
 			}
-			int remainingMaterializationSlots = Math.max(0, spawn.effectiveMaxVehicles() - (int) vehiclesToCheck.stream()
-				.filter(vehicle -> spawn.id().equals(vehicle.spawnPointId()))
-				.count());
-			if (remainingMaterializationSlots == 0) {
-				continue;
-			}
 
 			final List<VirtualRouteCandidate> routeCandidates = ROUTE_CANDIDATES_BY_SPAWN_ID.computeIfAbsent(spawn.id(), ignored -> buildVirtualRouteCandidates(latestGraph, spawn));
 			if (routeCandidates.isEmpty()) {
@@ -740,10 +734,6 @@ public final class TrafficManager {
 				vehiclesToAdd.add(vehicle);
 				vehiclesToCheck.add(vehicle);
 				activeIds.add(vehicleId);
-				remainingMaterializationSlots--;
-				if (remainingMaterializationSlots == 0) {
-					break;
-				}
 			}
 		}
 

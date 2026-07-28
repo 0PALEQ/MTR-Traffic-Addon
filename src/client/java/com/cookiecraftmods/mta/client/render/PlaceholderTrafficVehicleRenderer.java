@@ -1,8 +1,10 @@
 package com.cookiecraftmods.mta.client.render;
 
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.AABB;
 
 public final class PlaceholderTrafficVehicleRenderer implements ClientTrafficVehicleRenderer {
@@ -36,22 +38,24 @@ public final class PlaceholderTrafficVehicleRenderer implements ClientTrafficVeh
 			-halfLength
 		);
 
+		final VertexConsumer fillConsumer = context.bufferSource().getBuffer(RenderType.debugFilledBox());
 		LevelRenderer.addChainedFilledBoxVertices(
 			context.poseStack(),
-			context.fillConsumer(),
+			fillConsumer,
 			bodyBox.minX, bodyBox.minY, bodyBox.minZ,
 			bodyBox.maxX, bodyBox.maxY, bodyBox.maxZ,
 			0.2F, 0.55F, 0.95F, 0.2F
 		);
 		LevelRenderer.addChainedFilledBoxVertices(
 			context.poseStack(),
-			context.fillConsumer(),
+			fillConsumer,
 			noseBox.minX, noseBox.minY, noseBox.minZ,
 			noseBox.maxX, noseBox.maxY, noseBox.maxZ,
 			1.0F, 0.85F, 0.15F, 0.45F
 		);
-		LevelRenderer.renderLineBox(context.poseStack(), context.lineConsumer(), bodyBox, 0.2F, 0.8F, 1.0F, 1.0F);
-		LevelRenderer.renderLineBox(context.poseStack(), context.lineConsumer(), noseBox, 1.0F, 0.9F, 0.2F, 1.0F);
+		final VertexConsumer lineConsumer = context.bufferSource().getBuffer(RenderType.lines());
+		LevelRenderer.renderLineBox(context.poseStack(), lineConsumer, bodyBox, 0.2F, 0.8F, 1.0F, 1.0F);
+		LevelRenderer.renderLineBox(context.poseStack(), lineConsumer, noseBox, 1.0F, 0.9F, 0.2F, 1.0F);
 		context.poseStack().popPose();
 	}
 }
