@@ -149,13 +149,12 @@ public final class TrafficVehicle {
 		final double targetSpeedMetersPerSecond = Math.max(0.0D, targetSpeedKph) / 3.6D;
 		
 		final double accelerationMetersPerSecondSquared = definition.effectiveAccelerationMetersPerSecondSquared();
-		final double brakingMetersPerSecondSquared = definition.effectiveBrakingMetersPerSecondSquared();
 		
 		final double nextSpeedMetersPerSecond;
 		if (previousSpeedMetersPerSecond < targetSpeedMetersPerSecond) {
 			nextSpeedMetersPerSecond = Math.min(targetSpeedMetersPerSecond, previousSpeedMetersPerSecond + accelerationMetersPerSecondSquared * tickDurationSeconds);
 		} else {
-			nextSpeedMetersPerSecond = Math.max(targetSpeedMetersPerSecond, previousSpeedMetersPerSecond - brakingMetersPerSecondSquared * tickDurationSeconds);
+			nextSpeedMetersPerSecond = targetSpeedMetersPerSecond;
 		}
 
 		speedKph = nextSpeedMetersPerSecond * 3.6D;

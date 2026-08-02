@@ -25,7 +25,7 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	private static final String BATCH_RENDER_WARNING_KEY = "<batch-render>";
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
 	private static final Map<String, Optional<VehicleResource>> VEHICLE_RESOURCES = new ConcurrentHashMap<>();
-	private static final Map<String, Optional<VehicleResourceCache>> VEHICLE_RESOURCE_CACHES = new ConcurrentHashMap<>();
+	private static final Map<String, VehicleResourceCache> VEHICLE_RESOURCE_CACHES = new ConcurrentHashMap<>();
 	private static final String LEGACY_SEDAN_VISUAL_ID = "mtr_traffic_addon_sedan:sedan";
 	private static final String MTR_SEDAN_VISUAL_ID = "mta_sedan";
 	private boolean frameActive;
@@ -139,10 +139,24 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			return null;
 		}
 		final String resolvedVisualId = remapLegacyVisualId(visualId);
-		return VEHICLE_RESOURCE_CACHES.computeIfAbsent(resolvedVisualId, id -> {
-			final VehicleResource resource = resolveVehicleResource(id);
-			return Optional.ofNullable(resource == null ? null : resource.getCachedVehicleResource(0, SINGLE_VEHICLE_CAR_COUNT, false));
-		}).orElse(null);
+		final VehicleResourceCache cachedResource = VEHICLE_RESOURCE_CACHES.get(resolvedVisualId);
+		if (cachedResource != null) {
+			return cachedResource;
+		}
+
+		final VehicleResource resource = resolveVehicleResource(resolvedVisualId);
+		if (resource == null) {
+			return null;
+		}
+
+		// MTR's cache is intentionally assembled over multiple client ticks. A null value here
+		// means "still loading", not "missing", so it must not become a permanent negative cache.
+		final VehicleResourceCache loadedResource = resource.getCachedVehicleResource(0, SINGLE_VEHICLE_CAR_COUNT, false);
+		if (loadedResource == null) {
+			return null;
+		}
+		final VehicleResourceCache existingResource = VEHICLE_RESOURCE_CACHES.putIfAbsent(resolvedVisualId, loadedResource);
+		return existingResource == null ? loadedResource : existingResource;
 	}
 
 	private static String remapLegacyVisualId(String visualId) {

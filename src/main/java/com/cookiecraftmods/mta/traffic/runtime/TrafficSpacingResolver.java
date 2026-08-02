@@ -17,6 +17,12 @@ public final class TrafficSpacingResolver {
 	private static final double QUEUE_STOP_FOLLOWING_SPEED_KPH = 1.25D;
 	private static final double LOOKAHEAD_BUFFER_METERS = 8.0D;
 	private static final double ROUTE_OCCUPANCY_LOOKAHEAD_METERS = 80.0D;
+	private static final double SPATIAL_OCCUPANCY_LOOKAHEAD_METERS = 32.0D;
+	private static final double SPATIAL_LATERAL_CLEARANCE_METERS = 1.5D;
+	private static final double SPATIAL_VERTICAL_CLEARANCE_METERS = 2.0D;
+	private static final double SPATIAL_INDEX_CELL_SIZE_METERS = 16.0D;
+	private static final double MERGE_NODE_TOLERANCE_METERS = 0.5D;
+	private static final double MERGE_PRIORITY_DISTANCE_EPSILON_METERS = 0.25D;
 	private static final double SIGNAL_STOP_BUFFER_METERS = 2.0D;
 	private static final double SIGNAL_APPROACH_LOOKAHEAD_METERS = 10.0D;
 	private static final double TICK_DURATION_SECONDS = 1.0D / 20.0D;
@@ -44,6 +50,7 @@ public final class TrafficSpacingResolver {
 		}
 
 		applyRouteLookaheadSpacing(vehicles, byConnector, allowedSpeeds);
+		applySpatialSpacing(vehicles, allowedSpeeds);
 		applyMtrVehicleSpacing(vehicles, allowedSpeeds);
 		applySignalLimits(vehicles, countSignalSectionOccupancy(vehicles), allowedSpeeds);
 		return allowedSpeeds;
@@ -112,6 +119,126 @@ public final class TrafficSpacingResolver {
 				allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
 			});
 		}
+	}
+
+	private static void applySpatialSpacing(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
+		final Map<Long, List<VehicleSpatialSnapshot>> spatialIndex = new HashMap<>();
+		for (TrafficVehicle vehicle : vehicles) {
+			final TrafficVehiclePosition position = vehicle.currentPosition();
+			spatialIndex.computeIfAbsent(spatialCellKey(position.x(), position.z()), ignored -> new ArrayList<>())
+				.add(new VehicleSpatialSnapshot(vehicle, position));
+		}
+
+		final int cellRadius = (int) Math.ceil(SPATIAL_OCCUPANCY_LOOKAHEAD_METERS / SPATIAL_INDEX_CELL_SIZE_METERS);
+		for (TrafficVehicle followingVehicle : vehicles) {
+			final TrafficVehiclePosition followingPosition = followingVehicle.currentPosition();
+			final long centerCellX = spatialCellCoordinate(followingPosition.x());
+			final long centerCellZ = spatialCellCoordinate(followingPosition.z());
+			final double yawRadians = Math.toRadians(followingPosition.yawDegrees());
+			final double forwardX = Math.cos(yawRadians);
+			final double forwardZ = Math.sin(yawRadians);
+			VehicleSpatialObstacle closestObstacle = null;
+
+			for (long offsetX = -cellRadius; offsetX <= cellRadius; offsetX++) {
+				for (long offsetZ = -cellRadius; offsetZ <= cellRadius; offsetZ++) {
+					final List<VehicleSpatialSnapshot> nearbyVehicles = spatialIndex.get(spatialCellKey(centerCellX + offsetX, centerCellZ + offsetZ));
+					if (nearbyVehicles == null) {
+						continue;
+					}
+
+					for (VehicleSpatialSnapshot nearby : nearbyVehicles) {
+						if (nearby.vehicle() == followingVehicle || Math.abs(nearby.position().y() - followingPosition.y()) > SPATIAL_VERTICAL_CLEARANCE_METERS) {
+							continue;
+						}
+
+						final double dx = nearby.position().x() - followingPosition.x();
+						final double dz = nearby.position().z() - followingPosition.z();
+						final double longitudinalDistance = dx * forwardX + dz * forwardZ;
+						if (longitudinalDistance <= 0.0D || longitudinalDistance > SPATIAL_OCCUPANCY_LOOKAHEAD_METERS) {
+							continue;
+						}
+
+						final double lateralDistance = Math.abs(-dx * forwardZ + dz * forwardX);
+						if (lateralDistance >= SPATIAL_LATERAL_CLEARANCE_METERS) {
+							continue;
+						}
+
+						if (projectsAsSpatialObstacle(nearby.position(), followingPosition)
+							&& compareSpatialConflictPriority(followingVehicle, nearby.vehicle()) < 0) {
+							continue;
+						}
+
+						if (closestObstacle == null || longitudinalDistance < closestObstacle.distanceMeters()) {
+							closestObstacle = new VehicleSpatialObstacle(nearby.vehicle(), longitudinalDistance);
+						}
+					}
+				}
+			}
+
+			if (closestObstacle != null) {
+				final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
+				final double limitedSpeed = resolveProjectedFollowingSpeed(closestObstacle.frontVehicle(), followingVehicle, closestObstacle.distanceMeters(), currentLimitKph);
+				allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+			}
+		}
+	}
+
+	private static boolean projectsAsSpatialObstacle(TrafficVehiclePosition observer, TrafficVehiclePosition candidate) {
+		if (Math.abs(candidate.y() - observer.y()) > SPATIAL_VERTICAL_CLEARANCE_METERS) {
+			return false;
+		}
+
+		final double yawRadians = Math.toRadians(observer.yawDegrees());
+		final double forwardX = Math.cos(yawRadians);
+		final double forwardZ = Math.sin(yawRadians);
+		final double dx = candidate.x() - observer.x();
+		final double dz = candidate.z() - observer.z();
+		final double longitudinalDistance = dx * forwardX + dz * forwardZ;
+		if (longitudinalDistance <= 0.0D || longitudinalDistance > SPATIAL_OCCUPANCY_LOOKAHEAD_METERS) {
+			return false;
+		}
+
+		return Math.abs(-dx * forwardZ + dz * forwardX) < SPATIAL_LATERAL_CLEARANCE_METERS;
+	}
+
+	private static int compareSpatialConflictPriority(TrafficVehicle first, TrafficVehicle second) {
+		if (approachesSameMerge(first, second)) {
+			final double distanceDifference = first.distanceToEndOfCurrentSegmentMeters() - second.distanceToEndOfCurrentSegmentMeters();
+			if (Math.abs(distanceDifference) > MERGE_PRIORITY_DISTANCE_EPSILON_METERS) {
+				return distanceDifference < 0.0D ? -1 : 1;
+			}
+		}
+
+		return first.id().compareTo(second.id());
+	}
+
+	private static boolean approachesSameMerge(TrafficVehicle first, TrafficVehicle second) {
+		final TrafficRouteSegment firstCurrent = first.currentSegment().orElse(null);
+		final TrafficRouteSegment secondCurrent = second.currentSegment().orElse(null);
+		final TrafficRouteSegment firstNext = first.nextSegment().orElse(null);
+		final TrafficRouteSegment secondNext = second.nextSegment().orElse(null);
+		if (firstCurrent == null || secondCurrent == null || firstNext == null || secondNext == null
+			|| firstCurrent.directedConnectorId().equals(secondCurrent.directedConnectorId())
+			|| !firstNext.directedConnectorId().equals(secondNext.directedConnectorId())) {
+			return false;
+		}
+
+		final double dx = firstCurrent.endX() - secondCurrent.endX();
+		final double dy = firstCurrent.endY() - secondCurrent.endY();
+		final double dz = firstCurrent.endZ() - secondCurrent.endZ();
+		return dx * dx + dy * dy + dz * dz <= MERGE_NODE_TOLERANCE_METERS * MERGE_NODE_TOLERANCE_METERS;
+	}
+
+	private static long spatialCellCoordinate(double coordinate) {
+		return (long) Math.floor(coordinate / SPATIAL_INDEX_CELL_SIZE_METERS);
+	}
+
+	private static long spatialCellKey(double x, double z) {
+		return spatialCellKey(spatialCellCoordinate(x), spatialCellCoordinate(z));
+	}
+
+	private static long spatialCellKey(long cellX, long cellZ) {
+		return (cellX & 0xFFFFFFFFL) | ((cellZ & 0xFFFFFFFFL) << 32);
 	}
 
 	private static RouteObstacle closestRouteObstacle(Map<String, List<TrafficVehicle>> vehiclesByConnector, TrafficVehicle followingVehicle) {
@@ -285,5 +412,11 @@ public final class TrafficSpacingResolver {
 	}
 
 	private record RouteObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
+	}
+
+	private record VehicleSpatialSnapshot(TrafficVehicle vehicle, TrafficVehiclePosition position) {
+	}
+
+	private record VehicleSpatialObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
 	}
 }

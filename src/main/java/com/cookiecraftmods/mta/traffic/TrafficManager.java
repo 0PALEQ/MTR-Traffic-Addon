@@ -1631,7 +1631,9 @@ public final class TrafficManager {
 			return definition;
 		}
 
-		final int selectedIndex = Math.floorMod(Long.hashCode(departureIndex), vehiclePool.size());
+		final UUID vehicleId = virtualVehicleId(spawn.id(), departureIndex);
+		final long randomizedIndexSeed = vehicleId.getMostSignificantBits() ^ vehicleId.getLeastSignificantBits();
+		final int selectedIndex = Math.floorMod(randomizedIndexSeed, vehiclePool.size());
 		final String selectedVisualId = vehiclePool.get(selectedIndex);
 		if (selectedVisualId == null || selectedVisualId.isBlank() || selectedVisualId.equals(definition.effectiveVisualId())) {
 			return definition;
