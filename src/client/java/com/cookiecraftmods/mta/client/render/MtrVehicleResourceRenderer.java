@@ -13,26 +13,52 @@ import org.mtr.mod.resource.VehicleResource;
 import org.mtr.mod.resource.VehicleResourceCache;
 
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRenderer {
 	private static final ClientTrafficVehicleRenderer FALLBACK_RENDERER = new PlaceholderTrafficVehicleRenderer();
 	private static final int SINGLE_VEHICLE_CAR_COUNT = 1;
+	private static final String BATCH_RENDER_WARNING_KEY = "<batch-render>";
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
+	private static final Map<String, Optional<VehicleResource>> VEHICLE_RESOURCES = new ConcurrentHashMap<>();
+	private static final Map<String, Optional<VehicleResourceCache>> VEHICLE_RESOURCE_CACHES = new ConcurrentHashMap<>();
 	private static final String LEGACY_SEDAN_VISUAL_ID = "mtr_traffic_addon_sedan:sedan";
 	private static final String MTR_SEDAN_VISUAL_ID = "mta_sedan";
+	private boolean frameActive;
+	private boolean frameHasQueuedModels;
+
+	void beginFrame() {
+		frameActive = true;
+		frameHasQueuedModels = false;
+	}
+
+	void endFrame() {
+		try {
+			if (frameHasQueuedModels) {
+				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.render(false);
+			}
+		} catch (Exception e) {
+			if (WARNED_RENDER_FAILURES.add(BATCH_RENDER_WARNING_KEY)) {
+				com.cookiecraftmods.mta.MTRTrafficAddon.LOGGER.warn("Failed to flush batched MTR traffic vehicle models", e);
+			}
+		} finally {
+			frameActive = false;
+			frameHasQueuedModels = false;
+		}
+	}
+
+	static void clearResourceCache() {
+		VEHICLE_RESOURCES.clear();
+		VEHICLE_RESOURCE_CACHES.clear();
+	}
 
 	@Override
 	public void render(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
-		final String visualId = remapLegacyVisualId(snapshot.visualId());
-		final VehicleResource vehicleResource = resolveVehicleResource(visualId);
-		if (vehicleResource == null) {
-			FALLBACK_RENDERER.render(context, snapshot, visualProfile);
-			return;
-		}
-
-		final VehicleResourceCache vehicleResourceCache = vehicleResource.getCachedVehicleResource(0, SINGLE_VEHICLE_CAR_COUNT, false);
+		final VehicleResourceCache vehicleResourceCache = resolveVehicleResourceCache(snapshot.visualId());
 		if (vehicleResourceCache == null || vehicleResourceCache.optimizedModels == null || vehicleResourceCache.optimizedModels.isEmpty()) {
 			FALLBACK_RENDERER.render(context, snapshot, visualProfile);
 			return;
@@ -52,10 +78,12 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(-snapshot.pitchDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(180.0F));
 
-			GraphicsHolder.createInstanceSafe(context.poseStack(), context.bufferSource(), graphicsHolder -> {
-				queue(graphicsHolder, vehicleResourceCache, lightFor(snapshot));
+			queue(context.graphicsHolder(), vehicleResourceCache, lightFor(snapshot));
+			frameHasQueuedModels = true;
+			if (!frameActive) {
 				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.render(false);
-			});
+				frameHasQueuedModels = false;
+			}
 		} catch (Exception e) {
 			useFallback = true;
 			if (WARNED_RENDER_FAILURES.add(snapshot.visualId())) {
@@ -94,14 +122,27 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		return LevelRenderer.getLightColor(minecraft.level, BlockPos.containing(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 	}
 
-	private static VehicleResource resolveVehicleResource(String visualId) {
+	static VehicleResource resolveVehicleResource(String visualId) {
 		if (visualId == null || visualId.isBlank()) {
 			return null;
 		}
+		final String resolvedVisualId = remapLegacyVisualId(visualId);
+		return VEHICLE_RESOURCES.computeIfAbsent(resolvedVisualId, id -> {
+			final AtomicReference<VehicleResource> reference = new AtomicReference<>();
+			CustomResourceLoader.getVehicleById(TransportMode.TRAIN, id, pair -> reference.set(pair.left()));
+			return Optional.ofNullable(reference.get());
+		}).orElse(null);
+	}
 
-		final AtomicReference<VehicleResource> reference = new AtomicReference<>();
-		CustomResourceLoader.getVehicleById(TransportMode.TRAIN, visualId, pair -> reference.set(pair.left()));
-		return reference.get();
+	private static VehicleResourceCache resolveVehicleResourceCache(String visualId) {
+		if (visualId == null || visualId.isBlank()) {
+			return null;
+		}
+		final String resolvedVisualId = remapLegacyVisualId(visualId);
+		return VEHICLE_RESOURCE_CACHES.computeIfAbsent(resolvedVisualId, id -> {
+			final VehicleResource resource = resolveVehicleResource(id);
+			return Optional.ofNullable(resource == null ? null : resource.getCachedVehicleResource(0, SINGLE_VEHICLE_CAR_COUNT, false));
+		}).orElse(null);
 	}
 
 	private static String remapLegacyVisualId(String visualId) {

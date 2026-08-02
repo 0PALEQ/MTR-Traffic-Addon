@@ -7,9 +7,11 @@ import com.cookiecraftmods.mta.config.TrafficAddonConfig;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
+import org.mtr.mapping.mapper.GraphicsHolder;
 
 public final class ClientTrafficRenderDispatcher {
-	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new CustomTrafficVehicleRenderer(new MtrVehicleResourceRenderer());
+	private static final MtrVehicleResourceRenderer MTR_RESOURCE_RENDERER = new MtrVehicleResourceRenderer();
+	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new CustomTrafficVehicleRenderer(MTR_RESOURCE_RENDERER);
 
 	private ClientTrafficRenderDispatcher() {
 	}
@@ -19,23 +21,31 @@ public final class ClientTrafficRenderDispatcher {
 			return;
 		}
 
-		final ClientTrafficRenderContext renderContext = new ClientTrafficRenderContext(
-			context.matrixStack(),
-			context.consumers(),
-			context.consumers().getBuffer(RenderType.lines()),
-			context.consumers().getBuffer(RenderType.debugFilledBox()),
-			context.camera().getPosition(),
-			maxRenderDistanceBlocks()
-		);
+		GraphicsHolder.createInstanceSafe(context.matrixStack(), context.consumers(), graphicsHolder -> {
+			final ClientTrafficRenderContext renderContext = new ClientTrafficRenderContext(
+				context.matrixStack(),
+				context.consumers(),
+				context.consumers().getBuffer(RenderType.lines()),
+				context.consumers().getBuffer(RenderType.debugFilledBox()),
+				context.camera().getPosition(),
+				maxRenderDistanceBlocks(),
+				graphicsHolder
+			);
 
-		renderContext.poseStack().pushPose();
-		for (ClientTrafficDebugRenderState snapshot : ClientTrafficDebugState.allInterpolated()) {
-			if (!isInRenderRange(renderContext, snapshot)) {
-				continue;
+			renderContext.poseStack().pushPose();
+			MTR_RESOURCE_RENDERER.beginFrame();
+			try {
+				for (ClientTrafficDebugRenderState snapshot : ClientTrafficDebugState.allInterpolated()) {
+					if (!isInRenderRange(renderContext, snapshot)) {
+						continue;
+					}
+					DEFAULT_RENDERER.render(renderContext, snapshot, ClientTrafficVisualProfile.fromSnapshot(snapshot));
+				}
+			} finally {
+				MTR_RESOURCE_RENDERER.endFrame();
+				renderContext.poseStack().popPose();
 			}
-			DEFAULT_RENDERER.render(renderContext, snapshot, ClientTrafficVisualProfile.fromSnapshot(snapshot));
-		}
-		renderContext.poseStack().popPose();
+		});
 	}
 
 	private static boolean isInRenderRange(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot) {

@@ -56,6 +56,8 @@ public final class ClientMtrVehicleResourceRegistry implements SimpleSynchronous
 	@Override
 	public void onResourceManagerReload(ResourceManager manager) {
 		DEFINITIONS.clear();
+		MtrVehicleResourceRenderer.clearResourceCache();
+		ClientTrafficVisualProfile.clearCache();
 		loadCustomResources(manager, CUSTOM_RESOURCES_ID);
 		loadCustomResources(manager, CUSTOM_RESOURCES_PENDING_MIGRATION_ID);
 		MTRTrafficAddon.LOGGER.info("Indexed {} MTR custom vehicle visual definitions for traffic rendering", DEFINITIONS.size());

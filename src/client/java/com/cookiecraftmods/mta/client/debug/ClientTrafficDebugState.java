@@ -7,13 +7,17 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class ClientTrafficDebugState {
-	private static final long INTERPOLATION_WINDOW_NANOS = 250_000_000L;
 	private static final Map<UUID, ClientTrafficDebugTrack> TRACKS = new LinkedHashMap<>();
+	private static long lastSequence = -1L;
 
 	private ClientTrafficDebugState() {
 	}
 
-	public static void replace(Collection<ClientTrafficDebugSnapshot> snapshots) {
+	public static void replace(long sequence, Collection<ClientTrafficDebugSnapshot> snapshots) {
+		if (sequence <= lastSequence) {
+			return;
+		}
+		lastSequence = sequence;
 		final long nowNanos = System.nanoTime();
 		final Map<UUID, ClientTrafficDebugTrack> updatedTracks = new LinkedHashMap<>();
 
@@ -34,11 +38,12 @@ public final class ClientTrafficDebugState {
 	public static Collection<ClientTrafficDebugRenderState> allInterpolated() {
 		final long nowNanos = System.nanoTime();
 		return TRACKS.values().stream()
-			.map(track -> track.interpolate(nowNanos, INTERPOLATION_WINDOW_NANOS))
+			.map(track -> track.interpolate(nowNanos))
 			.toList();
 	}
 
 	public static void clear() {
 		TRACKS.clear();
+		lastSequence = -1L;
 	}
 }

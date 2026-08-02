@@ -8,7 +8,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class TrafficSpacingResolver {
 	private static final double MIN_SPACING_BUFFER_METERS = 2.0D;
@@ -51,9 +50,13 @@ public final class TrafficSpacingResolver {
 	}
 
 	private static Map<String, List<TrafficVehicle>> buildVehiclesByDirectedSegment(Collection<TrafficVehicle> vehicles) {
-		final Map<String, List<TrafficVehicle>> byConnector = vehicles.stream()
-			.filter(vehicle -> vehicle.currentConnectorId().isPresent())
-			.collect(Collectors.groupingBy(vehicle -> vehicle.currentConnectorId().orElseThrow(), HashMap::new, Collectors.toCollection(ArrayList::new)));
+		final Map<String, List<TrafficVehicle>> byConnector = new HashMap<>();
+		for (TrafficVehicle vehicle : vehicles) {
+			final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+			if (segment != null) {
+				byConnector.computeIfAbsent(segment.directedConnectorId(), ignored -> new ArrayList<>()).add(vehicle);
+			}
+		}
 
 		for (List<TrafficVehicle> connectorVehicles : byConnector.values()) {
 			connectorVehicles.sort(Comparator.comparingDouble(TrafficVehicle::distanceOnSegmentMeters));

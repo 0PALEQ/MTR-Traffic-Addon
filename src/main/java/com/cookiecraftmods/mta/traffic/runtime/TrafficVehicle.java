@@ -18,6 +18,9 @@ public final class TrafficVehicle {
 	private final double lateralOffsetMeters;
 
 	private double smoothedSpeedKph;
+	private TrafficVehiclePosition cachedCurrentPosition;
+	private int cachedPositionSegmentIndex = -1;
+	private double cachedPositionDistanceMeters = Double.NaN;
 	
 	private int segmentIndex;
 	private double distanceOnSegmentMeters;
@@ -114,7 +117,12 @@ public final class TrafficVehicle {
 		}
 
 		final int currentSegmentIndex = Math.min(segmentIndex, segments.size() - 1);
-		return positionOnSegment(segments.get(currentSegmentIndex), distanceOnSegmentMeters);
+		if (cachedCurrentPosition == null || cachedPositionSegmentIndex != currentSegmentIndex || Double.compare(cachedPositionDistanceMeters, distanceOnSegmentMeters) != 0) {
+			cachedCurrentPosition = positionOnSegment(segments.get(currentSegmentIndex), distanceOnSegmentMeters);
+			cachedPositionSegmentIndex = currentSegmentIndex;
+			cachedPositionDistanceMeters = distanceOnSegmentMeters;
+		}
+		return cachedCurrentPosition;
 	}
 
 	public TrafficVehiclePosition positionOnSegment(TrafficRouteSegment segment, double distanceMeters) {
@@ -246,41 +254,26 @@ public final class TrafficVehicle {
 			return new PathSample(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
 		}
 
-		double remaining = Math.max(0.0D, distanceMeters);
-		for (int i = 1; i < path.size(); i++) {
-			final TrafficPathPoint previous = path.get(i - 1);
-			final TrafficPathPoint next = path.get(i);
-			final double length = distance(previous, next);
-			if (remaining <= length || i == path.size() - 1) {
-				final double progress = length <= 0.0D ? 0.0D : Math.min(1.0D, remaining / length);
-				final double x = lerp(previous.x(), next.x(), progress);
-				final double y = lerp(previous.y(), next.y(), progress);
-				final double z = lerp(previous.z(), next.z(), progress);
-				final Orientation orientation = orientation(
-					next.x() - previous.x(),
-					next.y() - previous.y(),
-					next.z() - previous.z()
-				);
-				return new PathSample(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
-			}
-			remaining -= length;
-		}
-
-		final TrafficPathPoint previous = path.get(path.size() - 2);
-		final TrafficPathPoint last = path.get(path.size() - 1);
+		final double normalizedDistance = segment.lengthMeters() <= 0.0D
+			? 0.0D
+			: Math.min(1.0D, Math.max(0.0D, distanceMeters / segment.lengthMeters()));
+		final double scaledIndex = normalizedDistance * (path.size() - 1.0D);
+		final int previousIndex = Math.min(path.size() - 2, (int) Math.floor(scaledIndex));
+		final double progress = Math.min(1.0D, Math.max(0.0D, scaledIndex - previousIndex));
+		final TrafficPathPoint previous = path.get(previousIndex);
+		final TrafficPathPoint next = path.get(previousIndex + 1);
 		final Orientation orientation = orientation(
-			last.x() - previous.x(),
-			last.y() - previous.y(),
-			last.z() - previous.z()
+			next.x() - previous.x(),
+			next.y() - previous.y(),
+			next.z() - previous.z()
 		);
-		return new PathSample(last.x(), last.y(), last.z(), orientation.yawDegrees(), orientation.pitchDegrees());
-	}
-
-	private static double distance(TrafficPathPoint a, TrafficPathPoint b) {
-		final double dx = a.x() - b.x();
-		final double dy = a.y() - b.y();
-		final double dz = a.z() - b.z();
-		return Math.sqrt(dx * dx + dy * dy + dz * dz);
+		return new PathSample(
+			lerp(previous.x(), next.x(), progress),
+			lerp(previous.y(), next.y(), progress),
+			lerp(previous.z(), next.z(), progress),
+			orientation.yawDegrees(),
+			orientation.pitchDegrees()
+		);
 	}
 
 	private static Orientation orientation(double dx, double dy, double dz) {

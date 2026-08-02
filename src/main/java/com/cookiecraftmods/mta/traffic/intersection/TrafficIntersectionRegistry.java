@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class TrafficIntersectionRegistry {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -49,9 +50,11 @@ public final class TrafficIntersectionRegistry {
 	private static final int TRAIN_GATE_RAISE_DELAY_TICKS = 60;
 	private static final double MIN_TRAIN_APPROACH_SPEED_KPH = 0.1D;
 	private static final double TOLLGATE_CONTROL_MARGIN_BLOCKS = 24.0D;
+	private static final int MAX_EDGE_INTERSECTION_CACHE_ENTRIES = 65_536;
 	private static final long AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS = 1500L;
 	private static final Map<String, AutoSignalState> AUTO_SIGNAL_STATES = new HashMap<>();
 	private static final Map<String, TrainIntersectionState> TRAIN_INTERSECTION_STATES = new HashMap<>();
+	private static final Map<EdgeIntersectionKey, Boolean> EDGE_INTERSECTION_CACHE = new ConcurrentHashMap<>();
 	private static boolean initialized;
 	private static MinecraftServer currentServer;
 
@@ -73,6 +76,7 @@ public final class TrafficIntersectionRegistry {
 			DEFINITIONS.clear();
 			AUTO_SIGNAL_STATES.clear();
 			TRAIN_INTERSECTION_STATES.clear();
+			EDGE_INTERSECTION_CACHE.clear();
 		});
 		initialized = true;
 	}
@@ -136,6 +140,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	public static TrafficIntersectionDefinition createIntersection(ServerLevel level, BlockPos firstCorner, BlockPos secondCorner) {
+		EDGE_INTERSECTION_CACHE.clear();
 		final String dimensionId = level.dimension().location().toString();
 		final long minX = Math.min(firstCorner.getX(), secondCorner.getX());
 		final long minY = Math.min(firstCorner.getY(), secondCorner.getY());
@@ -151,6 +156,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	public static boolean applyDashboardUpdate(String intersectionId, String action, int delta, String value) {
+		EDGE_INTERSECTION_CACHE.clear();
 		if ("delete".equals(action)) {
 			final boolean removed = DEFINITIONS.remove(intersectionId) != null;
 			AUTO_SIGNAL_STATES.remove(intersectionId);
@@ -200,6 +206,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	public static int refreshNodes(String dimensionId, MtrGraph graph) {
+		EDGE_INTERSECTION_CACHE.clear();
 		if (graph == null || graph.isEmpty()) {
 			return 0;
 		}
@@ -433,7 +440,8 @@ public final class TrafficIntersectionRegistry {
 		for (int i = vehicle.segmentIndex(); i < segments.size(); i++) {
 			final TrafficRouteSegment segment = segments.get(i);
 			final double skipDistance = i == vehicle.segmentIndex() ? Math.max(0.0D, vehicle.distanceOnSegmentMeters()) : 0.0D;
-			final Optional<Double> localEntryDistance = distanceToIntersectionOnPath(definition, segment, skipDistance);
+			final double remainingLookaheadMeters = Math.max(0.0D, STOP_LOOKAHEAD_METERS + STOP_BUFFER_METERS - distanceFromVehicle);
+			final Optional<Double> localEntryDistance = distanceToIntersectionOnPath(definition, segment, skipDistance, remainingLookaheadMeters);
 			if (localEntryDistance.isPresent()) {
 				return Optional.of(Math.max(0.0D, distanceFromVehicle + localEntryDistance.get() - skipDistance));
 			}
@@ -445,32 +453,31 @@ public final class TrafficIntersectionRegistry {
 		return Optional.empty();
 	}
 
-	private static Optional<Double> distanceToIntersectionOnPath(TrafficIntersectionDefinition definition, TrafficRouteSegment segment, double skipDistance) {
+	private static Optional<Double> distanceToIntersectionOnPath(TrafficIntersectionDefinition definition, TrafficRouteSegment segment, double skipDistance, double maxDistanceMeters) {
 		final List<com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint> path = segment.path();
-		double pathDistance = 0.0D;
-		for (int i = 1; i < path.size(); i++) {
+		if (path.size() < 2) {
+			return Optional.empty();
+		}
+		final double segmentLengthMeters = Math.max(0.0D, segment.lengthMeters());
+		final double pathStepMeters = segmentLengthMeters / (path.size() - 1.0D);
+		final double normalizedSkip = segmentLengthMeters <= 0.0D ? 0.0D : Math.min(1.0D, Math.max(0.0D, skipDistance / segmentLengthMeters));
+		final int firstPointIndex = Math.min(path.size() - 2, (int) Math.floor(normalizedSkip * (path.size() - 1.0D)));
+		double pathDistance = firstPointIndex * pathStepMeters;
+		final double scanEndDistance = Math.min(segmentLengthMeters, Math.max(0.0D, skipDistance) + Math.max(0.0D, maxDistanceMeters));
+		for (int i = firstPointIndex + 1; i < path.size() && pathDistance <= scanEndDistance; i++) {
 			final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint start = path.get(i - 1);
 			final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint end = path.get(i);
 			final double dx = end.x() - start.x();
-			final double dy = end.y() - start.y();
 			final double dz = end.z() - start.z();
-			final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-			if (length <= 0.0001D) {
-				continue;
-			}
-			if (pathDistance + length < skipDistance) {
-				pathDistance += length;
-				continue;
-			}
 
-			final double skippedFraction = Math.min(1.0D, Math.max(0.0D, (skipDistance - pathDistance) / length));
+			final double skippedFraction = pathStepMeters <= 0.0D ? 0.0D : Math.min(1.0D, Math.max(0.0D, (skipDistance - pathDistance) / pathStepMeters));
 			final double clippedStartX = start.x() + dx * skippedFraction;
 			final double clippedStartZ = start.z() + dz * skippedFraction;
 			final Optional<Double> entryFraction = segmentRectangleEntryFraction(definition, clippedStartX, clippedStartZ, end.x(), end.z());
 			if (entryFraction.isPresent()) {
-				return Optional.of(pathDistance + length * (skippedFraction + (1.0D - skippedFraction) * entryFraction.get()));
+				return Optional.of(pathDistance + pathStepMeters * (skippedFraction + (1.0D - skippedFraction) * entryFraction.get()));
 			}
-			pathDistance += length;
+			pathDistance += pathStepMeters;
 		}
 		return Optional.empty();
 	}
@@ -569,7 +576,7 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (graph != null && !graph.isEmpty()) {
 			for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
-				if (serverTick - mtrVehicle.lastTick() <= 5) {
+				if (TrafficManager.isMtrObservationFresh(mtrVehicle.lastTick(), serverTick) && mtrVehicleMayAffectIntersection(definition, mtrVehicle, MTR_AUTO_DEMAND_LOOKAHEAD_METERS)) {
 					approachingInNumber(definition, graph, mtrVehicle).ifPresent(inNumber -> addGroupsForNodeNumber(groups, inNumber, demandedGroups));
 				}
 			}
@@ -596,7 +603,10 @@ public final class TrafficIntersectionRegistry {
 		}
 		final Set<Integer> trainNumbers = effectiveTrainNodeNumbers(definition);
 		for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
-			if (serverTick - mtrVehicle.lastTick() > 5) {
+			if (!TrafficManager.isMtrObservationFresh(mtrVehicle.lastTick(), serverTick)) {
+				continue;
+			}
+			if (!mtrVehicleMayAffectIntersection(definition, mtrVehicle, MTR_AUTO_DEMAND_LOOKAHEAD_METERS)) {
 				continue;
 			}
 			if (mtrVehiclePathPositionInsideIntersection(definition, mtrVehicle)
@@ -621,11 +631,24 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static boolean mtrVehiclePathPositionInsideIntersection(TrafficIntersectionDefinition definition, TrafficManager.MtrSignalVehicle mtrVehicle) {
+		if (Double.isFinite(mtrVehicle.currentX()) && Double.isFinite(mtrVehicle.currentY()) && Double.isFinite(mtrVehicle.currentZ())) {
+			return definition.contains(mtrVehicle.currentX(), mtrVehicle.currentY(), mtrVehicle.currentZ());
+		}
 		if (mtrVehicle.pathSegments().isEmpty() || mtrVehicle.pathSegments().get(0).pathPoints().isEmpty()) {
 			return false;
 		}
 		final TrafficManager.MtrSignalPathPoint position = mtrVehicle.pathSegments().get(0).pathPoints().get(0);
 		return definition.contains(position.x(), position.y(), position.z());
+	}
+
+	private static boolean mtrVehicleMayAffectIntersection(TrafficIntersectionDefinition definition, TrafficManager.MtrSignalVehicle mtrVehicle, double lookaheadMeters) {
+		if (!Double.isFinite(mtrVehicle.currentX()) || !Double.isFinite(mtrVehicle.currentZ())) {
+			return true;
+		}
+		final double marginMeters = Math.max(0.0D, lookaheadMeters) + Math.max(0.0D, mtrVehicle.lengthMeters()) * 0.5D + STOP_BUFFER_METERS;
+		final double dx = distanceToRange(mtrVehicle.currentX(), definition.minX(), definition.maxX());
+		final double dz = distanceToRange(mtrVehicle.currentZ(), definition.minZ(), definition.maxZ());
+		return dx * dx + dz * dz <= marginMeters * marginMeters;
 	}
 
 	private static boolean mtrVehiclePathGeometryApproachesIntersection(TrafficIntersectionDefinition definition, TrafficManager.MtrSignalVehicle mtrVehicle) {
@@ -656,7 +679,7 @@ public final class TrafficIntersectionRegistry {
 				if (pathSegment.distanceToSegmentStartMeters() > MTR_AUTO_DEMAND_LOOKAHEAD_METERS) {
 					break;
 				}
-				for (MtrGraphEdge edge : graph.edges()) {
+				for (MtrGraphEdge edge : edgesForConnector(graph, pathSegment.connectorId(), pathSegment.reverseConnectorId())) {
 					final MtrEdgeTravel travel = matchTravel(edge, pathSegment.connectorId(), pathSegment.reverseConnectorId());
 					if (travel != null && edgeIntersectsIntersection(definition, edge)) {
 						return true;
@@ -666,7 +689,7 @@ public final class TrafficIntersectionRegistry {
 			return false;
 		}
 
-		for (MtrGraphEdge edge : graph.edges()) {
+		for (MtrGraphEdge edge : edgesForConnector(graph, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId())) {
 			final MtrEdgeTravel travel = matchTravel(edge, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId());
 			if (travel != null && edgeIntersectsIntersection(definition, edge)) {
 				return true;
@@ -676,7 +699,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static boolean mtrVehicleInsideIntersection(TrafficIntersectionDefinition definition, MtrGraph graph, TrafficManager.MtrSignalVehicle mtrVehicle) {
-		for (MtrGraphEdge edge : graph.edges()) {
+		for (MtrGraphEdge edge : edgesForConnector(graph, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId())) {
 			final MtrEdgeTravel travel = matchTravel(edge, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId());
 			if (travel == null) {
 				continue;
@@ -720,7 +743,7 @@ public final class TrafficIntersectionRegistry {
 				if (pathSegment.distanceToSegmentStartMeters() > MTR_AUTO_DEMAND_LOOKAHEAD_METERS) {
 					break;
 				}
-				for (MtrGraphEdge edge : graph.edges()) {
+				for (MtrGraphEdge edge : edgesForConnector(graph, pathSegment.connectorId(), pathSegment.reverseConnectorId())) {
 					final MtrEdgeTravel travel = matchTravel(edge, pathSegment.connectorId(), pathSegment.reverseConnectorId());
 					if (travel == null || !isEntering(definition, travel)) {
 						continue;
@@ -735,7 +758,7 @@ public final class TrafficIntersectionRegistry {
 			return Optional.empty();
 		}
 
-		for (MtrGraphEdge edge : graph.edges()) {
+		for (MtrGraphEdge edge : edgesForConnector(graph, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId())) {
 			final MtrEdgeTravel travel = matchTravel(edge, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId());
 			if (travel != null && isEntering(definition, travel)) {
 				final double distanceToEntry = Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters());
@@ -756,7 +779,9 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (graph != null && !graph.isEmpty()) {
 			for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
-				final Optional<Integer> inNumber = serverTick - mtrVehicle.lastTick() <= 5 ? approachingInNumber(definition, graph, mtrVehicle) : Optional.empty();
+				final Optional<Integer> inNumber = TrafficManager.isMtrObservationFresh(mtrVehicle.lastTick(), serverTick) && mtrVehicleMayAffectIntersection(definition, mtrVehicle, MTR_AUTO_DEMAND_LOOKAHEAD_METERS)
+					? approachingInNumber(definition, graph, mtrVehicle)
+					: Optional.empty();
 				if (inNumber.isPresent() && group.nodeNumbers().contains(inNumber.get())) {
 					return true;
 				}
@@ -776,10 +801,13 @@ public final class TrafficIntersectionRegistry {
 			return true;
 		}
 		for (TrafficManager.MtrSignalVehicle mtrVehicle : mtrVehicles) {
-			if (serverTick - mtrVehicle.lastTick() > 5) {
+			if (!TrafficManager.isMtrObservationFresh(mtrVehicle.lastTick(), serverTick)) {
 				continue;
 			}
-			for (MtrGraphEdge edge : graph.edges()) {
+			if (!mtrVehicleMayAffectIntersection(definition, mtrVehicle, 0.0D)) {
+				continue;
+			}
+			for (MtrGraphEdge edge : edgesForConnector(graph, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId())) {
 				if (matchTravel(edge, mtrVehicle.connectorId(), mtrVehicle.reverseConnectorId()) != null && mtrVehicleBlocksIntersectionClearance(definition, edge, mtrVehicle)) {
 					return false;
 				}
@@ -823,6 +851,25 @@ public final class TrafficIntersectionRegistry {
 
 		final double stopLineTolerance = STOP_BUFFER_METERS + mtrVehicle.lengthMeters() * 0.5D + 1.0D;
 		return Math.max(0.0D, edge.lengthMeters() - mtrVehicle.distanceOnSegmentMeters()) > stopLineTolerance;
+	}
+
+	private static List<MtrGraphEdge> edgesForConnector(MtrGraph graph, String connectorId, String reverseConnectorId) {
+		final List<MtrGraphEdge> directEdges = graph.edgesByRailId().get(connectorId);
+		if (directEdges != null && !directEdges.isEmpty()) {
+			return directEdges;
+		}
+		final List<MtrGraphEdge> reverseEdges = graph.edgesByRailId().get(reverseConnectorId);
+		return reverseEdges == null ? List.of() : reverseEdges;
+	}
+
+	private static double distanceToRange(double value, double min, double max) {
+		if (value < min) {
+			return min - value;
+		}
+		if (value > max) {
+			return value - max;
+		}
+		return 0.0D;
 	}
 
 	private static void addGroupsForNodeNumber(List<TrafficIntersectionGroup> groups, int nodeNumber, Set<Integer> demandedGroups) {
@@ -1102,6 +1149,20 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static boolean edgeIntersectsIntersection(TrafficIntersectionDefinition definition, MtrGraphEdge edge) {
+		final EdgeIntersectionKey cacheKey = new EdgeIntersectionKey(
+			definition.id(), definition.minX(), definition.maxX(), definition.minZ(), definition.maxZ(), edge.railId(), edge.from(), edge.to()
+		);
+		final Boolean cachedResult = EDGE_INTERSECTION_CACHE.get(cacheKey);
+		if (cachedResult != null) {
+			return cachedResult;
+		}
+		if (EDGE_INTERSECTION_CACHE.size() >= MAX_EDGE_INTERSECTION_CACHE_ENTRIES) {
+			EDGE_INTERSECTION_CACHE.clear();
+		}
+		return EDGE_INTERSECTION_CACHE.computeIfAbsent(cacheKey, ignored -> computeEdgeIntersectsIntersection(definition, edge));
+	}
+
+	private static boolean computeEdgeIntersectsIntersection(TrafficIntersectionDefinition definition, MtrGraphEdge edge) {
 		final List<com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint> path = edge.path();
 		if (path.size() >= 2) {
 			for (int i = 1; i < path.size(); i++) {
@@ -1498,7 +1559,20 @@ public final class TrafficIntersectionRegistry {
 	private record MtrEdgeTravel(MtrGraphEdge edge, boolean forward) {
 	}
 
+	private record EdgeIntersectionKey(
+		String intersectionId,
+		long minX,
+		long maxX,
+		long minZ,
+		long maxZ,
+		String railId,
+		MtrNodeKey from,
+		MtrNodeKey to
+	) {
+	}
+
 	private static void load(MinecraftServer server) {
+		EDGE_INTERSECTION_CACHE.clear();
 		DEFINITIONS.clear();
 		final Path path = savePath(server);
 		if (!Files.exists(path)) {

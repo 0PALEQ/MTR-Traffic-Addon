@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
+import org.mtr.mapping.mapper.GraphicsHolder;
 
 public record ClientTrafficRenderContext(
 	PoseStack poseStack,
@@ -11,6 +12,7 @@ public record ClientTrafficRenderContext(
 	VertexConsumer lineConsumer,
 	VertexConsumer fillConsumer,
 	Vec3 cameraPosition,
-	double maxRenderDistanceBlocks
+	double maxRenderDistanceBlocks,
+	GraphicsHolder graphicsHolder
 ) {
 }

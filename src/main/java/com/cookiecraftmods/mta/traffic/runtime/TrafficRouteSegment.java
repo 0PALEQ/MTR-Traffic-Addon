@@ -15,7 +15,8 @@ public record TrafficRouteSegment(
 	boolean spawnConnector,
 	boolean despawnConnector,
 	List<Long> signalColors,
-	List<TrafficPathPoint> path
+	List<TrafficPathPoint> path,
+	String directedConnectorId
 ) {
 	public TrafficRouteSegment {
 		signalColors = signalColors == null ? List.of() : List.copyOf(signalColors);
@@ -23,6 +24,25 @@ public record TrafficRouteSegment(
 			new TrafficPathPoint(startX, startY, startZ),
 			new TrafficPathPoint(endX, endY, endZ)
 		) : List.copyOf(path);
+		directedConnectorId = directedConnectorId == null ? connectorId + "|" + startX + "," + startY + "," + startZ + "->" + endX + "," + endY + "," + endZ : directedConnectorId;
+	}
+
+	public TrafficRouteSegment(
+		String connectorId,
+		double lengthMeters,
+		double speedLimitKph,
+		double startX,
+		double startY,
+		double startZ,
+		double endX,
+		double endY,
+		double endZ,
+		boolean spawnConnector,
+		boolean despawnConnector,
+		List<Long> signalColors,
+		List<TrafficPathPoint> path
+	) {
+		this(connectorId, lengthMeters, speedLimitKph, startX, startY, startZ, endX, endY, endZ, spawnConnector, despawnConnector, signalColors, path, null);
 	}
 
 	public TrafficRouteSegment(
@@ -55,7 +75,4 @@ public record TrafficRouteSegment(
 		this(connectorId, lengthMeters, speedLimitKph, startX, startY, startZ, endX, endY, endZ, false, false, null, null);
 	}
 
-	public String directedConnectorId() {
-		return connectorId + "|" + startX + "," + startY + "," + startZ + "->" + endX + "," + endY + "," + endZ;
-	}
 }

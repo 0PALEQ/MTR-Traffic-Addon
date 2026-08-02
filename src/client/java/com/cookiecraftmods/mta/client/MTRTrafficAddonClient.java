@@ -70,6 +70,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 		ItemProperties.register(ModItems.SIGNAL_PATH_BLOCKER_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 
 		ClientPlayNetworking.registerGlobalReceiver(TrafficNetworking.DEBUG_SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
+			final long sequence = buffer.readLong();
 			final int count = buffer.readVarInt();
 			final List<ClientTrafficDebugSnapshot> snapshots = new ArrayList<>(count);
 
@@ -88,7 +89,7 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				));
 			}
 
-			client.execute(() -> ClientTrafficDebugState.replace(snapshots));
+			client.execute(() -> ClientTrafficDebugState.replace(sequence, snapshots));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {

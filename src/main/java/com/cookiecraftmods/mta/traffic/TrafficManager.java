@@ -11,6 +11,7 @@ import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphPathFinder;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphRouteResult;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
+import com.cookiecraftmods.mta.traffic.network.TrafficNetworkVehicleSnapshot;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointDefinition;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
@@ -31,31 +32,39 @@ import org.mtr.core.data.Rail;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class TrafficManager {
 	private static final int SNAPSHOT_REFRESH_INTERVAL_TICKS = 200;
+	private static final int TRAFFIC_POINT_CACHE_REFRESH_INTERVAL_TICKS = 20;
 	private static final int GRAPH_PRUNE_RADIUS_BLOCKS = 30_000;
 	private static final int SPAWN_DIAGNOSTIC_INTERVAL_TICKS = 100;
 	private static final long FULL_RAIL_GRAPH_REFRESH_INTERVAL_MILLIS = 5000L;
 	private static final long FULL_RAIL_GRAPH_STALE_MILLIS = 15000L;
 	private static final int MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN = 2048;
-	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 5;
+	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 20;
 	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;
 	private static final double MTR_SIGNAL_PATH_LOOKAHEAD_METERS = 256.0D;
 	private static final double MTR_SIGNAL_PATH_SAMPLE_STEP_METERS = 4.0D;
 	private static final int MTR_SIGNAL_PATH_MAX_SEGMENTS = 64;
 	private static final int MTR_SIGNAL_PATH_MAX_POINTS = 72;
+	private static final double MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS = 256.0D;
+	private static final int MTR_SIGNAL_GEOMETRY_MAX_CACHE_WINDOWS = 4096;
 	private static final long SIGNAL_TICK_MILLIS = 50L;
 	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
 	private static final double DEFAULT_TRAFFIC_TICK_DURATION_SECONDS = 1.0D / 20.0D;
@@ -64,31 +73,52 @@ public final class TrafficManager {
 	private static final double SPAWN_CONNECTED_NODE_CLEARANCE_METERS = 6.0D;
 	private static final double SPAWN_TRACK_MATERIALIZATION_OFFSET_METERS = 8.0D;
 	private static final long SIMULATION_INTERVAL_MILLIS = 50L;
+	private static final long MATERIALIZATION_SCAN_INTERVAL_MILLIS = 250L;
 	private static final Object SIMULATION_LOCK = new Object();
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
 	private static volatile List<TrafficVehicle> activeVehicleSnapshot = List.of();
+	private static volatile List<TrafficNetworkVehicleSnapshot> activeNetworkVehicleSnapshot = List.of();
+	private static volatile Map<String, List<IndexedTrafficVehicle>> activeTrafficByConnector = Map.of();
 	private static final Map<Long, MtrVehicleOccupancy> MTR_VEHICLE_OCCUPANCY = new ConcurrentHashMap<>();
-	private static final Map<UUID, Long> LAST_RENDERED_WALL_MILLIS = new HashMap<>();
-	private static final Set<UUID> SKIPPED_VIRTUAL_VEHICLE_IDS = new HashSet<>();
+	private static final Map<Long, MtrVehiclePathState> MTR_VEHICLE_PATH_STATES = new ConcurrentHashMap<>();
+	private static final Map<MtrPathGeometryKey, CachedMtrPathGeometry> MTR_PATH_GEOMETRY_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75F, true) {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<MtrPathGeometryKey, CachedMtrPathGeometry> eldest) {
+			return size() > MTR_SIGNAL_GEOMETRY_MAX_CACHE_WINDOWS;
+		}
+	});
+	private static volatile Map<String, List<DirectedMtrOccupancy>> mtrOccupancyByConnector = Map.of();
+	private static final Map<UUID, Long> LAST_RENDERED_WALL_MILLIS = new ConcurrentHashMap<>();
+	private static final Set<UUID> SKIPPED_VIRTUAL_VEHICLE_IDS = ConcurrentHashMap.newKeySet();
 	private static final MtrApiClient MTR_API_CLIENT = new MtrApiClient();
 	private static ScheduledExecutorService simulationExecutor;
-	private static List<SimulationPlayerSnapshot> playerSnapshots = List.of();
-	private static List<TrafficPointDefinition> cachedEnabledSpawns = List.of();
-	private static List<TrafficPointDefinition> cachedEnabledDespawns = List.of();
+	private static ExecutorService graphBuildExecutor;
+	private static volatile List<SimulationPlayerSnapshot> playerSnapshots = List.of();
+	private static volatile MaterializationSnapshot materializationSnapshot = new MaterializationSnapshot(null, null, List.of(), List.of());
 	private static final Map<String, List<VirtualRouteCandidate>> ROUTE_CANDIDATES_BY_SPAWN_ID = new HashMap<>();
+	private static final Map<VirtualRouteCandidate, CachedVirtualRouteTiming> VIRTUAL_ROUTE_TIMINGS = new IdentityHashMap<>();
 	private static boolean initialized;
 	private static long lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
-	private static MtrGraph latestGraph;
-	private static String latestGraphDimensionId;
+	private static volatile MtrGraph latestGraph;
+	private static volatile String latestGraphDimensionId;
 	private static volatile long lastServerTick;
-	private static long lastTrafficTickWallMillis;
+	private static volatile long lastTrafficTickWallMillis;
+	private static long lastMaterializationScanWallMillis;
 	private static long signalClockTick;
 	private static long signalClockWallMillis;
 	private static boolean graphRefreshInFlight;
 	private static long lastFullRailGraphRefreshWallMillis;
-	private static long lastFullRailGraphSeenWallMillis;
+	private static volatile long lastFullRailGraphSeenWallMillis;
+	private static boolean fullGraphRefreshInFlight;
+	private static volatile boolean graphBuildAcceptingTasks;
+	private static volatile long graphBuildGeneration;
+	private static RailGraphSignature submittedRailGraphSignature;
+	private static RailGraphSignature appliedRailGraphSignature;
+	private static volatile PendingFullGraphRefresh pendingFullGraphRefresh;
 	private static long lastSpawnDiagnosticTick = Long.MIN_VALUE / 4;
 	private static String routeCacheSignature = "";
+	private static volatile String pendingRouteCacheSignature = "";
+	private static volatile long routeCacheGraphVersion;
 
 	private TrafficManager() {
 	}
@@ -101,17 +131,23 @@ public final class TrafficManager {
 		ServerLifecycleEvents.SERVER_STARTED.register(TrafficManager::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
 			stopSimulationExecutor();
+			stopGraphBuildExecutor();
+			MTR_API_CLIENT.shutdown();
 			synchronized (SIMULATION_LOCK) {
 				ACTIVE_VEHICLES.clear();
 				publishActiveVehicleSnapshot();
 				MTR_VEHICLE_OCCUPANCY.clear();
+				MTR_VEHICLE_PATH_STATES.clear();
+				MTR_PATH_GEOMETRY_CACHE.clear();
+				mtrOccupancyByConnector = Map.of();
 				LAST_RENDERED_WALL_MILLIS.clear();
 				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 				playerSnapshots = List.of();
-				cachedEnabledSpawns = List.of();
-				cachedEnabledDespawns = List.of();
+				materializationSnapshot = new MaterializationSnapshot(null, null, List.of(), List.of());
 				ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+				VIRTUAL_ROUTE_TIMINGS.clear();
 				routeCacheSignature = "";
+				pendingRouteCacheSignature = "";
 			}
 		});
 		ServerTickEvents.END_SERVER_TICK.register(TrafficManager::onServerTick);
@@ -120,6 +156,10 @@ public final class TrafficManager {
 
 	public static Collection<TrafficVehicle> getActiveVehicles() {
 		return activeVehicleSnapshot;
+	}
+
+	public static List<TrafficNetworkVehicleSnapshot> getActiveNetworkVehicleSnapshot() {
+		return activeNetworkVehicleSnapshot;
 	}
 
 	public static Map<String, Integer> countActiveVehiclesBySpawnPointId() {
@@ -157,55 +197,123 @@ public final class TrafficManager {
 			return;
 		}
 
-		synchronized (SIMULATION_LOCK) {
-			for (UUID vehicleId : vehicleIds) {
-				if (activeIds.contains(vehicleId)) {
-					LAST_RENDERED_WALL_MILLIS.put(vehicleId, wallMillis);
-				}
+		for (UUID vehicleId : vehicleIds) {
+			if (activeIds.contains(vehicleId)) {
+				LAST_RENDERED_WALL_MILLIS.put(vehicleId, wallMillis);
 			}
 		}
 	}
 
 	public static void updateFullMtrRailGraph(String dimensionId, Collection<Rail> rails) {
-		if (dimensionId == null || dimensionId.isBlank() || rails == null || rails.isEmpty()) {
+		if (!graphBuildAcceptingTasks || dimensionId == null || dimensionId.isBlank() || rails == null || rails.isEmpty()) {
 			return;
 		}
 		final String normalizedDimensionId = normalizeMtrDimensionId(dimensionId);
 
 		final long nowMillis = System.currentTimeMillis();
+		final long buildGeneration;
 		synchronized (SIMULATION_LOCK) {
+			if (!graphBuildAcceptingTasks) {
+				return;
+			}
 			lastFullRailGraphSeenWallMillis = nowMillis;
-			if (nowMillis - lastFullRailGraphRefreshWallMillis < FULL_RAIL_GRAPH_REFRESH_INTERVAL_MILLIS) {
+			if (fullGraphRefreshInFlight || nowMillis - lastFullRailGraphRefreshWallMillis < FULL_RAIL_GRAPH_REFRESH_INTERVAL_MILLIS) {
 				return;
 			}
 			lastFullRailGraphRefreshWallMillis = nowMillis;
+			fullGraphRefreshInFlight = true;
+			buildGeneration = graphBuildGeneration;
 		}
 
-		final MtrGraph fullGraph;
+		final List<MtrGraphBuilder.RailSnapshot> railSnapshots;
 		try {
-			fullGraph = MtrGraphBuilder.buildFromRails(List.copyOf(rails));
+			railSnapshots = MtrGraphBuilder.snapshotRails(rails);
 		} catch (Exception e) {
-			MTRTrafficAddon.LOGGER.warn("Could not build full MTR traffic graph from simulator rails", e);
+			synchronized (SIMULATION_LOCK) {
+				fullGraphRefreshInFlight = false;
+			}
+			MTRTrafficAddon.LOGGER.warn("Could not snapshot full MTR rail graph", e);
 			return;
 		}
-		if (fullGraph.isEmpty()) {
+		final RailGraphSignature signature = railGraphSignature(normalizedDimensionId, railSnapshots);
+		synchronized (SIMULATION_LOCK) {
+			if (signature.equals(submittedRailGraphSignature)) {
+				fullGraphRefreshInFlight = false;
+				return;
+			}
+			submittedRailGraphSignature = signature;
+		}
+
+		try {
+			graphBuildExecutor().execute(() -> buildFullGraphAsync(buildGeneration, signature, railSnapshots));
+		} catch (RejectedExecutionException e) {
+			synchronized (SIMULATION_LOCK) {
+				fullGraphRefreshInFlight = false;
+				if (signature.equals(submittedRailGraphSignature)) {
+					submittedRailGraphSignature = appliedRailGraphSignature;
+				}
+			}
+			MTRTrafficAddon.LOGGER.debug("Full MTR graph build was rejected during shutdown", e);
+		}
+	}
+
+	private static void buildFullGraphAsync(long buildGeneration, RailGraphSignature signature, List<MtrGraphBuilder.RailSnapshot> railSnapshots) {
+		try {
+			final MtrGraph fullGraph = MtrGraphBuilder.buildFromRailSnapshots(railSnapshots);
+			synchronized (SIMULATION_LOCK) {
+				if (buildGeneration != graphBuildGeneration || !graphBuildAcceptingTasks) {
+					return;
+				}
+				if (fullGraph.isEmpty()) {
+					if (signature.equals(submittedRailGraphSignature)) {
+						submittedRailGraphSignature = appliedRailGraphSignature;
+					}
+				} else {
+					pendingFullGraphRefresh = new PendingFullGraphRefresh(signature, fullGraph);
+				}
+			}
+		} catch (Exception e) {
+			MTRTrafficAddon.LOGGER.warn("Could not build full MTR traffic graph from immutable rail snapshot", e);
+			synchronized (SIMULATION_LOCK) {
+				if (buildGeneration == graphBuildGeneration && signature.equals(submittedRailGraphSignature)) {
+					submittedRailGraphSignature = appliedRailGraphSignature;
+				}
+			}
+		} finally {
+			synchronized (SIMULATION_LOCK) {
+				if (buildGeneration == graphBuildGeneration) {
+					fullGraphRefreshInFlight = false;
+				}
+			}
+		}
+	}
+
+	private static void applyPendingFullGraphRefresh() {
+		final PendingFullGraphRefresh pendingRefresh = pendingFullGraphRefresh;
+		if (pendingRefresh == null) {
 			return;
 		}
 
 		synchronized (SIMULATION_LOCK) {
-			latestGraphDimensionId = normalizedDimensionId;
-			latestGraph = fullGraph;
-			TrafficSavedPointRegistry.refreshConnectorRoutes(normalizedDimensionId, latestGraph);
-			TrafficIntersectionRegistry.refreshNodes(normalizedDimensionId, latestGraph);
-			cachedEnabledSpawns = TrafficSavedPointRegistry.getByTypeAndDimension(normalizedDimensionId, TrafficPointType.SPAWN).stream()
+			if (pendingFullGraphRefresh != pendingRefresh) {
+				return;
+			}
+			pendingFullGraphRefresh = null;
+			latestGraphDimensionId = pendingRefresh.signature().dimensionId();
+			latestGraph = pendingRefresh.graph();
+			appliedRailGraphSignature = pendingRefresh.signature();
+			MTR_PATH_GEOMETRY_CACHE.clear();
+			TrafficSavedPointRegistry.refreshConnectorRoutes(latestGraphDimensionId, latestGraph);
+			TrafficIntersectionRegistry.refreshNodes(latestGraphDimensionId, latestGraph);
+			final List<TrafficPointDefinition> enabledSpawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.SPAWN).stream()
 				.filter(TrafficPointDefinition::isEnabled)
 				.toList();
-			cachedEnabledDespawns = TrafficSavedPointRegistry.getByTypeAndDimension(normalizedDimensionId, TrafficPointType.DESPAWN).stream()
+			final List<TrafficPointDefinition> enabledDespawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.DESPAWN).stream()
 				.filter(TrafficPointDefinition::isEnabled)
 				.toList();
-			routeCacheSignature = routeCacheSignature(cachedEnabledSpawns, cachedEnabledDespawns);
-			ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
-			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
+			materializationSnapshot = new MaterializationSnapshot(latestGraph, latestGraphDimensionId, enabledSpawns, enabledDespawns);
+			routeCacheGraphVersion++;
+			pendingRouteCacheSignature = routeCacheSignature(enabledSpawns, enabledDespawns, routeCacheGraphVersion);
 		}
 	}
 
@@ -214,6 +322,22 @@ public final class TrafficManager {
 		return namespaceSeparator <= 0 || dimensionId.indexOf(':') >= 0
 			? dimensionId
 			: dimensionId.substring(0, namespaceSeparator) + ":" + dimensionId.substring(namespaceSeparator + 1);
+	}
+
+	private static RailGraphSignature railGraphSignature(String dimensionId, List<MtrGraphBuilder.RailSnapshot> railSnapshots) {
+		long contentSum = 0L;
+		long contentXor = 0L;
+		for (MtrGraphBuilder.RailSnapshot railSnapshot : railSnapshots) {
+			long mixedHash = Integer.toUnsignedLong(railSnapshot.hashCode());
+			mixedHash ^= mixedHash >>> 33;
+			mixedHash *= 0xff51afd7ed558ccdL;
+			mixedHash ^= mixedHash >>> 33;
+			mixedHash *= 0xc4ceb9fe1a85ec53L;
+			mixedHash ^= mixedHash >>> 33;
+			contentSum += mixedHash;
+			contentXor ^= Long.rotateLeft(mixedHash, (int) (mixedHash & 63L));
+		}
+		return new RailGraphSignature(dimensionId, railSnapshots.size(), contentSum, contentXor);
 	}
 
 	public static double mtrVehicleBlockedDistance(List<PathData> path, int startIndex, double railProgress, double additionalDistance, int stoppingSpace) {
@@ -228,7 +352,7 @@ public final class TrafficManager {
 		double closestDistance = Double.POSITIVE_INFINITY;
 		final long signalTick = currentSignalTick();
 
-		final List<TrafficVehicle> trafficVehicles = activeVehicleSnapshot;
+		final Map<String, List<IndexedTrafficVehicle>> trafficByConnector = activeTrafficByConnector;
 		for (int i = startIndex; i < path.size(); i++) {
 			final PathData pathData = path.get(i);
 			if (pathData.getStartDistance() > lookaheadEnd) {
@@ -239,9 +363,12 @@ public final class TrafficManager {
 				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
 			}
 
-			for (TrafficVehicle vehicle : trafficVehicles) {
-				final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
-				final RailDirectionMatch railDirectionMatch = segment == null ? null : matchRouteRail(pathData, segment);
+			final String pathForwardId = pathData.getHexId(false);
+			final String pathReverseId = pathData.getHexId(true);
+			final List<IndexedTrafficVehicle> indexedVehicles = trafficByConnector.getOrDefault(pathForwardId, trafficByConnector.getOrDefault(pathReverseId, List.of()));
+			for (IndexedTrafficVehicle indexedVehicle : indexedVehicles) {
+				final TrafficRouteSegment segment = indexedVehicle.segment();
+				final RailDirectionMatch railDirectionMatch = matchRouteRail(pathForwardId, pathReverseId, indexedVehicle);
 				if (railDirectionMatch == null) {
 					continue;
 				}
@@ -249,11 +376,11 @@ public final class TrafficManager {
 				final double pathStart = pathData.getStartDistance();
 				final double pathEnd = pathData.getEndDistance();
 				final double segmentLength = Math.max(0.001D, segment.lengthMeters());
-				final double progress = Math.min(1.0D, Math.max(0.0D, vehicle.distanceOnSegmentMeters() / segmentLength));
+				final double progress = Math.min(1.0D, Math.max(0.0D, indexedVehicle.distanceOnSegmentMeters() / segmentLength));
 				final double vehicleCenter = railDirectionMatch.sameDirection()
 					? pathStart + (pathEnd - pathStart) * progress
 					: pathEnd - (pathEnd - pathStart) * progress;
-				final double vehicleHalfLength = vehicle.definition().lengthMeters() * 0.5D + 1.5D;
+				final double vehicleHalfLength = indexedVehicle.lengthMeters() * 0.5D + 1.5D;
 				final double vehicleStart = vehicleCenter - vehicleHalfLength;
 				final double vehicleEnd = vehicleCenter + vehicleHalfLength;
 				if (vehicleEnd < railProgress || vehicleStart > lookaheadEnd) {
@@ -268,85 +395,143 @@ public final class TrafficManager {
 	}
 
 	public static void recordMtrVehicle(long vehicleId, List<PathData> path, double railProgress, double speedMetersPerMillisecond, double lengthMeters) {
-		if (path == null || path.isEmpty()) {
+		if (path == null || path.isEmpty() || !Double.isFinite(railProgress)) {
 			MTR_VEHICLE_OCCUPANCY.remove(vehicleId);
+			MTR_VEHICLE_PATH_STATES.remove(vehicleId);
 			return;
 		}
 
-		PathData currentPathData = null;
-		int currentPathIndex = -1;
-		for (int i = 0; i < path.size(); i++) {
-			final PathData pathData = path.get(i);
-			if (railProgress + 0.001D >= pathData.getStartDistance() && railProgress - 0.001D <= pathData.getEndDistance()) {
-				currentPathData = pathData;
-				currentPathIndex = i;
-				break;
-			}
-		}
-
-		if (currentPathData == null || currentPathIndex < 0) {
+		final MtrVehiclePathState previousState = MTR_VEHICLE_PATH_STATES.get(vehicleId);
+		final int currentPathIndex = findCurrentPathIndex(path, railProgress, previousState != null && previousState.path() == path ? previousState.pathIndex() : -1);
+		if (currentPathIndex < 0) {
 			MTR_VEHICLE_OCCUPANCY.remove(vehicleId);
+			MTR_VEHICLE_PATH_STATES.remove(vehicleId);
 			return;
 		}
+		final PathData currentPathData = path.get(currentPathIndex);
 
 		final double segmentLengthMeters = Math.max(0.001D, currentPathData.getEndDistance() - currentPathData.getStartDistance());
 		final double distanceOnSegmentMeters = Math.min(segmentLengthMeters, Math.max(0.0D, railProgress - currentPathData.getStartDistance()));
-		final List<MtrSignalPathSegment> signalPathSegments = mtrSignalPathSegments(path, currentPathIndex, railProgress);
+		double currentX = Double.NaN;
+		double currentY = Double.NaN;
+		double currentZ = Double.NaN;
+		try {
+			final org.mtr.core.tool.Vector currentPosition = currentPathData.getPosition(distanceOnSegmentMeters);
+			currentX = currentPosition.x;
+			currentY = currentPosition.y;
+			currentZ = currentPosition.z;
+		} catch (Exception ignored) {
+		}
+		final long geometryBucket = (long) Math.floor(railProgress / MTR_SIGNAL_PATH_SAMPLE_STEP_METERS);
+		final boolean reuseSignalPath = previousState != null
+			&& previousState.path() == path
+			&& previousState.pathIndex() == currentPathIndex
+			&& previousState.geometryBucket() == geometryBucket;
+		final List<MtrSignalPathSegment> signalPathSegments;
+		if (reuseSignalPath) {
+			signalPathSegments = previousState.signalPathSegments();
+		} else {
+			signalPathSegments = mtrSignalPathSegments(path, currentPathIndex, railProgress, currentX, currentY, currentZ);
+			MTR_VEHICLE_PATH_STATES.put(vehicleId, new MtrVehiclePathState(path, currentPathIndex, geometryBucket, signalPathSegments));
+		}
+		final double speedKph = Double.isFinite(speedMetersPerMillisecond) ? Math.max(0.0D, speedMetersPerMillisecond * 3600000.0D) : 0.0D;
+		final double safeLengthMeters = Double.isFinite(lengthMeters) ? Math.max(0.0D, lengthMeters) : 0.0D;
 		MTR_VEHICLE_OCCUPANCY.put(vehicleId, new MtrVehicleOccupancy(
 			currentPathData.getHexId(false),
 			currentPathData.getHexId(true),
 			distanceOnSegmentMeters,
 			segmentLengthMeters,
-			Math.max(0.0D, lengthMeters),
-			Math.max(0.0D, speedMetersPerMillisecond * 3600000.0D),
+			safeLengthMeters,
+			speedKph,
 			currentSignalTick(),
+			currentX,
+			currentY,
+			currentZ,
 			signalPathSegments
 		));
 	}
 
-	public static Optional<MtrVehicleObstacle> closestMtrVehicleObstacle(TrafficVehicle followingVehicle) {
-		synchronized (SIMULATION_LOCK) {
-			final List<TrafficRouteSegment> followingSegments = followingVehicle.route().segments();
-			if (followingSegments.isEmpty() || followingVehicle.segmentIndex() < 0 || followingVehicle.segmentIndex() >= followingSegments.size() || MTR_VEHICLE_OCCUPANCY.isEmpty()) {
-				return Optional.empty();
-			}
-
-			MtrVehicleObstacle closestObstacle = null;
-			double distanceToSegmentStart = -followingVehicle.distanceOnSegmentMeters();
-			for (int segmentIndex = followingVehicle.segmentIndex(); segmentIndex < followingSegments.size(); segmentIndex++) {
-				final TrafficRouteSegment candidateSegment = followingSegments.get(segmentIndex);
-				if (distanceToSegmentStart > 80.0D) {
-					break;
-				}
-
-				for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-					if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
-						continue;
-					}
-
-					final boolean sameDirection = candidateSegment.connectorId().equals(occupancy.connectorId());
-					final boolean oppositeDirection = candidateSegment.connectorId().equals(occupancy.reverseConnectorId());
-					if (!sameDirection && !oppositeDirection) {
-						continue;
-					}
-
-					final double obstacleDistanceOnSegment = sameDirection
-						? occupancy.distanceOnSegmentMeters()
-						: Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
-					final double distanceToObstacle = distanceToSegmentStart + obstacleDistanceOnSegment;
-					if (distanceToObstacle <= 0.0D || distanceToObstacle > 80.0D) {
-						continue;
-					}
-
-					if (closestObstacle == null || distanceToObstacle < closestObstacle.distanceMeters()) {
-						closestObstacle = new MtrVehicleObstacle(distanceToObstacle, occupancy.lengthMeters(), occupancy.speedKph());
-					}
-				}
-
-				distanceToSegmentStart += Math.max(candidateSegment.lengthMeters(), 0.0D);
-			}
-			return Optional.ofNullable(closestObstacle);
+	private static int findCurrentPathIndex(List<PathData> path, double railProgress, int hintIndex) {
+		if (hintIndex >= 0 && hintIndex < path.size() && pathContainsProgress(path.get(hintIndex), railProgress)) {
+			return hintIndex;
 		}
+		if (hintIndex + 1 >= 0 && hintIndex + 1 < path.size() && pathContainsProgress(path.get(hintIndex + 1), railProgress)) {
+			return hintIndex + 1;
+		}
+		if (hintIndex > 0 && pathContainsProgress(path.get(hintIndex - 1), railProgress)) {
+			return hintIndex - 1;
+		}
+
+		int low = 0;
+		int high = path.size() - 1;
+		while (low <= high) {
+			final int middle = (low + high) >>> 1;
+			final PathData candidate = path.get(middle);
+			if (railProgress < candidate.getStartDistance() - 0.001D) {
+				high = middle - 1;
+			} else if (railProgress > candidate.getEndDistance() + 0.001D) {
+				low = middle + 1;
+			} else {
+				return middle;
+			}
+		}
+		return -1;
+	}
+
+	private static boolean pathContainsProgress(PathData pathData, double railProgress) {
+		return railProgress + 0.001D >= pathData.getStartDistance() && railProgress - 0.001D <= pathData.getEndDistance();
+	}
+
+	public static Optional<MtrVehicleObstacle> closestMtrVehicleObstacle(TrafficVehicle followingVehicle) {
+		final List<TrafficRouteSegment> followingSegments = followingVehicle.route().segments();
+		final Map<String, List<DirectedMtrOccupancy>> occupancyIndex = mtrOccupancyByConnector;
+		if (followingSegments.isEmpty() || followingVehicle.segmentIndex() < 0 || followingVehicle.segmentIndex() >= followingSegments.size() || occupancyIndex.isEmpty()) {
+			return Optional.empty();
+		}
+
+		MtrVehicleObstacle closestObstacle = null;
+		double distanceToSegmentStart = -followingVehicle.distanceOnSegmentMeters();
+		for (int segmentIndex = followingVehicle.segmentIndex(); segmentIndex < followingSegments.size(); segmentIndex++) {
+			final TrafficRouteSegment candidateSegment = followingSegments.get(segmentIndex);
+			if (distanceToSegmentStart > 80.0D) {
+				break;
+			}
+
+			for (DirectedMtrOccupancy directedOccupancy : occupancyIndex.getOrDefault(candidateSegment.connectorId(), List.of())) {
+				final MtrVehicleOccupancy occupancy = directedOccupancy.occupancy();
+				final double obstacleDistanceOnSegment = directedOccupancy.sameDirection()
+					? occupancy.distanceOnSegmentMeters()
+					: Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
+				final double distanceToObstacle = distanceToSegmentStart + obstacleDistanceOnSegment;
+				if (distanceToObstacle <= 0.0D || distanceToObstacle > 80.0D) {
+					continue;
+				}
+
+				if (closestObstacle == null || distanceToObstacle < closestObstacle.distanceMeters()) {
+					closestObstacle = new MtrVehicleObstacle(distanceToObstacle, occupancy.lengthMeters(), occupancy.speedKph());
+				}
+			}
+
+			distanceToSegmentStart += Math.max(candidateSegment.lengthMeters(), 0.0D);
+		}
+		return Optional.ofNullable(closestObstacle);
+	}
+
+	private static void rebuildMtrOccupancyIndex() {
+		if (MTR_VEHICLE_OCCUPANCY.isEmpty()) {
+			mtrOccupancyByConnector = Map.of();
+			return;
+		}
+		final Map<String, List<DirectedMtrOccupancy>> mutableIndex = new HashMap<>();
+		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
+			mutableIndex.computeIfAbsent(occupancy.connectorId(), ignored -> new ArrayList<>()).add(new DirectedMtrOccupancy(occupancy, true));
+			if (!occupancy.reverseConnectorId().equals(occupancy.connectorId())) {
+				mutableIndex.computeIfAbsent(occupancy.reverseConnectorId(), ignored -> new ArrayList<>()).add(new DirectedMtrOccupancy(occupancy, false));
+			}
+		}
+		final Map<String, List<DirectedMtrOccupancy>> immutableIndex = new HashMap<>();
+		mutableIndex.forEach((connectorId, occupancies) -> immutableIndex.put(connectorId, List.copyOf(occupancies)));
+		mtrOccupancyByConnector = Map.copyOf(immutableIndex);
 	}
 
 	private static List<MtrSignalVehicle> mtrSignalVehicles() {
@@ -364,13 +549,16 @@ public final class TrafficManager {
 				occupancy.lengthMeters(),
 				occupancy.speedKph(),
 				occupancy.lastTick(),
+				occupancy.currentX(),
+				occupancy.currentY(),
+				occupancy.currentZ(),
 				occupancy.signalPathSegments()
 			));
 		}
 		return signalVehicles;
 	}
 
-	private static List<MtrSignalPathSegment> mtrSignalPathSegments(List<PathData> path, int currentPathIndex, double railProgress) {
+	private static List<MtrSignalPathSegment> mtrSignalPathSegments(List<PathData> path, int currentPathIndex, double railProgress, double currentX, double currentY, double currentZ) {
 		if (currentPathIndex < 0 || currentPathIndex >= path.size()) {
 			return List.of();
 		}
@@ -397,14 +585,21 @@ public final class TrafficManager {
 			final List<MtrSignalPathPoint> pathPoints = new ArrayList<>();
 			final double remainingLookaheadMeters = Math.max(0.0D, MTR_SIGNAL_PATH_LOOKAHEAD_METERS - distanceToSegmentStartMeters);
 			final double sampleEndDistance = Math.min(segmentLengthMeters, distanceOnSegmentMeters + remainingLookaheadMeters);
-			for (double distance = distanceOnSegmentMeters; distance < sampleEndDistance && sampledPointCount < MTR_SIGNAL_PATH_MAX_POINTS; distance += MTR_SIGNAL_PATH_SAMPLE_STEP_METERS) {
-				final org.mtr.core.tool.Vector position = pathData.getPosition(distance);
-				pathPoints.add(new MtrSignalPathPoint(position.x, position.y, position.z));
+			if (i == currentPathIndex && Double.isFinite(currentX) && Double.isFinite(currentY) && Double.isFinite(currentZ)) {
+				pathPoints.add(new MtrSignalPathPoint(currentX, currentY, currentZ));
 				sampledPointCount++;
 			}
-			if (sampledPointCount < MTR_SIGNAL_PATH_MAX_POINTS) {
-				final org.mtr.core.tool.Vector endPosition = pathData.getPosition(sampleEndDistance);
-				pathPoints.add(new MtrSignalPathPoint(endPosition.x, endPosition.y, endPosition.z));
+			for (MtrSampledPathPoint sampledPoint : cachedMtrPathGeometry(pathData, segmentLengthMeters, distanceOnSegmentMeters, sampleEndDistance)) {
+				if (sampledPoint.distanceMeters() < distanceOnSegmentMeters - 0.001D || sampledPoint.distanceMeters() > sampleEndDistance + 0.001D) {
+					continue;
+				}
+				if (!pathPoints.isEmpty() && Math.abs(sampledPoint.distanceMeters() - distanceOnSegmentMeters) <= 0.001D) {
+					continue;
+				}
+				if (sampledPointCount >= MTR_SIGNAL_PATH_MAX_POINTS) {
+					break;
+				}
+				pathPoints.add(sampledPoint.point());
 				sampledPointCount++;
 			}
 			segments.add(new MtrSignalPathSegment(
@@ -419,37 +614,97 @@ public final class TrafficManager {
 		return List.copyOf(segments);
 	}
 
+	private static List<MtrSampledPathPoint> cachedMtrPathGeometry(PathData pathData, double segmentLengthMeters, double startDistanceMeters, double endDistanceMeters) {
+		final long firstWindow = Math.max(0L, (long) Math.floor(startDistanceMeters / MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS));
+		final double lastSampleDistance = endDistanceMeters > startDistanceMeters ? Math.nextDown(endDistanceMeters) : endDistanceMeters;
+		final long lastWindow = Math.max(firstWindow, (long) Math.floor(lastSampleDistance / MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS));
+		final String forwardId = pathData.getHexId(false);
+		final String reverseId = pathData.getHexId(true);
+		final long segmentLengthBits = Double.doubleToLongBits(segmentLengthMeters);
+		final List<MtrSampledPathPoint> points = new ArrayList<>();
+		for (long window = firstWindow; window <= lastWindow; window++) {
+			final long windowIndex = window;
+			final MtrPathGeometryKey cacheKey = new MtrPathGeometryKey(forwardId, reverseId, segmentLengthBits, windowIndex);
+			final CachedMtrPathGeometry geometry = MTR_PATH_GEOMETRY_CACHE.computeIfAbsent(
+				cacheKey,
+				ignored -> sampleMtrPathGeometry(pathData, segmentLengthMeters, windowIndex)
+			);
+			for (MtrSampledPathPoint point : geometry.points()) {
+				if (points.isEmpty() || Math.abs(points.get(points.size() - 1).distanceMeters() - point.distanceMeters()) > 0.001D) {
+					points.add(point);
+				}
+			}
+			if (window == Long.MAX_VALUE) {
+				break;
+			}
+		}
+		return points;
+	}
+
+	private static CachedMtrPathGeometry sampleMtrPathGeometry(PathData pathData, double segmentLengthMeters, long windowIndex) {
+		final double windowStartDistance = Math.min(segmentLengthMeters, windowIndex * MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS);
+		final double windowEndDistance = Math.min(segmentLengthMeters, windowStartDistance + MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS);
+		final double windowLengthMeters = Math.max(0.0D, windowEndDistance - windowStartDistance);
+		final int pointCount = Math.max(2, (int) Math.ceil(windowLengthMeters / MTR_SIGNAL_PATH_SAMPLE_STEP_METERS) + 1);
+		final List<MtrSampledPathPoint> points = new ArrayList<>(pointCount);
+		try {
+			for (int i = 0; i < pointCount; i++) {
+				final double distance = windowStartDistance + windowLengthMeters * i / (pointCount - 1.0D);
+				final org.mtr.core.tool.Vector position = pathData.getPosition(distance);
+				points.add(new MtrSampledPathPoint(distance, new MtrSignalPathPoint(position.x, position.y, position.z)));
+			}
+		} catch (Exception ignored) {
+			return new CachedMtrPathGeometry(List.of());
+		}
+		return new CachedMtrPathGeometry(points);
+	}
+
 	private static void onServerStarted(MinecraftServer server) {
+		MTR_API_CLIENT.start();
 		synchronized (SIMULATION_LOCK) {
 			ACTIVE_VEHICLES.clear();
 			publishActiveVehicleSnapshot();
 			MTR_VEHICLE_OCCUPANCY.clear();
+			MTR_VEHICLE_PATH_STATES.clear();
+			MTR_PATH_GEOMETRY_CACHE.clear();
+			mtrOccupancyByConnector = Map.of();
 			LAST_RENDERED_WALL_MILLIS.clear();
 			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 			playerSnapshots = List.of();
-			cachedEnabledSpawns = List.of();
-			cachedEnabledDespawns = List.of();
+			materializationSnapshot = new MaterializationSnapshot(null, null, List.of(), List.of());
 			ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+			VIRTUAL_ROUTE_TIMINGS.clear();
 			routeCacheSignature = "";
+			pendingRouteCacheSignature = "";
+			routeCacheGraphVersion = 0L;
 			latestGraph = null;
 			latestGraphDimensionId = null;
 			graphRefreshInFlight = false;
 			lastFullRailGraphRefreshWallMillis = 0L;
 			lastFullRailGraphSeenWallMillis = 0L;
+			fullGraphRefreshInFlight = false;
+			submittedRailGraphSignature = null;
+			appliedRailGraphSignature = null;
+			pendingFullGraphRefresh = null;
 			lastSnapshotRefreshTick = -SNAPSHOT_REFRESH_INTERVAL_TICKS;
 			lastServerTick = 0;
 			lastTrafficTickWallMillis = System.currentTimeMillis();
+			lastMaterializationScanWallMillis = 0L;
 			signalClockTick = 0;
 			signalClockWallMillis = System.currentTimeMillis();
 			lastSpawnDiagnosticTick = Long.MIN_VALUE / 4;
 		}
+		startGraphBuildExecutor();
 		startSimulationExecutor();
 	}
 
 	private static void onServerTick(MinecraftServer server) {
+		applyPendingFullGraphRefresh();
 		lastServerTick = server.getTickCount();
 		updatePlayerSnapshots(server);
-		updateCachedTrafficPoints();
+		if (server.getTickCount() % TRAFFIC_POINT_CACHE_REFRESH_INTERVAL_TICKS == 0) {
+			updateCachedTrafficPoints();
+		}
 		refreshGraphSnapshot(server);
 		syncSignalClockToServerTick(lastServerTick);
 	}
@@ -461,13 +716,16 @@ public final class TrafficManager {
 			tickDurationSeconds = trafficTickDurationSeconds(nowMillis);
 			lastTrafficTickWallMillis = nowMillis;
 		}
+		refreshRouteCacheIfNeeded();
+		final long signalTick = currentSignalTick();
+		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
+		MTR_VEHICLE_PATH_STATES.keySet().removeIf(vehicleId -> !MTR_VEHICLE_OCCUPANCY.containsKey(vehicleId));
+		rebuildMtrOccupancyIndex();
 
 		materializeVirtualTraffic(nowMillis);
 
 		synchronized (SIMULATION_LOCK) {
 			removeVehiclesOutsideSimulationRangeAfterTimeout(nowMillis);
-			final long signalTick = currentSignalTick();
-			MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
@@ -490,6 +748,40 @@ public final class TrafficManager {
 
 	private static void publishActiveVehicleSnapshot() {
 		activeVehicleSnapshot = List.copyOf(ACTIVE_VEHICLES);
+		if (ACTIVE_VEHICLES.isEmpty()) {
+			activeTrafficByConnector = Map.of();
+			activeNetworkVehicleSnapshot = List.of();
+			return;
+		}
+		final Map<String, List<IndexedTrafficVehicle>> mutableIndex = new HashMap<>();
+		final List<TrafficNetworkVehicleSnapshot> networkSnapshots = new ArrayList<>(ACTIVE_VEHICLES.size());
+		for (TrafficVehicle vehicle : ACTIVE_VEHICLES) {
+			final TrafficVehiclePosition position = vehicle.currentPosition();
+			networkSnapshots.add(new TrafficNetworkVehicleSnapshot(
+				vehicle.id(),
+				dimensionIdForVehicle(vehicle),
+				vehicle.definition().effectiveVisualId(),
+				vehicle.definition().type(),
+				vehicle.definition().lengthMeters(),
+				position.x(), position.y(), position.z(),
+				position.yawDegrees(), position.pitchDegrees(),
+				vehicle.speedKph()
+			));
+			final TrafficRouteSegment segment = vehicle.currentSegment().orElse(null);
+			if (segment == null) {
+				continue;
+			}
+			final String reverseConnectorId = railId(segment.endX(), segment.endY(), segment.endZ(), segment.startX(), segment.startY(), segment.startZ());
+			final IndexedTrafficVehicle indexedVehicle = new IndexedTrafficVehicle(segment, reverseConnectorId, vehicle.distanceOnSegmentMeters(), vehicle.definition().lengthMeters());
+			mutableIndex.computeIfAbsent(segment.connectorId(), ignored -> new ArrayList<>()).add(indexedVehicle);
+			if (!reverseConnectorId.equals(segment.connectorId())) {
+				mutableIndex.computeIfAbsent(reverseConnectorId, ignored -> new ArrayList<>()).add(indexedVehicle);
+			}
+		}
+		final Map<String, List<IndexedTrafficVehicle>> immutableIndex = new HashMap<>();
+		mutableIndex.forEach((connectorId, vehicles) -> immutableIndex.put(connectorId, List.copyOf(vehicles)));
+		activeTrafficByConnector = Map.copyOf(immutableIndex);
+		activeNetworkVehicleSnapshot = List.copyOf(networkSnapshots);
 	}
 
 	private static double trafficTickDurationSeconds(long nowMillis) {
@@ -511,7 +803,7 @@ public final class TrafficManager {
 			thread.setDaemon(true);
 			return thread;
 		});
-		simulationExecutor.scheduleAtFixedRate(() -> {
+		simulationExecutor.scheduleWithFixedDelay(() -> {
 			try {
 				simulationTick();
 			} catch (Exception e) {
@@ -538,6 +830,37 @@ public final class TrafficManager {
 		}
 	}
 
+	private static synchronized ExecutorService graphBuildExecutor() {
+		if (!graphBuildAcceptingTasks) {
+			throw new RejectedExecutionException("MTR rail graph builder is stopped");
+		}
+		if (graphBuildExecutor == null || graphBuildExecutor.isShutdown() || graphBuildExecutor.isTerminated()) {
+			graphBuildExecutor = Executors.newSingleThreadExecutor(runnable -> {
+				final Thread thread = new Thread(runnable, "MTR Traffic Addon Rail Graph Builder");
+				thread.setDaemon(true);
+				return thread;
+			});
+		}
+		return graphBuildExecutor;
+	}
+
+	private static synchronized void startGraphBuildExecutor() {
+		graphBuildGeneration++;
+		graphBuildAcceptingTasks = true;
+		graphBuildExecutor();
+	}
+
+	private static synchronized void stopGraphBuildExecutor() {
+		graphBuildAcceptingTasks = false;
+		graphBuildGeneration++;
+		final ExecutorService executor = graphBuildExecutor;
+		graphBuildExecutor = null;
+		if (executor != null) {
+			executor.shutdownNow();
+		}
+		pendingFullGraphRefresh = null;
+	}
+
 	private static void updatePlayerSnapshots(MinecraftServer server) {
 		final List<SimulationPlayerSnapshot> snapshots = server.getPlayerList().getPlayers().stream()
 			.map(player -> new SimulationPlayerSnapshot(
@@ -548,31 +871,34 @@ public final class TrafficManager {
 			))
 			.toList();
 
-		synchronized (SIMULATION_LOCK) {
-			playerSnapshots = snapshots;
-		}
+		playerSnapshots = snapshots;
 	}
 
 	private static void updateCachedTrafficPoints() {
-		synchronized (SIMULATION_LOCK) {
-			if (latestGraphDimensionId == null) {
-				cachedEnabledSpawns = List.of();
-				cachedEnabledDespawns = List.of();
-				return;
-			}
+		final String dimensionId = latestGraphDimensionId;
+		if (dimensionId == null) {
+			materializationSnapshot = new MaterializationSnapshot(latestGraph, null, List.of(), List.of());
+			pendingRouteCacheSignature = "";
+			return;
+		}
 
-			cachedEnabledSpawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.SPAWN).stream()
-				.filter(TrafficPointDefinition::isEnabled)
-				.toList();
-			cachedEnabledDespawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.DESPAWN).stream()
-				.filter(TrafficPointDefinition::isEnabled)
-				.toList();
-			final String updatedSignature = routeCacheSignature(cachedEnabledSpawns, cachedEnabledDespawns);
-			if (!updatedSignature.equals(routeCacheSignature)) {
-				routeCacheSignature = updatedSignature;
-				ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
-				SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
-			}
+		final List<TrafficPointDefinition> spawns = TrafficSavedPointRegistry.getByTypeAndDimension(dimensionId, TrafficPointType.SPAWN).stream()
+			.filter(TrafficPointDefinition::isEnabled)
+			.toList();
+		final List<TrafficPointDefinition> despawns = TrafficSavedPointRegistry.getByTypeAndDimension(dimensionId, TrafficPointType.DESPAWN).stream()
+			.filter(TrafficPointDefinition::isEnabled)
+			.toList();
+		materializationSnapshot = new MaterializationSnapshot(latestGraph, dimensionId, spawns, despawns);
+		pendingRouteCacheSignature = routeCacheSignature(spawns, despawns, routeCacheGraphVersion);
+	}
+
+	private static void refreshRouteCacheIfNeeded() {
+		final String updatedSignature = pendingRouteCacheSignature;
+		if (!updatedSignature.equals(routeCacheSignature)) {
+			routeCacheSignature = updatedSignature;
+			ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
+			VIRTUAL_ROUTE_TIMINGS.clear();
+			SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
 		}
 	}
 
@@ -604,6 +930,7 @@ public final class TrafficManager {
 				latestGraphDimensionId = requestedDimensionId;
 				latestGraph = refreshedGraph.orElse(latestGraph);
 				if (refreshedGraph.isPresent()) {
+					routeCacheGraphVersion++;
 					MTRTrafficAddon.LOGGER.debug("MTR traffic graph refreshed for {} near {}: {} nodes, {} edges", latestGraphDimensionId, requestedPosition, refreshedGraph.get().adjacency().size(), refreshedGraph.get().edges().size());
 				} else {
 					logSpawnDiagnostic("MTR graph refresh returned no rails near {} in dimension {}; keeping previous graph: {}", requestedPosition, latestGraphDimensionId, latestGraph == null ? "none" : latestGraph.edges().size() + " edges");
@@ -620,15 +947,14 @@ public final class TrafficManager {
 						MTRTrafficAddon.LOGGER.info("Refreshed {} traffic connector route(s)", repaired);
 					}
 					TrafficIntersectionRegistry.refreshNodes(latestGraphDimensionId, latestGraph);
-					cachedEnabledSpawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.SPAWN).stream()
+					final List<TrafficPointDefinition> enabledSpawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.SPAWN).stream()
 						.filter(TrafficPointDefinition::isEnabled)
 						.toList();
-					cachedEnabledDespawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.DESPAWN).stream()
+					final List<TrafficPointDefinition> enabledDespawns = TrafficSavedPointRegistry.getByTypeAndDimension(latestGraphDimensionId, TrafficPointType.DESPAWN).stream()
 						.filter(TrafficPointDefinition::isEnabled)
 						.toList();
-					routeCacheSignature = routeCacheSignature(cachedEnabledSpawns, cachedEnabledDespawns);
-					ROUTE_CANDIDATES_BY_SPAWN_ID.clear();
-					SKIPPED_VIRTUAL_VEHICLE_IDS.clear();
+					materializationSnapshot = new MaterializationSnapshot(latestGraph, latestGraphDimensionId, enabledSpawns, enabledDespawns);
+					pendingRouteCacheSignature = routeCacheSignature(enabledSpawns, enabledDespawns, routeCacheGraphVersion);
 				}
 			}
 		});
@@ -664,7 +990,13 @@ public final class TrafficManager {
 	}
 
 	private static void materializeVirtualTraffic(long nowMillis) {
-		if (latestGraph == null || latestGraph.isEmpty()) {
+		if (nowMillis - lastMaterializationScanWallMillis < MATERIALIZATION_SCAN_INTERVAL_MILLIS) {
+			return;
+		}
+		lastMaterializationScanWallMillis = nowMillis;
+		final MaterializationSnapshot materialization = materializationSnapshot;
+		final MtrGraph graph = materialization.graph();
+		if (graph == null || graph.isEmpty()) {
 			return;
 		}
 		final Optional<TrafficVehicleDefinition> anyDefinition = TrafficVehicleDefinitionRegistry.getAnyDefinition();
@@ -673,17 +1005,12 @@ public final class TrafficManager {
 			return;
 		}
 
-		List<TrafficPointDefinition> spawns;
-		List<TrafficPointDefinition> despawns;
-		String dimensionId;
-		synchronized (SIMULATION_LOCK) {
-			if (cachedEnabledSpawns.isEmpty() || cachedEnabledDespawns.isEmpty()) {
-				logSpawnDiagnostic("Virtual traffic skipped: enabled spawns={}, enabled despawns={} in dimension {}.", cachedEnabledSpawns.size(), cachedEnabledDespawns.size(), latestGraphDimensionId);
-				return;
-			}
-			spawns = new ArrayList<>(cachedEnabledSpawns);
-			despawns = new ArrayList<>(cachedEnabledDespawns);
-			dimensionId = latestGraphDimensionId;
+		final List<TrafficPointDefinition> spawns = materialization.enabledSpawns();
+		final List<TrafficPointDefinition> despawns = materialization.enabledDespawns();
+		final String dimensionId = materialization.dimensionId();
+		if (spawns.isEmpty() || despawns.isEmpty()) {
+			logSpawnDiagnostic("Virtual traffic skipped: enabled spawns={}, enabled despawns={} in dimension {}.", spawns.size(), despawns.size(), dimensionId);
+			return;
 		}
 
 		final Set<UUID> activeIds = new HashSet<>();
@@ -703,7 +1030,7 @@ public final class TrafficManager {
 				continue;
 			}
 
-			final List<VirtualRouteCandidate> routeCandidates = ROUTE_CANDIDATES_BY_SPAWN_ID.computeIfAbsent(spawn.id(), ignored -> buildVirtualRouteCandidates(latestGraph, spawn));
+			final List<VirtualRouteCandidate> routeCandidates = ROUTE_CANDIDATES_BY_SPAWN_ID.computeIfAbsent(spawn.id(), ignored -> buildVirtualRouteCandidates(graph, spawn, despawns));
 			if (routeCandidates.isEmpty()) {
 				continue;
 			}
@@ -714,7 +1041,7 @@ public final class TrafficManager {
 			for (long departureIndex = latestDepartureIndex; departureIndex > latestDepartureIndex - virtualVehicleCount; departureIndex--) {
 				final VirtualRouteCandidate candidate = routeCandidates.get(Math.floorMod(departureIndex, routeCandidates.size()));
 				final TrafficVehicleDefinition definition = withSpawnVehiclePoolOverride(anyDefinition.get(), spawn, departureIndex);
-				final VirtualVehicleSample sample = sampleVirtualVehicle(candidate.route(), definition, nowMillis - departureIndex * intervalMillis);
+				final VirtualVehicleSample sample = sampleVirtualVehicle(candidate, definition, nowMillis - departureIndex * intervalMillis);
 				if (sample == null || !isPositionInMaterializationRange(dimensionId, sample.position().x(), sample.position().z())) {
 					continue;
 				}
@@ -746,22 +1073,38 @@ public final class TrafficManager {
 	private static int virtualDepartureScanCount(List<VirtualRouteCandidate> routeCandidates, TrafficVehicleDefinition definition, long intervalMillis) {
 		long maxRouteDurationMillis = 0L;
 		for (VirtualRouteCandidate candidate : routeCandidates) {
-			maxRouteDurationMillis = Math.max(maxRouteDurationMillis, routeTravelDurationMillis(candidate.route(), definition));
+			maxRouteDurationMillis = Math.max(maxRouteDurationMillis, virtualRouteTiming(candidate, definition).totalDurationMillis());
 		}
 		final long routeDepartureCount = Math.max(1L, Math.floorDiv(maxRouteDurationMillis + intervalMillis - 1L, intervalMillis) + 1L);
 		return (int) Math.min(MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN, routeDepartureCount);
 	}
 
-	private static long routeTravelDurationMillis(TrafficRoute route, TrafficVehicleDefinition definition) {
-		double durationSeconds = 0.0D;
-		for (TrafficRouteSegment segment : route.segments()) {
-			final double speedKph = Math.max(1.0D, Math.min(definition.maxSpeedKph(), segment.speedLimitKph()));
-			durationSeconds += Math.max(0.0D, segment.lengthMeters()) / (speedKph / 3.6D);
+	private static VirtualRouteTiming virtualRouteTiming(VirtualRouteCandidate candidate, TrafficVehicleDefinition definition) {
+		final double maxSpeedKph = Double.isFinite(definition.maxSpeedKph()) ? Math.max(1.0D, definition.maxSpeedKph()) : 1.0D;
+		final long maxSpeedBits = Double.doubleToLongBits(maxSpeedKph);
+		final CachedVirtualRouteTiming cachedTiming = VIRTUAL_ROUTE_TIMINGS.get(candidate);
+		if (cachedTiming != null && cachedTiming.maxSpeedBits() == maxSpeedBits) {
+			return cachedTiming.timing();
 		}
-		if (!Double.isFinite(durationSeconds) || durationSeconds <= 0.0D) {
-			return 0L;
+
+		final List<TrafficRouteSegment> segments = candidate.route().segments();
+		final double[] cumulativeEndSeconds = new double[segments.size()];
+		final double[] speedLimitsKph = new double[segments.size()];
+		double totalDurationSeconds = 0.0D;
+		for (int i = 0; i < segments.size(); i++) {
+			final TrafficRouteSegment segment = segments.get(i);
+			final double segmentSpeedLimitKph = Double.isFinite(segment.speedLimitKph()) ? segment.speedLimitKph() : maxSpeedKph;
+			final double speedKph = Math.max(1.0D, Math.min(maxSpeedKph, segmentSpeedLimitKph));
+			speedLimitsKph[i] = speedKph;
+			totalDurationSeconds += Math.max(0.0D, segment.lengthMeters()) / (speedKph / 3.6D);
+			cumulativeEndSeconds[i] = totalDurationSeconds;
 		}
-		return Math.min(Long.MAX_VALUE / 2L, (long) Math.ceil(durationSeconds * 1000.0D));
+		final long totalDurationMillis = !Double.isFinite(totalDurationSeconds) || totalDurationSeconds <= 0.0D
+			? 0L
+			: Math.min(Long.MAX_VALUE / 2L, (long) Math.ceil(totalDurationSeconds * 1000.0D));
+		final VirtualRouteTiming timing = new VirtualRouteTiming(cumulativeEndSeconds, speedLimitsKph, totalDurationMillis);
+		VIRTUAL_ROUTE_TIMINGS.put(candidate, new CachedVirtualRouteTiming(maxSpeedBits, timing));
+		return timing;
 	}
 
 	private static boolean hasMaterializationClearance(TrafficRoute route, TrafficVehicleDefinition definition, VirtualVehicleSample sample, List<TrafficVehicle> vehiclesToCheck) {
@@ -846,19 +1189,11 @@ public final class TrafficManager {
 	}
 
 	private static boolean isMtrSegmentRangeOccupied(TrafficRouteSegment candidateSegment, double startDistanceMeters, double endDistanceMeters) {
-		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-			if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
-				continue;
-			}
-
-			final double occupiedDistanceMeters;
-			if (candidateSegment.connectorId().equals(occupancy.connectorId())) {
-				occupiedDistanceMeters = occupancy.distanceOnSegmentMeters();
-			} else if (candidateSegment.connectorId().equals(occupancy.reverseConnectorId())) {
-				occupiedDistanceMeters = Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
-			} else {
-				continue;
-			}
+		for (DirectedMtrOccupancy directedOccupancy : mtrOccupancyByConnector.getOrDefault(candidateSegment.connectorId(), List.of())) {
+			final MtrVehicleOccupancy occupancy = directedOccupancy.occupancy();
+			final double occupiedDistanceMeters = directedOccupancy.sameDirection()
+				? occupancy.distanceOnSegmentMeters()
+				: Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
 
 			final double clearance = Math.max(0.0D, occupancy.lengthMeters()) * 0.5D + MATERIALIZATION_CLEARANCE_BUFFER_METERS;
 			if (occupiedDistanceMeters >= startDistanceMeters - clearance && occupiedDistanceMeters <= endDistanceMeters + clearance) {
@@ -919,19 +1254,11 @@ public final class TrafficManager {
 	}
 
 	private static boolean isMtrSegmentOccupiedAt(TrafficRouteSegment candidateSegment, double candidateDistanceMeters, double candidateHalfLengthMeters) {
-		for (MtrVehicleOccupancy occupancy : MTR_VEHICLE_OCCUPANCY.values()) {
-			if (currentSignalTick() - occupancy.lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS) {
-				continue;
-			}
-
-			final double occupiedDistanceMeters;
-			if (candidateSegment.connectorId().equals(occupancy.connectorId())) {
-				occupiedDistanceMeters = occupancy.distanceOnSegmentMeters();
-			} else if (candidateSegment.connectorId().equals(occupancy.reverseConnectorId())) {
-				occupiedDistanceMeters = Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
-			} else {
-				continue;
-			}
+		for (DirectedMtrOccupancy directedOccupancy : mtrOccupancyByConnector.getOrDefault(candidateSegment.connectorId(), List.of())) {
+			final MtrVehicleOccupancy occupancy = directedOccupancy.occupancy();
+			final double occupiedDistanceMeters = directedOccupancy.sameDirection()
+				? occupancy.distanceOnSegmentMeters()
+				: Math.max(0.0D, occupancy.segmentLengthMeters() - occupancy.distanceOnSegmentMeters());
 
 			final double requiredClearance = candidateHalfLengthMeters
 				+ Math.max(0.0D, occupancy.lengthMeters()) * 0.5D
@@ -980,14 +1307,14 @@ public final class TrafficManager {
 		return Double.compare(firstX, secondX) == 0 && Double.compare(firstY, secondY) == 0 && Double.compare(firstZ, secondZ) == 0;
 	}
 
-	private static List<VirtualRouteCandidate> buildVirtualRouteCandidates(MtrGraph graph, TrafficPointDefinition spawn) {
+	private static List<VirtualRouteCandidate> buildVirtualRouteCandidates(MtrGraph graph, TrafficPointDefinition spawn, List<TrafficPointDefinition> enabledDespawns) {
 		if (!spawn.hasConnectorRoute()) {
 			logSpawnDiagnostic("Virtual spawn {} skipped: connector route metadata is missing.", pointSummary(spawn));
 			return List.of();
 		}
 
 		final List<VirtualRouteCandidate> candidates = new ArrayList<>();
-		for (TrafficPointDefinition despawn : cachedEnabledDespawns) {
+		for (TrafficPointDefinition despawn : enabledDespawns) {
 			if (despawn.id().equals(spawn.id()) || !despawn.hasConnectorRoute()) {
 				continue;
 			}
@@ -997,7 +1324,7 @@ public final class TrafficManager {
 		}
 
 		if (candidates.isEmpty()) {
-			logSpawnDiagnostic("Virtual spawn {} skipped: no graph route found to {} compatible despawn(s).", pointSummary(spawn), cachedEnabledDespawns.size());
+			logSpawnDiagnostic("Virtual spawn {} skipped: no graph route found to {} compatible despawn(s).", pointSummary(spawn), enabledDespawns.size());
 		}
 		return List.copyOf(candidates);
 	}
@@ -1136,53 +1463,63 @@ public final class TrafficManager {
 			return false;
 		}
 
-		synchronized (SIMULATION_LOCK) {
-			for (SimulationPlayerSnapshot player : playerSnapshots) {
-				if (!definition.dimensionId().equals(player.dimensionId())) {
-					continue;
-				}
+		for (SimulationPlayerSnapshot player : playerSnapshots) {
+			if (!definition.dimensionId().equals(player.dimensionId())) {
+				continue;
+			}
 
-				final double maxDistanceBlocks = TrafficAddonConfig.trafficVehicleSimulationDistanceBlocks(player.viewDistanceChunks());
-				final double dx = distanceToRange(player.x(), definition.minX(), definition.maxX());
-				final double dz = distanceToRange(player.z(), definition.minZ(), definition.maxZ());
-				if (dx * dx + dz * dz <= maxDistanceBlocks * maxDistanceBlocks) {
-					return true;
-				}
+			final double maxDistanceBlocks = TrafficAddonConfig.trafficVehicleSimulationDistanceBlocks(player.viewDistanceChunks());
+			final double dx = distanceToRange(player.x(), definition.minX(), definition.maxX());
+			final double dz = distanceToRange(player.z(), definition.minZ(), definition.maxZ());
+			if (dx * dx + dz * dz <= maxDistanceBlocks * maxDistanceBlocks) {
+				return true;
 			}
 		}
 		return false;
 	}
 
-	private static VirtualVehicleSample sampleVirtualVehicle(TrafficRoute route, TrafficVehicleDefinition definition, long elapsedMillis) {
+	private static VirtualVehicleSample sampleVirtualVehicle(VirtualRouteCandidate candidate, TrafficVehicleDefinition definition, long elapsedMillis) {
+		final TrafficRoute route = candidate.route();
 		if (elapsedMillis < 0L || route.segments().isEmpty()) {
 			return null;
 		}
 
-		double remainingSeconds = elapsedMillis / 1000.0D;
+		final double elapsedSeconds = elapsedMillis / 1000.0D;
 		final List<TrafficRouteSegment> segments = route.segments();
-		for (int segmentIndex = 0; segmentIndex < segments.size(); segmentIndex++) {
-			final TrafficRouteSegment segment = segments.get(segmentIndex);
-			final double speedKph = Math.max(1.0D, Math.min(definition.maxSpeedKph(), segment.speedLimitKph()));
-			final double speedMetersPerSecond = speedKph / 3.6D;
-			final double segmentDurationSeconds = Math.max(0.0D, segment.lengthMeters()) / speedMetersPerSecond;
-			if (remainingSeconds <= segmentDurationSeconds) {
-				if (isProtectedConnectorMaterializationSegment(segment)) {
-					return null;
-				}
-				double distanceOnSegmentMeters = Math.min(segment.lengthMeters(), Math.max(0.0D, remainingSeconds * speedMetersPerSecond));
-				if (segmentIndex == 0 && segment.spawnConnector()) {
-					distanceOnSegmentMeters = Math.max(distanceOnSegmentMeters, Math.min(segment.lengthMeters(), SPAWN_TRACK_MATERIALIZATION_OFFSET_METERS));
-				}
-				return new VirtualVehicleSample(
-					segmentIndex,
-					distanceOnSegmentMeters,
-					speedKph,
-					sampleRoutePosition(segment, distanceOnSegmentMeters)
-				);
-			}
-			remainingSeconds -= segmentDurationSeconds;
+		final VirtualRouteTiming timing = virtualRouteTiming(candidate, definition);
+		final double[] cumulativeEndSeconds = timing.cumulativeEndSeconds();
+		if (cumulativeEndSeconds.length == 0 || elapsedSeconds > cumulativeEndSeconds[cumulativeEndSeconds.length - 1]) {
+			return null;
 		}
-		return null;
+
+		int low = 0;
+		int high = cumulativeEndSeconds.length - 1;
+		while (low < high) {
+			final int middle = (low + high) >>> 1;
+			if (elapsedSeconds <= cumulativeEndSeconds[middle]) {
+				high = middle;
+			} else {
+				low = middle + 1;
+			}
+		}
+		final int segmentIndex = low;
+		final TrafficRouteSegment segment = segments.get(segmentIndex);
+		if (isProtectedConnectorMaterializationSegment(segment)) {
+			return null;
+		}
+		final double segmentStartSeconds = segmentIndex == 0 ? 0.0D : cumulativeEndSeconds[segmentIndex - 1];
+		final double speedKph = timing.speedLimitsKph()[segmentIndex];
+		final double speedMetersPerSecond = speedKph / 3.6D;
+		double distanceOnSegmentMeters = Math.min(segment.lengthMeters(), Math.max(0.0D, (elapsedSeconds - segmentStartSeconds) * speedMetersPerSecond));
+		if (segmentIndex == 0 && segment.spawnConnector()) {
+			distanceOnSegmentMeters = Math.max(distanceOnSegmentMeters, Math.min(segment.lengthMeters(), SPAWN_TRACK_MATERIALIZATION_OFFSET_METERS));
+		}
+		return new VirtualVehicleSample(
+			segmentIndex,
+			distanceOnSegmentMeters,
+			speedKph,
+			sampleRoutePosition(segment, distanceOnSegmentMeters)
+		);
 	}
 
 	private static boolean isProtectedConnectorMaterializationSegment(TrafficRouteSegment segment) {
@@ -1191,34 +1528,26 @@ public final class TrafficManager {
 
 	private static TrafficVehiclePosition sampleRoutePosition(TrafficRouteSegment segment, double distanceMeters) {
 		final List<com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint> path = segment.path();
-		double remaining = Math.max(0.0D, distanceMeters);
-		for (int i = 1; i < path.size(); i++) {
-			final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint previous = path.get(i - 1);
-			final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint next = path.get(i);
-			final double length = distance(previous.x(), previous.y(), previous.z(), next.x(), next.y(), next.z());
-			if (remaining <= length || i == path.size() - 1) {
-				final double progress = length <= 0.0D ? 0.0D : Math.min(1.0D, remaining / length);
-				final double x = lerp(previous.x(), next.x(), progress);
-				final double y = lerp(previous.y(), next.y(), progress);
-				final double z = lerp(previous.z(), next.z(), progress);
-				final Orientation orientation = orientation(
-					next.x() - previous.x(),
-					next.y() - previous.y(),
-					next.z() - previous.z()
-				);
-				return new TrafficVehiclePosition(x, y, z, orientation.yawDegrees(), orientation.pitchDegrees());
-			}
-			remaining -= length;
-		}
-
-		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint previous = path.get(path.size() - 2);
-		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint last = path.get(path.size() - 1);
+		final double normalizedDistance = segment.lengthMeters() <= 0.0D
+			? 0.0D
+			: Math.min(1.0D, Math.max(0.0D, distanceMeters / segment.lengthMeters()));
+		final double scaledIndex = normalizedDistance * (path.size() - 1.0D);
+		final int previousIndex = Math.min(path.size() - 2, (int) Math.floor(scaledIndex));
+		final double progress = Math.min(1.0D, Math.max(0.0D, scaledIndex - previousIndex));
+		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint previous = path.get(previousIndex);
+		final com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint next = path.get(previousIndex + 1);
 		final Orientation orientation = orientation(
-			last.x() - previous.x(),
-			last.y() - previous.y(),
-			last.z() - previous.z()
+			next.x() - previous.x(),
+			next.y() - previous.y(),
+			next.z() - previous.z()
 		);
-		return new TrafficVehiclePosition(last.x(), last.y(), last.z(), orientation.yawDegrees(), orientation.pitchDegrees());
+		return new TrafficVehiclePosition(
+			lerp(previous.x(), next.x(), progress),
+			lerp(previous.y(), next.y(), progress),
+			lerp(previous.z(), next.z(), progress),
+			orientation.yawDegrees(),
+			orientation.pitchDegrees()
+		);
 	}
 
 	private static Orientation orientation(double dx, double dy, double dz) {
@@ -1232,8 +1561,9 @@ public final class TrafficManager {
 		return UUID.nameUUIDFromBytes((spawnPointId + "|" + departureIndex).getBytes(StandardCharsets.UTF_8));
 	}
 
-	private static String routeCacheSignature(List<TrafficPointDefinition> spawns, List<TrafficPointDefinition> despawns) {
+	private static String routeCacheSignature(List<TrafficPointDefinition> spawns, List<TrafficPointDefinition> despawns, long graphVersion) {
 		final StringBuilder builder = new StringBuilder();
+		builder.append("graph=").append(graphVersion).append('|');
 		appendPointSignature(builder, spawns);
 		builder.append("||");
 		appendPointSignature(builder, despawns);
@@ -1255,13 +1585,6 @@ public final class TrafficManager {
 
 	private static double lerp(double start, double end, double progress) {
 		return start + (end - start) * progress;
-	}
-
-	private static double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
-		final double dx = x1 - x2;
-		final double dy = y1 - y2;
-		final double dz = z1 - z2;
-		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
 	private static double distanceToRange(double value, double min, double max) {
@@ -1378,16 +1701,15 @@ public final class TrafficManager {
 		return Math.max(0.0D, obstacleDistance - railProgress - Math.max(0, stoppingSpace));
 	}
 
-	private static RailDirectionMatch matchRouteRail(PathData pathData, TrafficRouteSegment segment) {
-		final String pathForwardId = pathData.getHexId(false);
-		final String pathReverseId = pathData.getHexId(true);
+	private static RailDirectionMatch matchRouteRail(String pathForwardId, String pathReverseId, IndexedTrafficVehicle indexedVehicle) {
+		final TrafficRouteSegment segment = indexedVehicle.segment();
 		if (segment.connectorId().equals(pathForwardId)) {
 			return new RailDirectionMatch(true);
 		}
 		if (segment.connectorId().equals(pathReverseId)) {
 			return new RailDirectionMatch(false);
 		}
-		final String segmentReverseId = railId(segment.endX(), segment.endY(), segment.endZ(), segment.startX(), segment.startY(), segment.startZ());
+		final String segmentReverseId = indexedVehicle.reverseConnectorId();
 		if (segmentReverseId.equals(pathForwardId)) {
 			return new RailDirectionMatch(false);
 		}
@@ -1409,11 +1731,9 @@ public final class TrafficManager {
 			return false;
 		}
 
+		final MtrGraph graph = latestGraph;
 		final String routeRailId = pathData.getHexId(false);
-		for (MtrGraphEdge edge : latestGraph.edges()) {
-			if (!edge.railId().equals(routeRailId)) {
-				continue;
-			}
+		for (MtrGraphEdge edge : graph.edgesByRailId().getOrDefault(routeRailId, List.of())) {
 			return TrafficIntersectionRegistry.isRedMtrEntry(
 				latestGraphDimensionId,
 				edge.from().x(),
@@ -1455,6 +1775,10 @@ public final class TrafficManager {
 		return currentSignalTick();
 	}
 
+	public static boolean isMtrObservationFresh(long observationTick, long currentTick) {
+		return currentTick - observationTick <= MTR_VEHICLE_OCCUPANCY_STALE_TICKS;
+	}
+
 	public static boolean trafficTicksAreFreshForMtr() {
 		final long lastTickMillis = lastTrafficTickWallMillis;
 		return lastTickMillis > 0L && System.currentTimeMillis() - lastTickMillis <= MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS;
@@ -1471,6 +1795,9 @@ public final class TrafficManager {
 		double lengthMeters,
 		double speedKph,
 		long lastTick,
+		double currentX,
+		double currentY,
+		double currentZ,
 		List<MtrSignalPathSegment> pathSegments
 	) {
 		public MtrSignalVehicle {
@@ -1502,6 +1829,9 @@ public final class TrafficManager {
 		double lengthMeters,
 		double speedKph,
 		long lastTick,
+		double currentX,
+		double currentY,
+		double currentZ,
 		List<MtrSignalPathSegment> signalPathSegments
 	) {
 		private MtrVehicleOccupancy {
@@ -1512,11 +1842,41 @@ public final class TrafficManager {
 	private record RailDirectionMatch(boolean sameDirection) {
 	}
 
+	private record MtrVehiclePathState(List<PathData> path, int pathIndex, long geometryBucket, List<MtrSignalPathSegment> signalPathSegments) {
+		private MtrVehiclePathState {
+			signalPathSegments = signalPathSegments == null ? List.of() : List.copyOf(signalPathSegments);
+		}
+	}
+
+	private record MtrSampledPathPoint(double distanceMeters, MtrSignalPathPoint point) {
+	}
+
+	private record CachedMtrPathGeometry(List<MtrSampledPathPoint> points) {
+		private CachedMtrPathGeometry {
+			points = List.copyOf(points);
+		}
+	}
+
+	private record MtrPathGeometryKey(String forwardId, String reverseId, long segmentLengthBits, long windowIndex) {
+	}
+
+	private record DirectedMtrOccupancy(MtrVehicleOccupancy occupancy, boolean sameDirection) {
+	}
+
+	private record IndexedTrafficVehicle(TrafficRouteSegment segment, String reverseConnectorId, double distanceOnSegmentMeters, double lengthMeters) {
+	}
+
 	private record VirtualRouteCandidate(
 		TrafficPointDefinition spawn,
 		TrafficPointDefinition despawn,
 		TrafficRoute route
 	) {
+	}
+
+	private record CachedVirtualRouteTiming(long maxSpeedBits, VirtualRouteTiming timing) {
+	}
+
+	private record VirtualRouteTiming(double[] cumulativeEndSeconds, double[] speedLimitsKph, long totalDurationMillis) {
 	}
 
 	private record VirtualVehicleSample(
@@ -1528,6 +1888,24 @@ public final class TrafficManager {
 	}
 
 	private record Orientation(float yawDegrees, float pitchDegrees) {
+	}
+
+	private record RailGraphSignature(String dimensionId, int railCount, long contentSum, long contentXor) {
+	}
+
+	private record PendingFullGraphRefresh(RailGraphSignature signature, MtrGraph graph) {
+	}
+
+	private record MaterializationSnapshot(
+		MtrGraph graph,
+		String dimensionId,
+		List<TrafficPointDefinition> enabledSpawns,
+		List<TrafficPointDefinition> enabledDespawns
+	) {
+		private MaterializationSnapshot {
+			enabledSpawns = enabledSpawns == null ? List.of() : List.copyOf(enabledSpawns);
+			enabledDespawns = enabledDespawns == null ? List.of() : List.copyOf(enabledDespawns);
+		}
 	}
 
 	private record SimulationPlayerSnapshot(

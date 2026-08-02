@@ -19,6 +19,7 @@ import java.util.Map;
 
 public final class MtrGraphBuilder {
 	private static final double SAMPLE_SPACING_METERS = 1.0D;
+	private static final int MAX_SAMPLES_PER_RAIL = 4097;
 
 	private MtrGraphBuilder() {
 	}
@@ -46,26 +47,43 @@ public final class MtrGraphBuilder {
 	}
 
 	public static MtrGraph buildFromRails(Collection<Rail> rails) {
+		return buildFromRailSnapshots(snapshotRails(rails));
+	}
+
+	public static List<RailSnapshot> snapshotRails(Collection<Rail> rails) {
+		final List<RailSnapshot> snapshots = new ArrayList<>(rails.size());
+		for (Rail rail : rails) {
+			final RailSchemaAccessor accessor = (RailSchemaAccessor) (Object) rail;
+			final Position position1 = accessor.mta$getPosition1();
+			final Position position2 = accessor.mta$getPosition2();
+			final List<Long> signalColors = new ArrayList<>();
+			accessor.mta$getSignalColors().forEach((long signalColor) -> signalColors.add(signalColor));
+			snapshots.add(new RailSnapshot(
+				position1.getX(), position1.getY(), position1.getZ(), accessor.mta$getAngle1(),
+				position2.getX(), position2.getY(), position2.getZ(), accessor.mta$getAngle2(),
+				accessor.mta$getShape(), accessor.mta$getVerticalRadius(),
+				accessor.mta$getSpeedLimit1(), accessor.mta$getSpeedLimit2(), signalColors
+			));
+		}
+		return List.copyOf(snapshots);
+	}
+
+	public static MtrGraph buildFromRailSnapshots(Collection<RailSnapshot> rails) {
 		final Map<MtrNodeKey, List<MtrGraphEdge>> adjacency = new LinkedHashMap<>();
 		final List<MtrGraphEdge> edges = new ArrayList<>();
 
-		for (Rail rail : rails) {
-			final RailSchemaAccessor accessor = (RailSchemaAccessor) (Object) rail;
-			final Position rawPosition1 = accessor.mta$getPosition1();
-			final Position rawPosition2 = accessor.mta$getPosition2();
-			final MtrNodeKey position1 = new MtrNodeKey(rawPosition1.getX(), rawPosition1.getY(), rawPosition1.getZ());
-			final MtrNodeKey position2 = new MtrNodeKey(rawPosition2.getX(), rawPosition2.getY(), rawPosition2.getZ());
-			final RailPath railPath = createRailPath(accessor);
-			final List<Long> signalColors = new ArrayList<>();
-			accessor.mta$getSignalColors().forEach((long signalColor) -> signalColors.add(signalColor));
+		for (RailSnapshot rail : rails) {
+			final MtrNodeKey position1 = new MtrNodeKey(rail.x1(), rail.y1(), rail.z1());
+			final MtrNodeKey position2 = new MtrNodeKey(rail.x2(), rail.y2(), rail.z2());
+			final RailPath railPath = createRailPath(rail);
 
-			if (accessor.mta$getSpeedLimit1() > 0) {
-				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), accessor.mta$getSpeedLimit1(), signalColors, railPath.points());
+			if (rail.speedLimit1() > 0) {
+				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), rail.signalColors(), railPath.points());
 			}
-			if (accessor.mta$getSpeedLimit2() > 0) {
+			if (rail.speedLimit2() > 0) {
 				final List<TrafficPathPoint> reversedPath = new ArrayList<>(railPath.points());
 				java.util.Collections.reverse(reversedPath);
-				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), accessor.mta$getSpeedLimit2(), signalColors, reversedPath);
+				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), rail.signalColors(), reversedPath);
 			}
 		}
 
@@ -104,8 +122,8 @@ public final class MtrGraphBuilder {
 				Rail.Shape.valueOf(rail.shape()),
 				rail.verticalRadius()
 			);
-			final double length = Math.max(railMath.getLength(), measureDistance(rail.position1(), rail.position2()));
-			final int samples = Math.max(2, (int) Math.ceil(length / SAMPLE_SPACING_METERS) + 1);
+			final double length = effectiveLength(railMath.getLength(), measureDistance(rail.position1(), rail.position2()));
+			final int samples = sampleCount(length);
 			final List<TrafficPathPoint> points = new ArrayList<>(samples);
 			for (int i = 0; i < samples; i++) {
 				final double distance = length * i / (samples - 1.0D);
@@ -124,20 +142,20 @@ public final class MtrGraphBuilder {
 		}
 	}
 
-	private static RailPath createRailPath(RailSchemaAccessor accessor) {
-		final Position position1 = accessor.mta$getPosition1();
-		final Position position2 = accessor.mta$getPosition2();
+	private static RailPath createRailPath(RailSnapshot rail) {
+		final Position position1 = new Position(rail.x1(), rail.y1(), rail.z1());
+		final Position position2 = new Position(rail.x2(), rail.y2(), rail.z2());
 		try {
 			final RailMath railMath = new RailMath(
 				position1,
-				accessor.mta$getAngle1(),
+				rail.angle1(),
 				position2,
-				accessor.mta$getAngle2(),
-				accessor.mta$getShape(),
-				accessor.mta$getVerticalRadius()
+				rail.angle2(),
+				rail.shape(),
+				rail.verticalRadius()
 			);
-			final double length = Math.max(railMath.getLength(), measureDistance(position1, position2));
-			final int samples = Math.max(2, (int) Math.ceil(length / SAMPLE_SPACING_METERS) + 1);
+			final double length = effectiveLength(railMath.getLength(), measureDistance(position1, position2));
+			final int samples = sampleCount(length);
 			final List<TrafficPathPoint> points = new ArrayList<>(samples);
 			for (int i = 0; i < samples; i++) {
 				final double distance = length * i / (samples - 1.0D);
@@ -163,6 +181,18 @@ public final class MtrGraphBuilder {
 		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
+	private static double effectiveLength(double railMathLength, double directDistance) {
+		final double finiteDirectDistance = Double.isFinite(directDistance) && directDistance >= 0.0D ? directDistance : 0.0D;
+		return Double.isFinite(railMathLength) && railMathLength >= 0.0D
+			? Math.max(railMathLength, finiteDirectDistance)
+			: finiteDirectDistance;
+	}
+
+	private static int sampleCount(double length) {
+		final double requestedSamples = Math.ceil(length / SAMPLE_SPACING_METERS) + 1.0D;
+		return (int) Math.max(2.0D, Math.min(MAX_SAMPLES_PER_RAIL, requestedSamples));
+	}
+
 	private static String createRailId(MtrNodeKey from, MtrNodeKey to) {
 		return TwoPositionsBase.getHexIdRaw(
 			new Position(from.x(), from.y(), from.z()),
@@ -171,5 +201,25 @@ public final class MtrGraphBuilder {
 	}
 
 	private record RailPath(double lengthMeters, List<TrafficPathPoint> points) {
+	}
+
+	public record RailSnapshot(
+		long x1,
+		long y1,
+		long z1,
+		Angle angle1,
+		long x2,
+		long y2,
+		long z2,
+		Angle angle2,
+		Rail.Shape shape,
+		double verticalRadius,
+		long speedLimit1,
+		long speedLimit2,
+		List<Long> signalColors
+	) {
+		public RailSnapshot {
+			signalColors = signalColors == null ? List.of() : List.copyOf(signalColors);
+		}
 	}
 }
