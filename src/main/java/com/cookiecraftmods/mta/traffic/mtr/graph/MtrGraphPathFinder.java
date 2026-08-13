@@ -12,16 +12,6 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 
 public final class MtrGraphPathFinder {
-	private MtrGraphPathFinder() {
-	}
-
-	public static Optional<TrafficRoute> findRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
-		return findShortestRoute(graph, start, goal).map(MtrGraphRouteResult::route);
-	}
-
-	public static Optional<MtrGraphRouteResult> findWeightedRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal, MtrGraphTrafficSnapshot trafficSnapshot) {
-		return findRoute(graph, start, goal, edge -> trafficSnapshot.edgeCostSeconds(edge));
-	}
 
 	public static Optional<MtrGraphRouteResult> findShortestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
 		return findRoute(graph, start, goal, MtrGraphEdge::lengthMeters);
@@ -62,21 +52,6 @@ public final class MtrGraphPathFinder {
 		}
 
 		return Optional.empty();
-	}
-
-	public static Optional<MtrNodeKey> findNearestNode(MtrGraph graph, MtrNodeKey target, int maxDistance) {
-		MtrNodeKey bestNode = null;
-		double bestDistance = Double.MAX_VALUE;
-
-		for (MtrNodeKey node : graph.adjacency().keySet()) {
-			final double distance = distance(node, target);
-			if (distance <= maxDistance && distance < bestDistance) {
-				bestDistance = distance;
-				bestNode = node;
-			}
-		}
-
-		return Optional.ofNullable(bestNode);
 	}
 
 	public static Optional<MtrGraphEdge> findEdge(MtrGraph graph, MtrNodeKey from, MtrNodeKey to) {

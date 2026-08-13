@@ -46,10 +46,6 @@ public final class MtrGraphBuilder {
 		return new MtrGraph(adjacency, edges);
 	}
 
-	public static MtrGraph buildFromRails(Collection<Rail> rails) {
-		return buildFromRailSnapshots(snapshotRails(rails));
-	}
-
 	public static List<RailSnapshot> snapshotRails(Collection<Rail> rails) {
 		final List<RailSnapshot> snapshots = new ArrayList<>(rails.size());
 		for (Rail rail : rails) {

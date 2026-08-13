@@ -29,9 +29,4 @@ public record MtrGraphEdge(
 		return railId + "|" + from.x() + "," + from.y() + "," + from.z() + "->" + to.x() + "," + to.y() + "," + to.z();
 	}
 
-	public MtrGraphEdge reversed() {
-		final java.util.ArrayList<TrafficPathPoint> reversedPath = new java.util.ArrayList<>(path);
-		Collections.reverse(reversedPath);
-		return new MtrGraphEdge(railId, to, from, lengthMeters, speedLimitKph, signalColors, reversedPath);
-	}
 }
