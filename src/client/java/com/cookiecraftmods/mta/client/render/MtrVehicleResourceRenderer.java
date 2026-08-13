@@ -28,11 +28,9 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	private static final Map<String, VehicleResourceCache> VEHICLE_RESOURCE_CACHES = new ConcurrentHashMap<>();
 	private static final String LEGACY_SEDAN_VISUAL_ID = "mtr_traffic_addon_sedan:sedan";
 	private static final String MTR_SEDAN_VISUAL_ID = "mta_sedan";
-	private boolean frameActive;
 	private boolean frameHasQueuedModels;
 
 	void beginFrame() {
-		frameActive = true;
 		frameHasQueuedModels = false;
 	}
 
@@ -46,7 +44,6 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 				MTRTrafficAddon.LOGGER.warn("Failed to flush batched MTR traffic vehicle models", e);
 			}
 		} finally {
-			frameActive = false;
 			frameHasQueuedModels = false;
 		}
 	}
@@ -78,10 +75,6 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 
 			queue(context.graphicsHolder(), vehicleResourceCache, lightFor(snapshot));
 			frameHasQueuedModels = true;
-			if (!frameActive) {
-				CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.render(false);
-				frameHasQueuedModels = false;
-			}
 		} catch (Exception e) {
 			useFallback = true;
 			if (WARNED_RENDER_FAILURES.add(snapshot.visualId())) {
