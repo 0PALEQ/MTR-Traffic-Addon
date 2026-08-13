@@ -3,9 +3,6 @@ package com.cookiecraftmods.mta.client.render;
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
 import com.mojang.math.Axis;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.core.BlockPos;
 import org.mtr.core.data.TransportMode;
 import org.mtr.mapping.mapper.GraphicsHolder;
 import org.mtr.mod.client.CustomResourceLoader;
@@ -73,7 +70,7 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(-snapshot.pitchDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(180.0F));
 
-			queue(context.graphicsHolder(), vehicleResourceCache, lightFor(snapshot));
+			queue(context.graphicsHolder(), vehicleResourceCache, context.lightAt(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 			frameHasQueuedModels = true;
 		} catch (Exception e) {
 			useFallback = true;
@@ -101,14 +98,6 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		for (OptimizedModelWrapper optimizedModelWrapper : optimizedModelWrappers) {
 			CustomResourceLoader.OPTIMIZED_RENDERER_WRAPPER.queue(optimizedModelWrapper, graphicsHolder, light);
 		}
-	}
-
-	private static int lightFor(ClientTrafficDebugRenderState snapshot) {
-		final Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.level == null) {
-			return GraphicsHolder.getDefaultLight();
-		}
-		return LevelRenderer.getLightColor(minecraft.level, BlockPos.containing(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 	}
 
 	static VehicleResource resolveVehicleResource(String visualId) {

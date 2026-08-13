@@ -8,11 +8,8 @@ import com.cookiecraftmods.mta.client.render.ClientTrafficVisualProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -60,7 +57,7 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 			final int red = color >>> 16 & 0xFF;
 			final int green = color >>> 8 & 0xFF;
 			final int blue = color & 0xFF;
-			final int light = lightFor(snapshot);
+			final int light = context.lightAt(snapshot.x(), snapshot.y() + 0.5D, snapshot.z());
 
 			for (TrafficMeshFace face : model.faces()) {
 				final ResourceLocation texture = face.texture() == null ? model.texture() : face.texture();
@@ -105,14 +102,6 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 			.uv2(light)
 			.normal(normalMatrix, face.normalX(), face.normalY(), face.normalZ())
 			.endVertex();
-	}
-
-	private static int lightFor(ClientTrafficDebugRenderState snapshot) {
-		final Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.level == null) {
-			return 0x00F000F0;
-		}
-		return LevelRenderer.getLightColor(minecraft.level, BlockPos.containing(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 	}
 
 	private static float deterministicPitchOffset(UUID id) {
