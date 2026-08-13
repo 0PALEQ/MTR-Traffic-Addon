@@ -1,5 +1,6 @@
 package com.cookiecraftmods.mta.client.render;
 
+import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.client.debug.ClientTrafficDebugRenderState;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -14,7 +15,6 @@ import org.mtr.mod.resource.VehicleResourceCache;
 
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,7 +24,7 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	private static final int SINGLE_VEHICLE_CAR_COUNT = 1;
 	private static final String BATCH_RENDER_WARNING_KEY = "<batch-render>";
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
-	private static final Map<String, Optional<VehicleResource>> VEHICLE_RESOURCES = new ConcurrentHashMap<>();
+	private static final Map<String, VehicleResource> VEHICLE_RESOURCES = new ConcurrentHashMap<>();
 	private static final Map<String, VehicleResourceCache> VEHICLE_RESOURCE_CACHES = new ConcurrentHashMap<>();
 	private static final String LEGACY_SEDAN_VISUAL_ID = "mtr_traffic_addon_sedan:sedan";
 	private static final String MTR_SEDAN_VISUAL_ID = "mta_sedan";
@@ -43,7 +43,7 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			}
 		} catch (Exception e) {
 			if (WARNED_RENDER_FAILURES.add(BATCH_RENDER_WARNING_KEY)) {
-				com.cookiecraftmods.mta.MTRTrafficAddon.LOGGER.warn("Failed to flush batched MTR traffic vehicle models", e);
+				MTRTrafficAddon.LOGGER.warn("Failed to flush batched MTR traffic vehicle models", e);
 			}
 		} finally {
 			frameActive = false;
@@ -64,11 +64,9 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			return;
 		}
 
-		boolean pushed = false;
 		boolean useFallback = false;
+		context.poseStack().pushPose();
 		try {
-			context.poseStack().pushPose();
-			pushed = true;
 			context.poseStack().translate(
 				snapshot.x() - context.cameraPosition().x,
 				snapshot.y() - context.cameraPosition().y,
@@ -87,12 +85,10 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		} catch (Exception e) {
 			useFallback = true;
 			if (WARNED_RENDER_FAILURES.add(snapshot.visualId())) {
-				com.cookiecraftmods.mta.MTRTrafficAddon.LOGGER.warn("Failed to render MTR traffic vehicle resource {}; using debug fallback", snapshot.visualId(), e);
+				MTRTrafficAddon.LOGGER.warn("Failed to render MTR traffic vehicle resource {}; using debug fallback", snapshot.visualId(), e);
 			}
 		} finally {
-			if (pushed) {
-				context.poseStack().popPose();
-			}
+			context.poseStack().popPose();
 		}
 
 		if (useFallback) {
@@ -130,8 +126,8 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 		return VEHICLE_RESOURCES.computeIfAbsent(resolvedVisualId, id -> {
 			final AtomicReference<VehicleResource> reference = new AtomicReference<>();
 			CustomResourceLoader.getVehicleById(TransportMode.TRAIN, id, pair -> reference.set(pair.left()));
-			return Optional.ofNullable(reference.get());
-		}).orElse(null);
+			return reference.get();
+		});
 	}
 
 	private static VehicleResourceCache resolveVehicleResourceCache(String visualId) {
@@ -149,8 +145,6 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 			return null;
 		}
 
-		// MTR's cache is intentionally assembled over multiple client ticks. A null value here
-		// means "still loading", not "missing", so it must not become a permanent negative cache.
 		final VehicleResourceCache loadedResource = resource.getCachedVehicleResource(0, SINGLE_VEHICLE_CAR_COUNT, false);
 		if (loadedResource == null) {
 			return null;
