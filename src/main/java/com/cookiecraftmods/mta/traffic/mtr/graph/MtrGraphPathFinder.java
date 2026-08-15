@@ -62,21 +62,7 @@ public final class MtrGraphPathFinder {
 				throw new IllegalStateException("Missing route edge for graph node " + current);
 			}
 
-			reversedSegments.add(new TrafficRouteSegment(
-				edge.railId(),
-				edge.lengthMeters(),
-				edge.speedLimitKph(),
-				edge.from().x(),
-				edge.from().y(),
-				edge.from().z(),
-				edge.to().x(),
-				edge.to().y(),
-				edge.to().z(),
-				false,
-				false,
-				edge.signalColors(),
-				edge.path()
-			));
+			reversedSegments.add(edge.toRouteSegment());
 			current = edge.from();
 		}
 

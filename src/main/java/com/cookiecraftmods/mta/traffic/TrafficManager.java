@@ -1672,31 +1672,9 @@ public final class TrafficManager {
 		graph.findEdge(startNode, endNode).ifPresent(edge -> traversals.add(new ConnectorTraversal(
 			edge.from(),
 			edge.to(),
-			List.of(toSegment(edge, point.type() == TrafficPointType.SPAWN, point.type() == TrafficPointType.DESPAWN)),
+			List.of(edge.toRouteSegment(point.type() == TrafficPointType.SPAWN, point.type() == TrafficPointType.DESPAWN)),
 			edge.travelTimeSeconds()
 		)));
-	}
-
-	private static TrafficRouteSegment toSegment(MtrGraphEdge edge) {
-		return toSegment(edge, false, false);
-	}
-
-	private static TrafficRouteSegment toSegment(MtrGraphEdge edge, boolean spawnConnector, boolean despawnConnector) {
-		return new TrafficRouteSegment(
-			edge.railId(),
-			edge.lengthMeters(),
-			edge.speedLimitKph(),
-			edge.from().x(),
-			edge.from().y(),
-			edge.from().z(),
-			edge.to().x(),
-			edge.to().y(),
-			edge.to().z(),
-			spawnConnector,
-			despawnConnector,
-			edge.signalColors(),
-			edge.path()
-		);
 	}
 
 	private static double stopDistance(double railProgress, int stoppingSpace, double obstacleDistance) {
