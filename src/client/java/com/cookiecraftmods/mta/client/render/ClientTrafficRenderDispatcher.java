@@ -10,8 +10,9 @@ import net.minecraft.client.renderer.RenderType;
 import org.mtr.mapping.mapper.GraphicsHolder;
 
 public final class ClientTrafficRenderDispatcher {
+	private static final ClientTrafficVehicleRenderer CUSTOM_MODEL_RENDERER = new CustomTrafficVehicleRenderer();
 	private static final MtrVehicleResourceRenderer MTR_RESOURCE_RENDERER = new MtrVehicleResourceRenderer();
-	private static final ClientTrafficVehicleRenderer DEFAULT_RENDERER = new CustomTrafficVehicleRenderer(MTR_RESOURCE_RENDERER);
+	private static final ClientTrafficVehicleRenderer PLACEHOLDER_RENDERER = new PlaceholderTrafficVehicleRenderer();
 
 	private ClientTrafficRenderDispatcher() {
 	}
@@ -39,13 +40,24 @@ public final class ClientTrafficRenderDispatcher {
 					if (!isInRenderRange(renderContext, snapshot)) {
 						continue;
 					}
-					DEFAULT_RENDERER.render(renderContext, snapshot, ClientTrafficVisualProfile.fromSnapshot(snapshot));
+					renderVehicle(renderContext, snapshot);
 				}
 			} finally {
 				MTR_RESOURCE_RENDERER.endFrame();
 				renderContext.poseStack().popPose();
 			}
 		});
+	}
+
+	private static void renderVehicle(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot) {
+		final ClientTrafficVisualProfile visualProfile = ClientTrafficVisualProfile.fromSnapshot(snapshot);
+		if (CUSTOM_MODEL_RENDERER.tryRender(context, snapshot, visualProfile)) {
+			return;
+		}
+		if (MTR_RESOURCE_RENDERER.tryRender(context, snapshot, visualProfile)) {
+			return;
+		}
+		PLACEHOLDER_RENDERER.tryRender(context, snapshot, visualProfile);
 	}
 
 	private static boolean isInRenderRange(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot) {

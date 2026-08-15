@@ -21,30 +21,17 @@ import java.util.UUID;
 public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleRenderer {
 	private static final float MAX_RANDOM_PITCH_DEGREES = 0.3F;
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
-	private final ClientTrafficVehicleRenderer fallbackRenderer;
-
-	public CustomTrafficVehicleRenderer(ClientTrafficVehicleRenderer fallbackRenderer) {
-		this.fallbackRenderer = fallbackRenderer;
-	}
 
 	@Override
-	public void render(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
+	public boolean tryRender(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
 		final CustomTrafficModel model = CustomTrafficModelRegistry.get(snapshot.visualId()).orElse(null);
 		if (model == null) {
-			fallbackRenderer.render(context, snapshot, visualProfile);
-			return;
+			return false;
 		}
 
-		boolean pushed = false;
-		boolean useFallback = false;
+		context.poseStack().pushPose();
 		try {
-			context.poseStack().pushPose();
-			pushed = true;
-			context.poseStack().translate(
-				snapshot.x() - context.cameraPosition().x,
-				snapshot.y() - context.cameraPosition().y,
-				snapshot.z() - context.cameraPosition().z
-			);
+			context.translateTo(snapshot.x(), snapshot.y(), snapshot.z());
 			context.poseStack().mulPose(Axis.YP.rotationDegrees(-snapshot.yawDegrees()));
 			applyDefinitionTransform(context.poseStack(), model.definition());
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(snapshot.pitchDegrees() + deterministicPitchOffset(snapshot.id())));
@@ -64,19 +51,14 @@ public final class CustomTrafficVehicleRenderer implements ClientTrafficVehicleR
 				final VertexConsumer vertexConsumer = context.bufferSource().getBuffer(RenderType.entityCutout(texture));
 				emitFace(vertexConsumer, positionMatrix, normalMatrix, face, red, green, blue, alpha, light);
 			}
+			return true;
 		} catch (Exception e) {
-			useFallback = true;
 			if (WARNED_RENDER_FAILURES.add(snapshot.visualId())) {
-				MTRTrafficAddon.LOGGER.warn("Failed to render custom traffic model {}; using fallback renderer", snapshot.visualId(), e);
+				MTRTrafficAddon.LOGGER.warn("Failed to render custom traffic model {}", snapshot.visualId(), e);
 			}
+			return false;
 		} finally {
-			if (pushed) {
-				context.poseStack().popPose();
-			}
-		}
-
-		if (useFallback) {
-			fallbackRenderer.render(context, snapshot, visualProfile);
+			context.poseStack().popPose();
 		}
 	}
 

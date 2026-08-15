@@ -18,6 +18,10 @@ public record ClientTrafficRenderContext(
 	double maxRenderDistanceBlocks,
 	GraphicsHolder graphicsHolder
 ) {
+	public void translateTo(double x, double y, double z) {
+		poseStack.translate(x - cameraPosition.x, y - cameraPosition.y, z - cameraPosition.z);
+	}
+
 	public int lightAt(double x, double y, double z) {
 		final Minecraft minecraft = Minecraft.getInstance();
 		return minecraft.level == null

@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRenderer {
-	private static final ClientTrafficVehicleRenderer FALLBACK_RENDERER = new PlaceholderTrafficVehicleRenderer();
 	private static final int SINGLE_VEHICLE_CAR_COUNT = 1;
 	private static final String BATCH_RENDER_WARNING_KEY = "<batch-render>";
 	private static final Set<String> WARNED_RENDER_FAILURES = new HashSet<>();
@@ -51,38 +50,29 @@ public final class MtrVehicleResourceRenderer implements ClientTrafficVehicleRen
 	}
 
 	@Override
-	public void render(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
+	public boolean tryRender(ClientTrafficRenderContext context, ClientTrafficDebugRenderState snapshot, ClientTrafficVisualProfile visualProfile) {
 		final VehicleResourceCache vehicleResourceCache = resolveVehicleResourceCache(snapshot.visualId());
 		if (vehicleResourceCache == null || vehicleResourceCache.optimizedModels == null || vehicleResourceCache.optimizedModels.isEmpty()) {
-			FALLBACK_RENDERER.render(context, snapshot, visualProfile);
-			return;
+			return false;
 		}
 
-		boolean useFallback = false;
 		context.poseStack().pushPose();
 		try {
-			context.poseStack().translate(
-				snapshot.x() - context.cameraPosition().x,
-				snapshot.y() - context.cameraPosition().y,
-				snapshot.z() - context.cameraPosition().z
-			);
+			context.translateTo(snapshot.x(), snapshot.y(), snapshot.z());
 			context.poseStack().mulPose(Axis.YP.rotationDegrees(90.0F - snapshot.yawDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(-snapshot.pitchDegrees()));
 			context.poseStack().mulPose(Axis.XP.rotationDegrees(180.0F));
 
 			queue(context.graphicsHolder(), vehicleResourceCache, context.lightAt(snapshot.x(), snapshot.y() + 0.5D, snapshot.z()));
 			frameHasQueuedModels = true;
+			return true;
 		} catch (Exception e) {
-			useFallback = true;
 			if (WARNED_RENDER_FAILURES.add(snapshot.visualId())) {
-				MTRTrafficAddon.LOGGER.warn("Failed to render MTR traffic vehicle resource {}; using debug fallback", snapshot.visualId(), e);
+				MTRTrafficAddon.LOGGER.warn("Failed to render MTR traffic vehicle resource {}", snapshot.visualId(), e);
 			}
+			return false;
 		} finally {
 			context.poseStack().popPose();
-		}
-
-		if (useFallback) {
-			FALLBACK_RENDERER.render(context, snapshot, visualProfile);
 		}
 	}
 
