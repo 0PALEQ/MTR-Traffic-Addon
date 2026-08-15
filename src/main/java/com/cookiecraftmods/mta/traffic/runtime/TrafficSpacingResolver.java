@@ -44,8 +44,8 @@ public final class TrafficSpacingResolver {
 			for (int i = 0; i + 1 < connectorVehicles.size(); i++) {
 				final TrafficVehicle followingVehicle = connectorVehicles.get(i);
 				final TrafficVehicle frontVehicle = connectorVehicles.get(i + 1);
-				final double limitedSpeed = resolveFollowingSpeed(frontVehicle, followingVehicle, allowedSpeeds.get(followingVehicle));
-				allowedSpeeds.put(followingVehicle, limitedSpeed);
+				final double distanceMeters = frontVehicle.distanceOnSegmentMeters() - followingVehicle.distanceOnSegmentMeters();
+				applyFollowingLimit(allowedSpeeds, frontVehicle, followingVehicle, distanceMeters);
 			}
 		}
 
@@ -71,53 +71,22 @@ public final class TrafficSpacingResolver {
 		return byConnector;
 	}
 
-	private static double resolveFollowingSpeed(TrafficVehicle frontVehicle, TrafficVehicle followingVehicle, double currentLimitKph) {
-		final double minGap = frontVehicle.definition().lengthMeters() / 2.0D
-			+ followingVehicle.definition().lengthMeters() / 2.0D
-			+ followingGapMeters(followingVehicle);
-		final double actualGap = frontVehicle.distanceOnSegmentMeters() - followingVehicle.distanceOnSegmentMeters();
-		final double clearance = actualGap - minGap;
-
-		if (clearance <= 0.0D) {
-			return 0.0D;
-		}
-
-		final double frontSpeedKph = frontVehicle.smoothedSpeedKph();
-		if (shouldHoldInStandingQueue(frontSpeedKph, followingVehicle, clearance)) {
-			return 0.0D;
-		}
-
-		final double lookaheadGap = minGap + LOOKAHEAD_BUFFER_METERS + followingVehicle.definition().lengthMeters();
-		final double brakingCapKph = Math.sqrt(2.0D * followingVehicle.definition().effectiveBrakingMetersPerSecondSquared() * clearance) * 3.6D;
-		if (actualGap >= lookaheadGap) {
-			return Math.max(0.0D, Math.min(currentLimitKph, brakingCapKph));
-		}
-
-		final double progress = (actualGap - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
-		final double cappedByFrontSpeed = frontSpeedKph + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontSpeedKph);
-		return Math.max(0.0D, Math.min(currentLimitKph, Math.min(cappedByFrontSpeed, brakingCapKph)));
-	}
-
 	private static void applyRouteLookaheadSpacing(Collection<TrafficVehicle> vehicles, Map<String, List<TrafficVehicle>> vehiclesByConnector, Map<TrafficVehicle, Double> allowedSpeeds) {
 		for (TrafficVehicle followingVehicle : vehicles) {
-			final RouteObstacle obstacle = closestRouteObstacle(vehiclesByConnector, followingVehicle);
+			final VehicleObstacle obstacle = closestRouteObstacle(vehiclesByConnector, followingVehicle);
 			if (obstacle == null) {
 				continue;
 			}
 
-			final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
-			final double limitedSpeed = resolveProjectedFollowingSpeed(obstacle.frontVehicle(), followingVehicle, obstacle.distanceMeters(), currentLimitKph);
-			allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+			applyFollowingLimit(allowedSpeeds, obstacle.frontVehicle(), followingVehicle, obstacle.distanceMeters());
 		}
 	}
 
 	private static void applyMtrVehicleSpacing(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds) {
 		for (TrafficVehicle followingVehicle : vehicles) {
-			TrafficManager.closestMtrVehicleObstacle(followingVehicle).ifPresent(obstacle -> {
-				final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
-				final double limitedSpeed = resolveProjectedFollowingSpeed(obstacle.lengthMeters(), obstacle.speedKph(), followingVehicle, obstacle.distanceMeters(), currentLimitKph);
-				allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
-			});
+			TrafficManager.closestMtrVehicleObstacle(followingVehicle).ifPresent(obstacle ->
+				applyFollowingLimit(allowedSpeeds, obstacle.lengthMeters(), obstacle.speedKph(), followingVehicle, obstacle.distanceMeters())
+			);
 		}
 	}
 
@@ -137,7 +106,7 @@ public final class TrafficSpacingResolver {
 			final double yawRadians = Math.toRadians(followingPosition.yawDegrees());
 			final double forwardX = Math.cos(yawRadians);
 			final double forwardZ = Math.sin(yawRadians);
-			VehicleSpatialObstacle closestObstacle = null;
+			VehicleObstacle closestObstacle = null;
 
 			for (long offsetX = -cellRadius; offsetX <= cellRadius; offsetX++) {
 				for (long offsetZ = -cellRadius; offsetZ <= cellRadius; offsetZ++) {
@@ -169,16 +138,14 @@ public final class TrafficSpacingResolver {
 						}
 
 						if (closestObstacle == null || longitudinalDistance < closestObstacle.distanceMeters()) {
-							closestObstacle = new VehicleSpatialObstacle(nearby.vehicle(), longitudinalDistance);
+							closestObstacle = new VehicleObstacle(nearby.vehicle(), longitudinalDistance);
 						}
 					}
 				}
 			}
 
 			if (closestObstacle != null) {
-				final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
-				final double limitedSpeed = resolveProjectedFollowingSpeed(closestObstacle.frontVehicle(), followingVehicle, closestObstacle.distanceMeters(), currentLimitKph);
-				allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeed));
+				applyFollowingLimit(allowedSpeeds, closestObstacle.frontVehicle(), followingVehicle, closestObstacle.distanceMeters());
 			}
 		}
 	}
@@ -241,13 +208,13 @@ public final class TrafficSpacingResolver {
 		return (cellX & 0xFFFFFFFFL) | ((cellZ & 0xFFFFFFFFL) << 32);
 	}
 
-	private static RouteObstacle closestRouteObstacle(Map<String, List<TrafficVehicle>> vehiclesByConnector, TrafficVehicle followingVehicle) {
+	private static VehicleObstacle closestRouteObstacle(Map<String, List<TrafficVehicle>> vehiclesByConnector, TrafficVehicle followingVehicle) {
 		final List<TrafficRouteSegment> followingSegments = followingVehicle.route().segments();
 		if (followingSegments.isEmpty() || followingVehicle.segmentIndex() < 0 || followingVehicle.segmentIndex() >= followingSegments.size()) {
 			return null;
 		}
 
-		RouteObstacle closestObstacle = null;
+		VehicleObstacle closestObstacle = null;
 		double distanceToSegmentStart = -followingVehicle.distanceOnSegmentMeters();
 		for (int segmentIndex = followingVehicle.segmentIndex(); segmentIndex < followingSegments.size(); segmentIndex++) {
 			final TrafficRouteSegment candidateSegment = followingSegments.get(segmentIndex);
@@ -260,7 +227,7 @@ public final class TrafficSpacingResolver {
 			if (frontVehicle != null) {
 				final double distanceToFrontVehicle = distanceToSegmentStart + frontVehicle.distanceOnSegmentMeters();
 				if (distanceToFrontVehicle > 0.0D && distanceToFrontVehicle <= ROUTE_OCCUPANCY_LOOKAHEAD_METERS && (closestObstacle == null || distanceToFrontVehicle < closestObstacle.distanceMeters())) {
-					closestObstacle = new RouteObstacle(frontVehicle, distanceToFrontVehicle);
+					closestObstacle = new VehicleObstacle(frontVehicle, distanceToFrontVehicle);
 				}
 			}
 
@@ -305,15 +272,21 @@ public final class TrafficSpacingResolver {
 		return null;
 	}
 
-	private static double resolveProjectedFollowingSpeed(TrafficVehicle frontVehicle, TrafficVehicle followingVehicle, double actualGap, double currentLimitKph) {
-		return resolveProjectedFollowingSpeed(frontVehicle.definition().lengthMeters(), frontVehicle.smoothedSpeedKph(), followingVehicle, actualGap, currentLimitKph);
+	private static void applyFollowingLimit(Map<TrafficVehicle, Double> allowedSpeeds, TrafficVehicle frontVehicle, TrafficVehicle followingVehicle, double distanceMeters) {
+		applyFollowingLimit(allowedSpeeds, frontVehicle.definition().lengthMeters(), frontVehicle.smoothedSpeedKph(), followingVehicle, distanceMeters);
 	}
 
-	private static double resolveProjectedFollowingSpeed(double frontVehicleLengthMeters, double frontVehicleSpeedKph, TrafficVehicle followingVehicle, double actualGap, double currentLimitKph) {
+	private static void applyFollowingLimit(Map<TrafficVehicle, Double> allowedSpeeds, double frontVehicleLengthMeters, double frontVehicleSpeedKph, TrafficVehicle followingVehicle, double distanceMeters) {
+		final double currentLimitKph = allowedSpeeds.getOrDefault(followingVehicle, 0.0D);
+		final double limitedSpeedKph = resolveFollowingSpeed(frontVehicleLengthMeters, frontVehicleSpeedKph, followingVehicle, distanceMeters, currentLimitKph);
+		allowedSpeeds.put(followingVehicle, Math.min(currentLimitKph, limitedSpeedKph));
+	}
+
+	private static double resolveFollowingSpeed(double frontVehicleLengthMeters, double frontVehicleSpeedKph, TrafficVehicle followingVehicle, double distanceMeters, double currentLimitKph) {
 		final double minGap = frontVehicleLengthMeters / 2.0D
 			+ followingVehicle.definition().lengthMeters() / 2.0D
 			+ followingGapMeters(followingVehicle);
-		final double clearance = actualGap - minGap;
+		final double clearance = distanceMeters - minGap;
 		if (clearance <= 0.0D) {
 			return 0.0D;
 		}
@@ -324,11 +297,11 @@ public final class TrafficSpacingResolver {
 
 		final double brakingCapKph = Math.sqrt(2.0D * followingVehicle.definition().effectiveBrakingMetersPerSecondSquared() * clearance) * 3.6D;
 		final double lookaheadGap = minGap + LOOKAHEAD_BUFFER_METERS + followingVehicle.definition().lengthMeters();
-		if (actualGap >= lookaheadGap) {
+		if (distanceMeters >= lookaheadGap) {
 			return Math.max(0.0D, Math.min(currentLimitKph, brakingCapKph));
 		}
 
-		final double progress = (actualGap - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
+		final double progress = (distanceMeters - minGap) / Math.max(lookaheadGap - minGap, 0.001D);
 		final double cappedByFrontSpeed = frontVehicleSpeedKph + Math.max(0.0D, progress) * Math.max(0.0D, currentLimitKph - frontVehicleSpeedKph);
 		return Math.max(0.0D, Math.min(currentLimitKph, Math.min(cappedByFrontSpeed, brakingCapKph)));
 	}
@@ -411,12 +384,10 @@ public final class TrafficSpacingResolver {
 		return false;
 	}
 
-	private record RouteObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
+	private record VehicleObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
 	}
 
 	private record VehicleSpatialSnapshot(TrafficVehicle vehicle, TrafficVehiclePosition position) {
 	}
 
-	private record VehicleSpatialObstacle(TrafficVehicle frontVehicle, double distanceMeters) {
-	}
 }

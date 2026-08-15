@@ -35,7 +35,6 @@ import java.util.List;
 
 public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
-	// ── Layout ────────────────────────────────────────────────────────────────
 	private static final int PANEL_MIN_WIDTH    = 280;
 	private static final int PANEL_MAX_WIDTH    = 640;
 	private static final int MAP_MIN_WIDTH      = 200;
@@ -64,7 +63,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private static final Identifier KOFI_ICON   = new Identifier(MTRTrafficAddon.MOD_ID, "textures/gui/social/kofi.png");
 	private static final Identifier DISCORD_ICON = new Identifier(MTRTrafficAddon.MOD_ID, "textures/gui/social/discord.png");
 
-	// ── Colors ────────────────────────────────────────────────────────────────
 	private static final int C_WHITE    = 0xFFFFFFFF;
 	private static final int C_HINT     = 0xFF888888;
 	private static final int C_SECTION  = 0xFF9CC7FF;
@@ -74,7 +72,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private static final int C_DIVIDER  = 0xFF3A3A3A;
 	private static final int C_SELECTED = 0xFF2A4870;
 
-	// ── Data ──────────────────────────────────────────────────────────────────
 	private final List<ClientTrafficDashboardEntry>    entries              = new ArrayList<>();
 	private final List<ClientTrafficDashboardEntry>    filteredEntries      = new ArrayList<>();
 	private final List<ClientTrafficIntersectionEntry> intersections        = new ArrayList<>();
@@ -92,7 +89,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 	private final TrafficWidgetMap widgetMap;
 
-	// ── State ─────────────────────────────────────────────────────────────────
 	private PanelMode       panelMode       = PanelMode.OVERVIEW;
 	private DashboardSection dashboardSection = DashboardSection.CONNECTORS;
 	private boolean mapVisibleInNarrow      = false;
@@ -125,7 +121,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private int lastLayoutUiWidth = -1;
 	private int lastLayoutUiHeight = -1;
 
-	// ── Widgets ───────────────────────────────────────────────────────────────
 	private final TextFieldWidgetExtension vehicleSearchField;
 	private final TextFieldWidgetExtension connectorSearchField;
 	private final TextFieldWidgetExtension connectorNameField;
@@ -178,7 +173,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private final ButtonWidgetExtension buttonIntersectionPhaseDown;
 	private final ButtonWidgetExtension buttonToggleMap;
 
-	// ── Constructor ───────────────────────────────────────────────────────────
 	public TrafficDashboardScreen(List<ClientTrafficDashboardEntry> entries, List<ClientTrafficIntersectionEntry> intersections) {
 		super(TextHelper.literal(text("title")));
 
@@ -197,13 +191,11 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		connectorSearchField.setChangedListener2(v -> { connectorSearchQuery = v == null ? "" : v.trim(); entryPage = 0; refreshFilteredEntries(); layoutWidgets(); refreshButtons(); });
 
 		connectorNameField = new TextFieldWidgetExtension(0, 0, 0, 18, TextHelper.literal(text("connector_name")), 64, TextCase.DEFAULT, "", text("connector_name"));
-		connectorNameField.setChangedListener2(v -> { });
 
 		intersectionSearchField = new TextFieldWidgetExtension(0, 0, 0, 18, TextHelper.literal(text("search_intersections")), 96, TextCase.DEFAULT, "", text("search_intersections"));
 		intersectionSearchField.setChangedListener2(v -> { intersectionSearchQuery = v == null ? "" : v.trim(); entryPage = 0; refreshFilteredIntersections(); refreshButtons(); });
 
 		intersectionNameField = new TextFieldWidgetExtension(0, 0, 0, 18, TextHelper.literal(text("intersection_name")), 64, TextCase.DEFAULT, "", text("intersection_name"));
-		intersectionNameField.setChangedListener2(v -> { });
 
 		buttonEntryPageUp   = btn("<", () -> { entryPage = Math.max(0, entryPage - 1);                   layoutWidgets(); refreshButtons(); });
 		buttonEntryPageDown = btn(">", () -> { entryPage = Math.min(maxEntryPage(), entryPage + 1);       layoutWidgets(); refreshButtons(); });
@@ -327,12 +319,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 				if (dashboardSection == DashboardSection.INTERSECTIONS) {
 					if (ei < filteredIntersections.size()) {
 						final ClientTrafficIntersectionEntry it = filteredIntersections.get(ei);
-						selectedIntersectionIndex = intersections.indexOf(it);
-						selectedIntersectionNode = null; pendingIntersectionCorner = null;
-						drawingIntersection = false; selectedPhaseIndex = 0;
-						widgetMap.setCreatingIntersection(false); widgetMap.setPendingIntersectionCorner(null);
+						selectIntersection(it);
 						widgetMap.focusOn(it);
-						syncIntersectionNameField(); layoutWidgets(); refreshButtons();
 					}
 				} else if (ei < filteredEntries.size()) {
 					final ClientTrafficDashboardEntry clickedEntry = filteredEntries.get(ei);
@@ -387,7 +375,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		updateEntries(entries, intersections);
 	}
 
-	// ── Helper ────────────────────────────────────────────────────────────────
 	private static ButtonWidgetExtension btn(String label, Runnable action) {
 		return new ButtonWidgetExtension(0, 0, 0, SQUARE_SIZE, TextHelper.literal(label), b -> action.run());
 	}
@@ -418,7 +405,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		refreshButtons();
 	}
 
-	// ── Entry updates ─────────────────────────────────────────────────────────
 	public void updateEntries(List<ClientTrafficDashboardEntry> updatedEntries, List<ClientTrafficIntersectionEntry> updatedIntersections) {
 		entries.clear();    entries.addAll(updatedEntries);
 		intersections.clear(); intersections.addAll(updatedIntersections);
@@ -451,7 +437,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		refreshButtons();
 	}
 
-	// ── init2 ─────────────────────────────────────────────────────────────────
 	@Override
 	protected void init2() {
 		super.init2();
@@ -518,7 +503,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		refreshButtons();
 	}
 
-	// ── Layout dispatch ───────────────────────────────────────────────────────
 	private void layoutWidgets() {
 		if (panelMode == PanelMode.VEHICLE_POOL) {
 			layoutVehiclePoolWidgets();
@@ -527,7 +511,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Overview layout ───────────────────────────────────────────────────────
 	private void layoutOverviewWidgets() {
 		final boolean narrowMap = isNarrowMode() && mapVisibleInNarrow;
 		final int panelW = leftPanelWidth();
@@ -616,7 +599,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		IDrawing.setPositionAndWidth(buttonZoomIn,  zoomInX,  controlsY, SQUARE_SIZE);
 	}
 
-	// ── Connector controls ────────────────────────────────────────────────────
 	private void layoutConnectorWidgets(int y) {
 		final int x  = MARGIN;
 		final int cw = leftPanelWidth() - MARGIN * 2;
@@ -647,7 +629,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Intersection group list ────────────────────────────────────────────────
 	private void layoutIntersectionGroupWidgets(int x, int y, int w) {
 		final int delW = 22;
 		for (int i = 0; i < GROUP_LIST_ROWS; i++) {
@@ -657,7 +638,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Intersection action buttons ────────────────────────────────────────────
 	private void layoutIntersectionWidgets(int x, int y, int w) {
 		final int third  = (w - GAP * 2) / 3;
 		final ClientTrafficIntersectionEntry it = selectedIntersection();
@@ -697,7 +677,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		IDrawing.setPositionAndWidth(buttonIntersectionNodePlus,       x, y, 0);
 	}
 
-	// ── Vehicle pool layout ────────────────────────────────────────────────────
 	private void layoutVehiclePoolWidgets() {
 		widgetMap.setPositionAndSize(uiWidth(), 0, 0, 0);
 
@@ -725,7 +704,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		for (ButtonWidgetExtension sb : selectedVehicleButtons) { IDrawing.setPositionAndWidth(sb, rx, y, lw); y += ROW_H; }
 	}
 
-	// ── Render ────────────────────────────────────────────────────────────────
 	@Override
 	public void render(GraphicsHolder gh, int mouseX, int mouseY, float delta) {
 		ensureFixedScaleLayout();
@@ -786,7 +764,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Connector panel ────────────────────────────────────────────────────────
 	private void renderConnectorPanel(GraphicsHolder gh) {
 		final int cw = leftPanelWidth() - MARGIN * 2;
 		final int rows = visibleListRows();
@@ -834,7 +811,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Intersection panel ─────────────────────────────────────────────────────
 	private void renderIntersectionPanel(GraphicsHolder gh, GuiDrawing gd) {
 		final int cw    = leftPanelWidth() - MARGIN * 2;
 		final int dX    = idX(cw);
@@ -902,7 +878,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Vehicle pool screen ────────────────────────────────────────────────────
 	private void renderVehiclePoolScreen(GraphicsHolder gh) {
 		final ClientTrafficDashboardEntry entry = selectedEntry();
 		final int lw = vehiclePoolListWidth();
@@ -927,7 +902,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			gh.drawText(text("nothing_selected"), rx, vehiclePoolListY(), C_MUTED, false, GraphicsHolder.getDefaultLight());
 	}
 
-	// ── refreshButtons ────────────────────────────────────────────────────────
 	private void renderSocialButtonIcons(GraphicsHolder gh) {
 		if (buttonZoomOut.visible) {
 			drawButtonIcon(gh, KOFI_ICON, buttonZoomOut, 322, 259);
@@ -1194,7 +1168,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonIntersectionGroupNext.visible     = false;
 	}
 
-	// ── Scroll ────────────────────────────────────────────────────────────────
 	@Override
 	public boolean keyPressed2(int keyCode, int scanCode, int modifiers) {
 		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
@@ -1293,7 +1266,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	@Override public boolean isPauseScreen2() { return false; }
 	@Override public void onClose2()          { widgetMap.onClose(); super.onClose2(); }
 
-	// ── Layout helpers ─────────────────────────────────────────────────────────
 	private double currentGuiScale() {
 		final Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft == null || minecraft.getWindow() == null) {
@@ -1382,7 +1354,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private int vehiclePoolRightX()    { return uiWidth() / 2 + 20; }
 	private int vehiclePoolListY()     { return 76; }
 
-	// ── Selection helpers ──────────────────────────────────────────────────────
 	private void selectConnectorIndex(int index, boolean focusMap) {
 		if (index < 0 || index >= entries.size()) {
 			return;
@@ -1416,19 +1387,11 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	}
 
 	private void selectEntry(ClientTrafficDashboardEntry entry) {
-		final int idx = entries.indexOf(entry);
-		if (idx >= 0) {
-			selectedIndex = idx;
-			final int filteredIndex = filteredEntries.indexOf(entry);
-			if (filteredIndex >= 0) {
-				entryPage = filteredIndex / visibleListRows();
-			}
-			panelMode = PanelMode.OVERVIEW;
-			editingConnectorName = false;
-			syncConnectorNameField();
-			layoutWidgets();
-			refreshButtons();
+		if (!entries.contains(entry)) {
+			return;
 		}
+		editingConnectorName = false;
+		selectConnector(entry, false);
 	}
 
 	private void selectIntersection(ClientTrafficIntersectionEntry it) {
@@ -1454,7 +1417,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private int maxVehiclePage()         { return Math.max(0, (filteredVehicleOptions.size() - 1) / AVAIL_VEH_PER_PAGE); }
 	private int maxSelectedVehiclePage() { final ClientTrafficDashboardEntry e = selectedEntry(); return Math.max(0, ((e == null ? 0 : e.effectiveVehiclePool().size()) - 1) / SELECTED_VEH_ROWS); }
 
-	// ── Intersection corner / node interaction ─────────────────────────────────
 	private void handleIntersectionCornerClick(Double wx, Double wz) {
 		if (dashboardSection != DashboardSection.INTERSECTIONS || !drawingIntersection) return;
 		final int y = Minecraft.getInstance().player == null ? 64 : Minecraft.getInstance().player.blockPosition().getY();
@@ -1481,7 +1443,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Networking ────────────────────────────────────────────────────────────
 	private void sendUpdate(String action, int delta, String value) {
 		final ClientTrafficDashboardEntry entry = selectedEntry();
 		if (entry == null) return;
@@ -1510,7 +1471,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private void sendRefresh()       { ClientPlayNetworking.send(TrafficDashboardNetworking.REFRESH_PACKET_ID,         new FriendlyByteBuf(Unpooled.buffer())); }
 	private void sendClearVehicles() { ClientPlayNetworking.send(TrafficDashboardNetworking.CLEAR_VEHICLES_PACKET_ID,  new FriendlyByteBuf(Unpooled.buffer())); }
 
-	// ── Vehicle options ────────────────────────────────────────────────────────
 	private void reloadVehicleOptions() {
 		final java.util.Map<String, VehicleOption> map = new java.util.LinkedHashMap<>();
 		CustomResourceLoader.iterateVehicles(TransportMode.TRAIN, vr -> map.put(vr.getId(), new VehicleOption(vr.getId(), fmtVehicle(vr))));
@@ -1623,7 +1583,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		}
 	}
 
-	// ── Query helpers ──────────────────────────────────────────────────────────
 	private String selectedIntersectionNode() { return selectedIntersectionNode; }
 
 	private List<Integer> selectedGroupNodeNumbers() {
@@ -1739,7 +1698,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		return text("hint_connectors");
 	}
 
-	// ── Static helpers ────────────────────────────────────────────────────────
 	private static String fmtVehicle(VehicleResource vr) {
 		final String n = vr.getName().getString();
 		final String m = String.format(" %.1fm×%.1fm", vr.getLength(), vr.getWidth());
@@ -1773,7 +1731,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		gh.drawText(text, cx - GraphicsHolder.getTextWidth(text) / 2, y, color, false, GraphicsHolder.getDefaultLight());
 	}
 
-	// ── Inner types ────────────────────────────────────────────────────────────
 	private static void drawStepperRowText(GraphicsHolder gh, String label, String value, int x, int width, int y, int valueColor) {
 		final int labelX = x + INLINE_BTN_W + GAP;
 		final int valueW = GraphicsHolder.getTextWidth(value);
