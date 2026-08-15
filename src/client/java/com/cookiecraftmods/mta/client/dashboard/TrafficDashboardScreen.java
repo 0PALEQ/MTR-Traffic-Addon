@@ -5,7 +5,10 @@ import com.cookiecraftmods.mta.traffic.dashboard.network.TrafficDashboardNetwork
 import com.cookiecraftmods.mta.client.render.ClientMtrVehicleResourceRegistry;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionGroup;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionLevel;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode;
+import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNodeType;
 import com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionSignalMode;
+import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
@@ -197,15 +200,15 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 		intersectionNameField = new TextFieldWidgetExtension(0, 0, 0, 18, TextHelper.literal(text("intersection_name")), 64, TextCase.DEFAULT, "", text("intersection_name"));
 
-		buttonEntryPageUp   = btn("<", () -> { entryPage = Math.max(0, entryPage - 1);                   layoutWidgets(); refreshButtons(); });
-		buttonEntryPageDown = btn(">", () -> { entryPage = Math.min(maxEntryPage(), entryPage + 1);       layoutWidgets(); refreshButtons(); });
-		buttonVehiclePageUp    = btn("<", () -> { vehiclePage = Math.max(0, vehiclePage - 1);             refreshButtons(); });
-		buttonVehiclePageDown  = btn(">", () -> { vehiclePage = Math.min(maxVehiclePage(), vehiclePage + 1); refreshButtons(); });
-		buttonSelectedVehiclePageUp   = btn("<", () -> { selectedVehiclePage = Math.max(0, selectedVehiclePage - 1);                        refreshButtons(); });
-		buttonSelectedVehiclePageDown = btn(">", () -> { selectedVehiclePage = Math.min(maxSelectedVehiclePage(), selectedVehiclePage + 1); refreshButtons(); });
+		buttonEntryPageUp = btn("<", () -> changeEntryPage(-1));
+		buttonEntryPageDown = btn(">", () -> changeEntryPage(1));
+		buttonVehiclePageUp = btn("<", () -> changeVehiclePage(-1));
+		buttonVehiclePageDown = btn(">", () -> changeVehiclePage(1));
+		buttonSelectedVehiclePageUp = btn("<", () -> changeSelectedVehiclePage(-1));
+		buttonSelectedVehiclePageDown = btn(">", () -> changeSelectedVehiclePage(1));
 		buttonCopyVehiclePool = btnKey("copy_vehicles", () -> {
 			final ClientTrafficDashboardEntry entry = selectedEntry();
-			if (entry != null && entry.type().name().equals("SPAWN")) {
+			if (entry != null && entry.type() == TrafficPointType.SPAWN) {
 				copiedVehiclePool = List.copyOf(entry.effectiveVehiclePool());
 				hasCopiedVehiclePool = true;
 				refreshButtons();
@@ -213,7 +216,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		});
 		buttonPasteVehiclePool = btnKey("paste_vehicles", () -> {
 			final ClientTrafficDashboardEntry entry = selectedEntry();
-			if (entry != null && entry.type().name().equals("SPAWN") && hasCopiedVehiclePool) {
+			if (entry != null && entry.type() == TrafficPointType.SPAWN && hasCopiedVehiclePool) {
 				sendUpdate("vehicle_pool_replace", 0, String.join("\n", copiedVehiclePool));
 			}
 		});
@@ -276,13 +279,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			selectedPhaseIndex = it == null ? 0 : effectiveGroups(it).size();
 			sendIntersectionUpdate("group_add", 0, null);
 		});
-		buttonIntersectionGroupPrevious = btnKey("previous",   () -> { selectedPhaseIndex = Math.max(0, selectedPhaseIndex - 1);
-		selectedIntersectionNode = null; refreshButtons(); });
-		buttonIntersectionGroupNext     = btnKey("next",   () -> {
-			final ClientTrafficIntersectionEntry it = selectedIntersection();
-			if (it != null) { selectedPhaseIndex = Math.min(Math.max(0, effectiveGroups(it).size() - 1), selectedPhaseIndex + 1); selectedIntersectionNode = null; }
-			refreshButtons();
-		});
+		buttonIntersectionGroupPrevious = btnKey("previous", () -> changeIntersectionGroup(-1));
+		buttonIntersectionGroupNext = btnKey("next", () -> changeIntersectionGroup(1));
 		buttonToggleIntersectionNodeType = btnKey("node_type",        () -> {
 			final ClientTrafficIntersectionEntry it = selectedIntersection();
 			sendIntersectionUpdate(it != null && it.level() == TrafficIntersectionLevel.TRAIN ? "train_node_toggle" : "node_type", 0, selectedIntersectionNode);
@@ -345,7 +343,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			}));
 			entryPoolButtons.add(new ButtonWidgetExtension(0, 0, 0, 18, TextHelper.literal(""), b -> {
 				final int ei = entryPage * visibleListRows() + idx;
-				if (dashboardSection == DashboardSection.CONNECTORS && ei < filteredEntries.size() && filteredEntries.get(ei).type().name().equals("SPAWN")) {
+				if (dashboardSection == DashboardSection.CONNECTORS && ei < filteredEntries.size() && filteredEntries.get(ei).type() == TrafficPointType.SPAWN) {
 					selectedIndex = entries.indexOf(filteredEntries.get(ei));
 					openVehiclePool();
 				}
@@ -356,7 +354,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			final int idx = i;
 			selectedVehicleButtons.add(new ButtonWidgetExtension(0, 0, 0, 18, TextHelper.literal(""), b -> {
 				final ClientTrafficDashboardEntry entry = selectedEntry();
-				if (entry == null || !entry.type().name().equals("SPAWN")) return;
+				if (entry == null || entry.type() != TrafficPointType.SPAWN) return;
 				final List<String> pool = entry.effectiveVehiclePool();
 				final int vi = selectedVehiclePage * SELECTED_VEH_ROWS + idx;
 				if (vi < pool.size()) sendUpdate("vehicle_pool_toggle", 0, pool.get(vi));
@@ -366,7 +364,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			final int idx = i;
 			vehicleButtons.add(new ButtonWidgetExtension(0, 0, 0, 18, TextHelper.literal(""), b -> {
 				final int vi = vehiclePage * AVAIL_VEH_PER_PAGE + idx;
-				if (vi < filteredVehicleOptions.size() && selectedEntry() != null && selectedEntry().type().name().equals("SPAWN"))
+				if (vi < filteredVehicleOptions.size() && selectedEntry() != null && selectedEntry().type() == TrafficPointType.SPAWN)
 					sendUpdate("vehicle_pool_toggle", 0, filteredVehicleOptions.get(vi).id());
 			}));
 		}
@@ -552,7 +550,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 				final int entryIndex = entryPage * rows + i;
 				final boolean rowHasActions = i < rows
 					&& entryIndex < filteredEntries.size()
-					&& filteredEntries.get(entryIndex).type().name().equals("SPAWN");
+					&& filteredEntries.get(entryIndex).type() == TrafficPointType.SPAWN;
 				final int selectW = rowHasActions ? Math.max(90, listW - actionW) : listW;
 				IDrawing.setPositionAndWidth(entryButtons.get(i), MARGIN, y, selectW);
 				IDrawing.setPositionAndWidth(entryLocateButtons.get(i), MARGIN + selectW + GAP, y, rowHasActions ? ROW_LOCATE_BTN_W : 0);
@@ -605,7 +603,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		final int half  = (cw - GAP) / 2;
 		final int third = (cw - GAP * 2) / 3;
 		final ClientTrafficDashboardEntry entry = selectedEntry();
-		final boolean isSpawn = entry != null && entry.type().name().equals("SPAWN");
+		final boolean isSpawn = entry != null && entry.type() == TrafficPointType.SPAWN;
 		spawnIntervalRowY = 0;
 
 		if (isSpawn) {
@@ -799,7 +797,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 			MARGIN, y, C_MUTED, false, GraphicsHolder.getDefaultLight());
 		y += 12;
 
-		if (entry.type().name().equals("SPAWN")) {
+		if (entry.type() == TrafficPointType.SPAWN) {
 			final int missing = countMissingPoolEntries(entry);
 			gh.drawText(missing > 0 ? text("pool_selected_missing", entry.effectiveVehiclePool().size(), missing) : text("pool_selected", entry.effectiveVehiclePool().size()),
 				MARGIN, y, missing > 0 ? C_WARN : C_MUTED, false, GraphicsHolder.getDefaultLight());
@@ -884,7 +882,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		final int lx = vehiclePoolLeftX();
 		final int rx = vehiclePoolRightX();
 		final int top = 34;
-		if (entry == null || !entry.type().name().equals("SPAWN")) {
+		if (entry == null || entry.type() != TrafficPointType.SPAWN) {
 			drawCenteredText(gh, text("select_spawn_first"), uiWidth() / 2, top, C_WHITE);
 			return;
 		}
@@ -951,7 +949,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		final boolean hasIntersection = it != null;
 		final boolean trainLevel = hasIntersection && it.level() == TrafficIntersectionLevel.TRAIN;
 		final boolean crossingLevel = hasIntersection && it.level() == TrafficIntersectionLevel.CROSSING;
-		final boolean isSpawn = hasEntry && entry.type().name().equals("SPAWN");
+		final boolean isSpawn = hasEntry && entry.type() == TrafficPointType.SPAWN;
 		final boolean vehiclePoolMode = panelMode == PanelMode.VEHICLE_POOL;
 		final boolean narrowMap = isNarrowMode() && mapVisibleInNarrow;
 
@@ -1002,7 +1000,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 					b.visible = false;
 					b.active = false;
 				}
-				final boolean rowSpawn = le.type().name().equals("SPAWN");
+				final boolean rowSpawn = le.type() == TrafficPointType.SPAWN;
 				locateButton.visible = rowSpawn;
 				locateButton.active = rowSpawn;
 				locateButton.setMessage(component("locate"));
@@ -1417,6 +1415,31 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private int maxVehiclePage()         { return Math.max(0, (filteredVehicleOptions.size() - 1) / AVAIL_VEH_PER_PAGE); }
 	private int maxSelectedVehiclePage() { final ClientTrafficDashboardEntry e = selectedEntry(); return Math.max(0, ((e == null ? 0 : e.effectiveVehiclePool().size()) - 1) / SELECTED_VEH_ROWS); }
 
+	private void changeEntryPage(int delta) {
+		entryPage = clamp(entryPage + delta, maxEntryPage());
+		layoutWidgets();
+		refreshButtons();
+	}
+
+	private void changeVehiclePage(int delta) {
+		vehiclePage = clamp(vehiclePage + delta, maxVehiclePage());
+		refreshButtons();
+	}
+
+	private void changeSelectedVehiclePage(int delta) {
+		selectedVehiclePage = clamp(selectedVehiclePage + delta, maxSelectedVehiclePage());
+		refreshButtons();
+	}
+
+	private void changeIntersectionGroup(int delta) {
+		final ClientTrafficIntersectionEntry intersection = selectedIntersection();
+		if (intersection != null) {
+			selectedPhaseIndex = clamp(selectedPhaseIndex + delta, Math.max(0, effectiveGroups(intersection).size() - 1));
+			selectedIntersectionNode = null;
+		}
+		refreshButtons();
+	}
+
 	private void handleIntersectionCornerClick(Double wx, Double wz) {
 		if (dashboardSection != DashboardSection.INTERSECTIONS || !drawingIntersection) return;
 		final int y = Minecraft.getInstance().player == null ? 64 : Minecraft.getInstance().player.blockPosition().getY();
@@ -1434,7 +1457,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 	private void handleIntersectionNodeClick(ClientTrafficIntersectionEntry it, Long nx, Long nz) {
 		if (dashboardSection != DashboardSection.INTERSECTIONS || it == null) return;
-		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node : it.nodes()) {
+		for (TrafficIntersectionNode node : it.nodes()) {
 			if (node.x() == nx && node.z() == nz) {
 				selectedIntersectionNode = node.x() + "," + node.y() + "," + node.z();
 				refreshButtons();
@@ -1578,7 +1601,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	}
 
 	private void openVehiclePool() {
-		if (selectedEntry() != null && selectedEntry().type().name().equals("SPAWN")) {
+		if (selectedEntry() != null && selectedEntry().type() == TrafficPointType.SPAWN) {
 			panelMode = PanelMode.VEHICLE_POOL; layoutWidgets(); refreshButtons();
 		}
 	}
@@ -1590,8 +1613,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		if (it != null && it.level() == TrafficIntersectionLevel.TRAIN) {
 			return it.trainNodeNumbers().isEmpty()
 				? it.nodes().stream()
-					.filter(node -> node.type().name().equals("IN"))
-					.map(com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode::number)
+					.filter(node -> node.type() == TrafficIntersectionNodeType.IN)
+					.map(TrafficIntersectionNode::number)
 					.distinct()
 					.sorted()
 					.toList()
@@ -1604,7 +1627,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private Integer selectedNodeNumber() {
 		final ClientTrafficIntersectionEntry it = selectedIntersection();
 		if (it == null || selectedIntersectionNode == null) return null;
-		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node : it.nodes())
+		for (TrafficIntersectionNode node : it.nodes())
 			if (selectedIntersectionNode.equals(node.x() + "," + node.y() + "," + node.z())) return node.number();
 		return null;
 	}
@@ -1612,13 +1635,13 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private boolean selectedNodeIsIn() {
 		final ClientTrafficIntersectionEntry it = selectedIntersection();
 		if (it == null || selectedIntersectionNode == null) return false;
-		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode node : it.nodes())
-			if (selectedIntersectionNode.equals(node.x() + "," + node.y() + "," + node.z())) return node.type().name().equals("IN");
+		for (TrafficIntersectionNode node : it.nodes())
+			if (selectedIntersectionNode.equals(node.x() + "," + node.y() + "," + node.z())) return node.type() == TrafficIntersectionNodeType.IN;
 		return false;
 	}
 
 	private static boolean containsNode(ClientTrafficIntersectionEntry it, String enc) {
-		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode n : it.nodes())
+		for (TrafficIntersectionNode n : it.nodes())
 			if (enc.equals(n.x() + "," + n.y() + "," + n.z())) return true;
 		return false;
 	}
@@ -1626,8 +1649,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private static List<Integer> effectivePhaseOrder(ClientTrafficIntersectionEntry it) {
 		if (!it.phaseOrder().isEmpty()) return it.phaseOrder();
 		return it.nodes().stream()
-			.filter(n -> n.type().name().equals("IN"))
-			.map(com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode::number)
+			.filter(n -> n.type() == TrafficIntersectionNodeType.IN)
+			.map(TrafficIntersectionNode::number)
 			.distinct().sorted().toList();
 	}
 
@@ -1645,7 +1668,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 
 	private String selectedNodeLabel(ClientTrafficIntersectionEntry it) {
 		if (selectedIntersectionNode == null) return text("none");
-		for (com.cookiecraftmods.mta.traffic.intersection.TrafficIntersectionNode n : it.nodes()) {
+		for (TrafficIntersectionNode n : it.nodes()) {
 			if (selectedIntersectionNode.equals(n.x() + "," + n.y() + "," + n.z())) {
 				final List<TrafficIntersectionGroup> gs = effectiveGroups(it);
 				final List<Integer> gIdxs = new ArrayList<>();
@@ -1678,7 +1701,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	}
 
 	private String shortEntryLabel(ClientTrafficDashboardEntry e) {
-		return (e.type().name().equals("SPAWN") ? "S" : "D") + " @ " + e.blockPos().getX() + "," + e.blockPos().getZ();
+		return (e.type() == TrafficPointType.SPAWN ? "S" : "D") + " @ " + e.blockPos().getX() + "," + e.blockPos().getZ();
 	}
 
 	private VehicleOption findVehicleOption(String id) {
