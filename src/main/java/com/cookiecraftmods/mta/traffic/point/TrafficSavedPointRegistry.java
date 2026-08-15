@@ -2,7 +2,6 @@ package com.cookiecraftmods.mta.traffic.point;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
-import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphPathFinder;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -188,8 +187,8 @@ public final class TrafficSavedPointRegistry {
 			if (definition.hasConnectorRoute()) {
 				final MtrNodeKey start = new MtrNodeKey(definition.connectorStartX(), definition.connectorStartY(), definition.connectorStartZ());
 				final MtrNodeKey end = new MtrNodeKey(definition.connectorEndX(), definition.connectorEndY(), definition.connectorEndZ());
-				final boolean existsForward = MtrGraphPathFinder.findEdge(graph, start, end).isPresent();
-				final boolean existsBackward = MtrGraphPathFinder.findEdge(graph, end, start).isPresent();
+				final boolean existsForward = graph.findEdge(start, end).isPresent();
+				final boolean existsBackward = graph.findEdge(end, start).isPresent();
 				if (existsForward || existsBackward) {
 					continue;
 				}

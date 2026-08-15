@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public record MtrGraph(
 	Map<MtrNodeKey, List<MtrGraphEdge>> adjacency,
@@ -24,6 +25,12 @@ public record MtrGraph(
 
 	public boolean isEmpty() {
 		return edges.isEmpty();
+	}
+
+	public Optional<MtrGraphEdge> findEdge(MtrNodeKey from, MtrNodeKey to) {
+		return adjacency.getOrDefault(from, List.of()).stream()
+			.filter(edge -> edge.to().equals(to))
+			.findFirst();
 	}
 
 	private static Map<String, List<MtrGraphEdge>> indexEdgesByRailId(List<MtrGraphEdge> edges) {

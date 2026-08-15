@@ -1669,7 +1669,7 @@ public final class TrafficManager {
 	}
 
 	private static void addConnectorTraversal(List<ConnectorTraversal> traversals, MtrGraph graph, MtrNodeKey startNode, MtrNodeKey endNode, TrafficPointDefinition point) {
-		MtrGraphPathFinder.findEdge(graph, startNode, endNode).ifPresent(edge -> traversals.add(new ConnectorTraversal(
+		graph.findEdge(startNode, endNode).ifPresent(edge -> traversals.add(new ConnectorTraversal(
 			edge.from(),
 			edge.to(),
 			List.of(toSegment(edge, point.type() == TrafficPointType.SPAWN, point.type() == TrafficPointType.DESPAWN)),

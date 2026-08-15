@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 
 public final class MtrGraphPathFinder {
+	private MtrGraphPathFinder() {
+	}
 
 	public static Optional<MtrGraphRouteResult> findFastestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
 		if (start.equals(goal)) {
@@ -48,12 +50,6 @@ public final class MtrGraphPathFinder {
 		}
 
 		return Optional.empty();
-	}
-
-	public static Optional<MtrGraphEdge> findEdge(MtrGraph graph, MtrNodeKey from, MtrNodeKey to) {
-		return graph.adjacency().getOrDefault(from, List.of()).stream()
-			.filter(edge -> edge.to().equals(to))
-			.findFirst();
 	}
 
 	private static MtrGraphRouteResult reconstructRoute(Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode, MtrNodeKey start, MtrNodeKey goal, double totalCostSeconds) {
