@@ -4,6 +4,7 @@ import com.cookiecraftmods.mta.traffic.runtime.TrafficRoute;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficRouteSegment;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -17,7 +18,7 @@ public final class MtrGraphPathFinder {
 
 	public static Optional<MtrGraphRouteResult> findFastestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
 		if (start.equals(goal)) {
-			return Optional.empty();
+			return Optional.of(new MtrGraphRouteResult(new TrafficRoute(List.of()), 0.0D));
 		}
 
 		final PriorityQueue<PathState> openSet = new PriorityQueue<>(Comparator.comparing(PathState::score));
@@ -66,12 +67,8 @@ public final class MtrGraphPathFinder {
 			current = edge.from();
 		}
 
-		final List<TrafficRouteSegment> segments = new ArrayList<>(reversedSegments.size());
-		for (int i = reversedSegments.size() - 1; i >= 0; i--) {
-			segments.add(reversedSegments.get(i));
-		}
-
-		return new MtrGraphRouteResult(new TrafficRoute(segments), totalCostSeconds);
+		Collections.reverse(reversedSegments);
+		return new MtrGraphRouteResult(new TrafficRoute(reversedSegments), totalCostSeconds);
 	}
 
 	private record PathState(

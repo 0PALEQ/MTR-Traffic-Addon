@@ -1339,12 +1339,11 @@ public final class TrafficManager {
 
 		for (ConnectorTraversal spawnTraversal : spawnTraversals) {
 			for (ConnectorTraversal despawnTraversal : despawnTraversals) {
-				final Optional<MtrGraphRouteResult> middleRouteResult;
-				if (spawnTraversal.routeEndNode().equals(despawnTraversal.routeStartNode())) {
-					middleRouteResult = Optional.of(new MtrGraphRouteResult(new TrafficRoute(List.of()), 0.0D));
-				} else {
-					middleRouteResult = MtrGraphPathFinder.findFastestRoute(graph, spawnTraversal.routeEndNode(), despawnTraversal.routeStartNode());
-				}
+				final Optional<MtrGraphRouteResult> middleRouteResult = MtrGraphPathFinder.findFastestRoute(
+					graph,
+					spawnTraversal.routeEndNode(),
+					despawnTraversal.routeStartNode()
+				);
 
 				if (middleRouteResult.isEmpty()) {
 					continue;
