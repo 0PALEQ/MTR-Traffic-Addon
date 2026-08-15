@@ -1343,7 +1343,7 @@ public final class TrafficManager {
 				if (spawnTraversal.routeEndNode().equals(despawnTraversal.routeStartNode())) {
 					middleRouteResult = Optional.of(new MtrGraphRouteResult(new TrafficRoute(List.of()), 0.0D));
 				} else {
-					middleRouteResult = MtrGraphPathFinder.findShortestRoute(graph, spawnTraversal.routeEndNode(), despawnTraversal.routeStartNode());
+					middleRouteResult = MtrGraphPathFinder.findFastestRoute(graph, spawnTraversal.routeEndNode(), despawnTraversal.routeStartNode());
 				}
 
 				if (middleRouteResult.isEmpty()) {

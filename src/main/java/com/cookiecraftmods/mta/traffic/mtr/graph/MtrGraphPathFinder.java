@@ -13,11 +13,7 @@ import java.util.PriorityQueue;
 
 public final class MtrGraphPathFinder {
 
-	public static Optional<MtrGraphRouteResult> findShortestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
-		return findRoute(graph, start, goal, MtrGraphEdge::lengthMeters);
-	}
-
-	private static Optional<MtrGraphRouteResult> findRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal, EdgeCost edgeCost) {
+	public static Optional<MtrGraphRouteResult> findFastestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
 		if (start.equals(goal)) {
 			return Optional.empty();
 		}
@@ -37,11 +33,11 @@ public final class MtrGraphPathFinder {
 			}
 
 			if (currentState.node().equals(goal)) {
-				return Optional.of(reconstructRoute(previousEdgeByNode, start, goal, currentState.score().cost()));
+				return Optional.of(reconstructRoute(previousEdgeByNode, start, goal, currentState.score().travelTimeSeconds()));
 			}
 
 			for (MtrGraphEdge edge : graph.adjacency().getOrDefault(currentState.node(), List.of())) {
-				final PathScore nextScore = new PathScore(currentState.score().cost() + edgeCost.cost(edge), currentState.score().hops() + 1);
+				final PathScore nextScore = new PathScore(currentState.score().travelTimeSeconds() + edge.travelTimeSeconds(), currentState.score().hops() + 1);
 				final PathScore existingScore = bestScoreByNode.get(edge.to());
 				if (existingScore == null || nextScore.compareTo(existingScore) < 0) {
 					bestScoreByNode.put(edge.to(), nextScore);
@@ -67,7 +63,7 @@ public final class MtrGraphPathFinder {
 		while (!current.equals(start)) {
 			final MtrGraphEdge edge = previousEdgeByNode.get(current);
 			if (edge == null) {
-				break;
+				throw new IllegalStateException("Missing route edge for graph node " + current);
 			}
 
 			reversedSegments.add(new TrafficRouteSegment(
@@ -96,13 +92,6 @@ public final class MtrGraphPathFinder {
 		return new MtrGraphRouteResult(new TrafficRoute(segments), totalCostSeconds);
 	}
 
-	private static double distance(MtrNodeKey a, MtrNodeKey b) {
-		final double dx = a.x() - b.x();
-		final double dy = a.y() - b.y();
-		final double dz = a.z() - b.z();
-		return Math.sqrt(dx * dx + dy * dy + dz * dz);
-	}
-
 	private record PathState(
 		MtrNodeKey node,
 		PathScore score
@@ -110,18 +99,13 @@ public final class MtrGraphPathFinder {
 	}
 
 	private record PathScore(
-		double cost,
+		double travelTimeSeconds,
 		int hops
 	) implements Comparable<PathScore> {
 		@Override
 		public int compareTo(PathScore other) {
-			final int costComparison = Double.compare(cost, other.cost);
+			final int costComparison = Double.compare(travelTimeSeconds, other.travelTimeSeconds);
 			return costComparison == 0 ? Integer.compare(hops, other.hops) : costComparison;
 		}
-	}
-
-	@FunctionalInterface
-	private interface EdgeCost {
-		double cost(MtrGraphEdge edge);
 	}
 }
