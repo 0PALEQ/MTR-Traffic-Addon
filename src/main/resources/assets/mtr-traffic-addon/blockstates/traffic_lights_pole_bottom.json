@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "mtr-traffic-addon:block/traffic_lights_pole_bottom"
+    }
+  }
+}

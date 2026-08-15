@@ -1,0 +1,7 @@
+{
+	"credit": "MTR Traffic Addon hidden open tollgate bar segment",
+	"textures": {
+		"particle": "mtr-traffic-addon:block/tollgate_pole"
+	},
+	"elements": []
+}

@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "group": "mtr_traffic_addon_tollgates",
+  "pattern": [
+    "IRI",
+    " I ",
+    " S "
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "R": {
+      "item": "minecraft:redstone_torch"
+    },
+    "S": {
+      "item": "minecraft:smooth_stone_slab"
+    }
+  },
+  "result": {
+    "item": "mtr-traffic-addon:tollgate_pole",
+    "count": 2
+  },
+  "show_notification": true
+}

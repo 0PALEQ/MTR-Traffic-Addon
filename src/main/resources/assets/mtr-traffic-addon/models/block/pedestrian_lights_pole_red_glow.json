@@ -1,0 +1,34 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made by opaleq with Blockbench",
+	"texture_size": [64, 64],
+	"textures": {
+		"signal": "mtr-traffic-addon:block/pedestrian_stop",
+		"particle": "mtr-traffic-addon:block/pedestrian_stop"
+	},
+	"elements": [
+		{
+			"from": [5, 8.5, 3.24],
+			"to": [8, 11.5, 3.25],
+			"rotation": {"angle": 22.5, "axis": "y", "origin": [6.5, 8.75, 4.25]},
+			"faces": {
+				"north": {"uv": [0, 0, 6.25, 6], "texture": "#signal"}
+			}
+		},
+		{
+			"from": [5, 4, 3.24],
+			"to": [8, 7, 3.25],
+			"rotation": {"angle": 22.5, "axis": "y", "origin": [6.5, 8.75, 4.25]},
+			"faces": {
+				"north": {"uv": [0, 6, 6.25, 12], "texture": "#signal"}
+			}
+		}
+	],
+	"display": {
+		"gui": {
+			"rotation": [15, 157, 0],
+			"translation": [0, 0.25, 0],
+			"scale": [0.8, 0.8, 0.8]
+		}
+	}
+}

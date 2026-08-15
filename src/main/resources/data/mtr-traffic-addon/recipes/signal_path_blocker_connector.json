@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "group": "mtr_traffic_addon_connectors",
+  "ingredients": [
+    {
+      "item": "mtr:signal_connector_red"
+    },
+    {
+      "item": "minecraft:obsidian"
+    }
+  ],
+  "result": {
+    "item": "mtr-traffic-addon:signal_path_blocker_connector"
+  }
+}

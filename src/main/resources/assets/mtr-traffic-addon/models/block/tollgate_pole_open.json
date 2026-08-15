@@ -1,0 +1,43 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made by opaleq with Blockbench",
+	"textures": {
+		"0": "mtr-traffic-addon:block/tollgate_pole",
+		"1": "mtr-traffic-addon:block/tollgate",
+		"particle": "mtr-traffic-addon:block/tollgate_pole"
+	},
+	"elements": [
+		{
+			"from": [5, 0, 5],
+			"to": [11, 14, 11],
+			"rotation": {"angle": 0, "axis": "y", "origin": [7, 0, 7]},
+			"faces": {
+				"north": {"uv": [0, 0, 3, 7], "texture": "#0"},
+				"east": {"uv": [3, 0, 6, 7], "texture": "#0"},
+				"south": {"uv": [6, 0, 9, 7], "texture": "#0"},
+				"west": {"uv": [0, 7, 3, 14], "texture": "#0"},
+				"up": {"uv": [6, 10, 3, 7], "texture": "#0"},
+				"down": {"uv": [9, 7, 6, 10], "texture": "#0"}
+			}
+		},
+		{
+			"from": [7, 0, 7.5],
+			"to": [9, 16, 8.5],
+			"rotation": {"angle": 0, "axis": "z", "origin": [8, 8, 8]},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 2], "rotation": 90, "texture": "#1"},
+				"east": {"uv": [16, 5, 0, 6], "rotation": 270, "texture": "#1"},
+				"south": {"uv": [0, 2, 16, 4], "rotation": 270, "texture": "#1"},
+				"west": {"uv": [16, 5, 0, 4], "rotation": 270, "texture": "#1"},
+				"up": {"uv": [0, 6, 1, 8], "rotation": 270, "texture": "#1"},
+				"down": {"uv": [1, 6, 2, 8], "rotation": 270, "texture": "#1"}
+			}
+		}
+	],
+	"display": {
+		"gui": {
+			"rotation": [30, -135, 0],
+			"scale": [0.625, 0.625, 0.625]
+		}
+	}
+}

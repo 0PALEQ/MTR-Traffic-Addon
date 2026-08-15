@@ -1,0 +1,15 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "minecraft:item/barrier",
+    "layer1": "mtr:item/signal_connector"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "mtr:selected": 1
+      },
+      "model": "mtr-traffic-addon:item/signal_path_blocker_connector_selected"
+    }
+  ]
+}

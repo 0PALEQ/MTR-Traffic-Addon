@@ -1,0 +1,29 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made by opaleq with Blockbench",
+	"textures": {
+		"1": "mtr-traffic-addon:block/tollgate",
+		"particle": "mtr-traffic-addon:block/tollgate_pole"
+	},
+	"elements": [
+		{
+			"from": [0, 10, 7.5],
+			"to": [16, 12, 8.5],
+			"rotation": {"angle": 0, "axis": "z", "origin": [8, 11, 8]},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 2], "texture": "#1"},
+				"east": {"uv": [0, 6, 1, 8], "texture": "#1"},
+				"south": {"uv": [0, 2, 16, 4], "texture": "#1"},
+				"west": {"uv": [1, 6, 2, 8], "texture": "#1"},
+				"up": {"uv": [16, 5, 0, 4], "texture": "#1"},
+				"down": {"uv": [16, 5, 0, 6], "texture": "#1"}
+			}
+		}
+	],
+	"display": {
+		"gui": {
+			"rotation": [30, -135, 0],
+			"scale": [0.625, 0.625, 0.625]
+		}
+	}
+}

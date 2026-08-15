@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=east,closed=false": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 0 },
+    "facing=south,closed=false": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 90 },
+    "facing=west,closed=false": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 180 },
+    "facing=north,closed=false": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 270 },
+    "facing=east,closed=true": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 0 },
+    "facing=south,closed=true": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 90 },
+    "facing=west,closed=true": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 180 },
+    "facing=north,closed=true": { "model": "mtr-traffic-addon:block/tollgate_bar_open", "y": 270 }
+  }
+}

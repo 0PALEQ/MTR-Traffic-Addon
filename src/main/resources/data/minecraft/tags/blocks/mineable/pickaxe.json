@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "mtr-traffic-addon:traffic_lights_pole_bottom",
+    "mtr-traffic-addon:traffic_lights_pole",
+    "mtr-traffic-addon:traffic_lights_vertical_pole",
+    "mtr-traffic-addon:traffic_lights_primary",
+    "mtr-traffic-addon:pedestrian_lights",
+    "mtr-traffic-addon:pedestrian_lights_pole",
+    "mtr-traffic-addon:tollgate_pole",
+    "mtr-traffic-addon:tollgate_bar",
+    "mtr-traffic-addon:road_sign"
+  ]
+}

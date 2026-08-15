@@ -1,0 +1,20 @@
+{
+  "textures": {
+    "1": "mtr-traffic-addon:block/tollgate",
+    "particle": "mtr-traffic-addon:block/tollgate_pole"
+  },
+  "elements": [
+    {
+      "from": [7, 0, 7.5],
+      "to": [9, 16, 8.5],
+      "faces": {
+        "north": {"uv": [0, 0, 16, 2], "rotation": 90, "texture": "#1"},
+        "east": {"uv": [16, 5, 0, 6], "rotation": 270, "texture": "#1"},
+        "south": {"uv": [0, 2, 16, 4], "rotation": 270, "texture": "#1"},
+        "west": {"uv": [16, 5, 0, 4], "rotation": 270, "texture": "#1"},
+        "up": {"uv": [0, 6, 1, 8], "rotation": 270, "texture": "#1"},
+        "down": {"uv": [1, 6, 2, 8], "rotation": 270, "texture": "#1"}
+      }
+    }
+  ]
+}

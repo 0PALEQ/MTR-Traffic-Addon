@@ -1,0 +1,10 @@
+{
+  "id": "vdl_citea_lle_120",
+  "type": "bus",
+  "lengthMeters": 12.0,
+  "maxSpeedKph": 50.0,
+  "accelerationMetersPerSecondSquared": 1.1,
+  "brakingMetersPerSecondSquared": 2.2,
+  "spawnWeight": 10,
+  "visualId": "vdl_citea"
+}

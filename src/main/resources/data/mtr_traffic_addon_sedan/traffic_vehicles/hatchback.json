@@ -1,0 +1,10 @@
+﻿{
+    "id":  "hatchback",
+    "type":  "car",
+    "lengthMeters":  4.5,
+    "maxSpeedKph":  70,
+    "accelerationMetersPerSecondSquared":  1.9,
+    "brakingMetersPerSecondSquared":  3.1,
+    "spawnWeight":  14,
+    "visualId":  "mta_hatchback"
+}

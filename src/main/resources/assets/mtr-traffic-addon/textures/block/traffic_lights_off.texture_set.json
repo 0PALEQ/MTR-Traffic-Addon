@@ -1,0 +1,7 @@
+{
+	"format_version": "1.16.100",
+	"minecraft:texture_set": {
+		"color": "traffic_lights_off",
+		"metalness_emissive_roughness": "traffic_lights_off_mer"
+	}
+}
