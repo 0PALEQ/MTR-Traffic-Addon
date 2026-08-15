@@ -206,20 +206,8 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonVehiclePageDown = btn(">", () -> changeVehiclePage(1));
 		buttonSelectedVehiclePageUp = btn("<", () -> changeSelectedVehiclePage(-1));
 		buttonSelectedVehiclePageDown = btn(">", () -> changeSelectedVehiclePage(1));
-		buttonCopyVehiclePool = btnKey("copy_vehicles", () -> {
-			final ClientTrafficDashboardEntry entry = selectedEntry();
-			if (entry != null && entry.type() == TrafficPointType.SPAWN) {
-				copiedVehiclePool = List.copyOf(entry.effectiveVehiclePool());
-				hasCopiedVehiclePool = true;
-				refreshButtons();
-			}
-		});
-		buttonPasteVehiclePool = btnKey("paste_vehicles", () -> {
-			final ClientTrafficDashboardEntry entry = selectedEntry();
-			if (entry != null && entry.type() == TrafficPointType.SPAWN && hasCopiedVehiclePool) {
-				sendUpdate("vehicle_pool_replace", 0, String.join("\n", copiedVehiclePool));
-			}
-		});
+		buttonCopyVehiclePool = btnKey("copy_vehicles", this::copySelectedVehiclePool);
+		buttonPasteVehiclePool = btnKey("paste_vehicles", this::pasteVehiclePool);
 
 		buttonOpenVehiclePool = btnKey("vehicle_pool", () -> openVehiclePool());
 		buttonBackToOverview  = btnKey("back",      () -> { panelMode = PanelMode.OVERVIEW; layoutWidgets(); refreshButtons(); });
@@ -250,10 +238,7 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonTargetGroupMinus = btn("-", () -> sendUpdate("target_group", -1, null));
 		buttonTargetGroupPlus  = btn("+", () -> sendUpdate("target_group",  1, null));
 
-		buttonFocus     = btnKey("focus_map", () -> {
-			if (dashboardSection == DashboardSection.INTERSECTIONS && selectedIntersection() != null) widgetMap.focusOn(selectedIntersection());
-			else if (selectedEntry() != null) widgetMap.focusOn(selectedEntry());
-		});
+		buttonFocus = btnKey("focus_map", this::focusSelectionOnMap);
 		buttonFitMap    = btnKey("fit_map", () -> widgetMap.fitToContent());
 		buttonZoomIn    = btn("", () -> openExternalLink(DISCORD_URL));
 		buttonZoomOut   = btn("", () -> openExternalLink(KOFI_URL));
@@ -261,38 +246,21 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		buttonSectionConnectors    = btnKey("connectors",    () -> switchSection(DashboardSection.CONNECTORS));
 		buttonSectionIntersections = btnKey("intersections", () -> switchSection(DashboardSection.INTERSECTIONS));
 
-		buttonAddIntersection = btnKey("draw_area", () -> {
-			dashboardSection = DashboardSection.INTERSECTIONS;
-			panelMode = PanelMode.OVERVIEW;
-			drawingIntersection = !drawingIntersection;
-			pendingIntersectionCorner = null;
-			selectedIntersectionNode = null;
-			widgetMap.setCreatingIntersection(drawingIntersection);
-			widgetMap.setPendingIntersectionCorner(null);
-			layoutWidgets(); refreshButtons();
-		});
+		buttonAddIntersection = btnKey("draw_area", this::toggleIntersectionDrawing);
 		buttonDeleteIntersection    = btnKey("delete_area",     () -> sendIntersectionUpdate("delete", 0, null));
 		buttonIntersectionSignalMode     = btnKey("mode",       () -> sendIntersectionUpdate("signal_mode", 0, null));
 		buttonAutoDetectIntersection     = btnKey("find_nodes", () -> sendIntersectionUpdate("find_nodes",  0, null));
-		buttonIntersectionGroupAdd       = btnKey("add_group",    () -> {
-			final ClientTrafficIntersectionEntry it = selectedIntersection();
-			selectedPhaseIndex = it == null ? 0 : effectiveGroups(it).size();
-			sendIntersectionUpdate("group_add", 0, null);
-		});
+		buttonIntersectionGroupAdd = btnKey("add_group", this::addIntersectionGroup);
 		buttonIntersectionGroupPrevious = btnKey("previous", () -> changeIntersectionGroup(-1));
 		buttonIntersectionGroupNext = btnKey("next", () -> changeIntersectionGroup(1));
-		buttonToggleIntersectionNodeType = btnKey("node_type",        () -> {
-			final ClientTrafficIntersectionEntry it = selectedIntersection();
-			sendIntersectionUpdate(it != null && it.level() == TrafficIntersectionLevel.TRAIN ? "train_node_toggle" : "node_type", 0, selectedIntersectionNode);
-		});
+		buttonToggleIntersectionNodeType = btnKey("node_type", this::toggleSelectedIntersectionNodeType);
 		buttonIntersectionNodeMinus      = btn("# -",           () -> sendIntersectionUpdate("node_number", -1, selectedIntersectionNode));
 		buttonIntersectionNodePlus       = btn("# +",           () -> sendIntersectionUpdate("node_number",  1, selectedIntersectionNode));
-		buttonIntersectionNodeDelete     = btnKey("delete_node",      () -> { sendIntersectionUpdate("node_delete", 0, selectedIntersectionNode);
-		selectedIntersectionNode = null; refreshButtons(); });
+		buttonIntersectionNodeDelete = btnKey("delete_node", this::deleteSelectedIntersectionNode);
 		buttonIntersectionPhaseMinus = btn("-", () -> sendIntersectionUpdate("phase_duration", -20, String.valueOf(selectedPhaseIndex)));
 		buttonIntersectionPhasePlus  = btn("+", () -> sendIntersectionUpdate("phase_duration",  20, String.valueOf(selectedPhaseIndex)));
-		buttonIntersectionPhaseAdd    = btnKey("assign",   () -> { final Integer n = selectedNodeNumber(); if (n != null) sendIntersectionUpdate("phase_assign",  n, String.valueOf(selectedPhaseIndex)); });
-		buttonIntersectionPhaseRemove = btnKey("remove",   () -> { final Integer n = selectedNodeNumber(); sendIntersectionUpdate("phase_remove", n == null ? 0 : n, String.valueOf(selectedPhaseIndex)); });
+		buttonIntersectionPhaseAdd = btnKey("assign", this::assignSelectedNodeToPhase);
+		buttonIntersectionPhaseRemove = btnKey("remove", this::removeSelectedNodeFromPhase);
 		buttonIntersectionPhaseUp   = btnKey("move_up",   () -> sendIntersectionUpdate("phase_move", -1, String.valueOf(selectedPhaseIndex)));
 		buttonIntersectionPhaseDown = btnKey("move_down", () -> sendIntersectionUpdate("phase_move",  1, String.valueOf(selectedPhaseIndex)));
 
@@ -401,6 +369,81 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 		syncIntersectionNameField();
 		layoutWidgets();
 		refreshButtons();
+	}
+
+	private void copySelectedVehiclePool() {
+		final ClientTrafficDashboardEntry entry = selectedEntry();
+		if (entry == null || entry.type() != TrafficPointType.SPAWN) {
+			return;
+		}
+		copiedVehiclePool = List.copyOf(entry.effectiveVehiclePool());
+		hasCopiedVehiclePool = true;
+		refreshButtons();
+	}
+
+	private void pasteVehiclePool() {
+		final ClientTrafficDashboardEntry entry = selectedEntry();
+		if (entry != null && entry.type() == TrafficPointType.SPAWN && hasCopiedVehiclePool) {
+			sendUpdate("vehicle_pool_replace", 0, String.join("\n", copiedVehiclePool));
+		}
+	}
+
+	private void focusSelectionOnMap() {
+		if (dashboardSection == DashboardSection.INTERSECTIONS) {
+			final ClientTrafficIntersectionEntry intersection = selectedIntersection();
+			if (intersection != null) {
+				widgetMap.focusOn(intersection);
+				return;
+			}
+		}
+		final ClientTrafficDashboardEntry entry = selectedEntry();
+		if (entry != null) {
+			widgetMap.focusOn(entry);
+		}
+	}
+
+	private void toggleIntersectionDrawing() {
+		dashboardSection = DashboardSection.INTERSECTIONS;
+		panelMode = PanelMode.OVERVIEW;
+		drawingIntersection = !drawingIntersection;
+		pendingIntersectionCorner = null;
+		selectedIntersectionNode = null;
+		widgetMap.setCreatingIntersection(drawingIntersection);
+		widgetMap.setPendingIntersectionCorner(null);
+		layoutWidgets();
+		refreshButtons();
+	}
+
+	private void addIntersectionGroup() {
+		final ClientTrafficIntersectionEntry intersection = selectedIntersection();
+		selectedPhaseIndex = intersection == null ? 0 : effectiveGroups(intersection).size();
+		sendIntersectionUpdate("group_add", 0, null);
+	}
+
+	private void toggleSelectedIntersectionNodeType() {
+		final ClientTrafficIntersectionEntry intersection = selectedIntersection();
+		final String action = intersection != null && intersection.level() == TrafficIntersectionLevel.TRAIN
+			? "train_node_toggle"
+			: "node_type";
+		sendIntersectionUpdate(action, 0, selectedIntersectionNode);
+	}
+
+	private void deleteSelectedIntersectionNode() {
+		sendIntersectionUpdate("node_delete", 0, selectedIntersectionNode);
+		selectedIntersectionNode = null;
+		refreshButtons();
+	}
+
+	private void assignSelectedNodeToPhase() {
+		final Integer nodeNumber = selectedNodeNumber();
+		if (nodeNumber != null) {
+			sendIntersectionUpdate("phase_assign", nodeNumber, String.valueOf(selectedPhaseIndex));
+		}
+	}
+
+	private void removeSelectedNodeFromPhase() {
+		final Integer nodeNumber = selectedNodeNumber();
+		sendIntersectionUpdate("phase_remove", nodeNumber == null ? 0 : nodeNumber, String.valueOf(selectedPhaseIndex));
 	}
 
 	public void updateEntries(List<ClientTrafficDashboardEntry> updatedEntries, List<ClientTrafficIntersectionEntry> updatedIntersections) {
