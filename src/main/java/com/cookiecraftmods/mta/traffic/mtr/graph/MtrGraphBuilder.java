@@ -3,6 +3,7 @@ package com.cookiecraftmods.mta.traffic.mtr.graph;
 import com.cookiecraftmods.mta.mixin.RailSchemaAccessor;
 import com.cookiecraftmods.mta.traffic.mtr.dto.MtrRail;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficPathPoint;
+import com.cookiecraftmods.mta.traffic.signal.SignalPathBlocker;
 import org.mtr.core.data.Position;
 import org.mtr.core.data.Rail;
 import org.mtr.core.data.RailMath;
@@ -44,7 +45,8 @@ public final class MtrGraphBuilder {
 				position1.getX(), position1.getY(), position1.getZ(), accessor.mta$getAngle1().name(),
 				position2.getX(), position2.getY(), position2.getZ(), accessor.mta$getAngle2().name(),
 				accessor.mta$getShape().name(), accessor.mta$getVerticalRadius(),
-				accessor.mta$getSpeedLimit1(), accessor.mta$getSpeedLimit2(), signalColors
+				accessor.mta$getSpeedLimit1(), accessor.mta$getSpeedLimit2(),
+				SignalPathBlocker.isBlocked(rail, SignalPathBlocker.MTA_STYLE), signalColors
 			));
 		}
 		return List.copyOf(snapshots);
@@ -60,25 +62,26 @@ public final class MtrGraphBuilder {
 			final RailPath railPath = createRailPath(rail);
 
 			if (rail.speedLimit1() > 0) {
-				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), rail.signalColors(), railPath.points());
+				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), rail.mtaPathBlocked(), rail.signalColors(), railPath.points());
 			}
 			if (rail.speedLimit2() > 0) {
 				final List<TrafficPathPoint> reversedPath = new ArrayList<>(railPath.points());
 				Collections.reverse(reversedPath);
-				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), rail.signalColors(), reversedPath);
+				addEdge(adjacency, edges, position2, position1, railPath.lengthMeters(), rail.speedLimit2(), rail.mtaPathBlocked(), rail.signalColors(), reversedPath);
 			}
 		}
 
 		return new MtrGraph(adjacency, edges);
 	}
 
-	private static void addEdge(Map<MtrNodeKey, List<MtrGraphEdge>> adjacency, List<MtrGraphEdge> edges, MtrNodeKey from, MtrNodeKey to, double lengthMeters, double speedLimitKph, List<Long> signalColors, List<TrafficPathPoint> path) {
+	private static void addEdge(Map<MtrNodeKey, List<MtrGraphEdge>> adjacency, List<MtrGraphEdge> edges, MtrNodeKey from, MtrNodeKey to, double lengthMeters, double speedLimitKph, boolean mtaPathBlocked, List<Long> signalColors, List<TrafficPathPoint> path) {
 		final MtrGraphEdge edge = new MtrGraphEdge(
 			createRailId(from, to),
 			from,
 			to,
 			lengthMeters,
 			speedLimitKph,
+			mtaPathBlocked,
 			signalColors,
 			path
 		);
@@ -124,7 +127,7 @@ public final class MtrGraphBuilder {
 			rail.position1().x(), rail.position1().y(), rail.position1().z(), rail.angle1(),
 			rail.position2().x(), rail.position2().y(), rail.position2().z(), rail.angle2(),
 			rail.shape(), rail.verticalRadius(),
-			rail.speedLimit1(), rail.speedLimit2(), rail.effectiveSignalColors()
+			rail.speedLimit1(), rail.speedLimit2(), false, rail.effectiveSignalColors()
 		);
 	}
 
@@ -170,6 +173,7 @@ public final class MtrGraphBuilder {
 		double verticalRadius,
 		long speedLimit1,
 		long speedLimit2,
+		boolean mtaPathBlocked,
 		List<Long> signalColors
 	) {
 		public RailSnapshot {

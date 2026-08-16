@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "既存の MTR レールの両端を選択します。",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "同じレールをもう一度選択するとブロックを解除します。",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "このレールで MTR の経路探索をブロックしました。",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "このレールで MTR の経路探索を再び有効にしました。"
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "このレールで MTR の経路探索を再び有効にしました。",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "MTA 経路探索ブロックコネクター",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "既存の MTR レールの両端を選択します。",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "同じレールをもう一度選択するとブロックを解除します。",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "このレールで MTA 車両の経路探索をブロックしました。",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "このレールで MTA 車両の経路探索を再び有効にしました。"
 }

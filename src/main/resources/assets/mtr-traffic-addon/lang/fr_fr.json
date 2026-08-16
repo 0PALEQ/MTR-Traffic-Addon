@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Sélectionnez les deux extrémités d’un rail MTR existant.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Sélectionnez à nouveau le même rail pour le débloquer.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "La recherche d’itinéraire MTR est bloquée sur ce rail.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "La recherche d’itinéraire MTR est rétablie sur ce rail."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "La recherche d’itinéraire MTR est rétablie sur ce rail.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "Connecteur de blocage d’itinéraire MTA",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Sélectionnez les deux extrémités d’un rail MTR existant.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Sélectionnez à nouveau le même rail pour le débloquer.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "La recherche d’itinéraire des véhicules MTA est bloquée sur ce rail.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "La recherche d’itinéraire des véhicules MTA est rétablie sur ce rail."
 }

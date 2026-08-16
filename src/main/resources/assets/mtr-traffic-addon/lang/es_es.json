@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Selecciona ambos extremos de una vía MTR existente.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Selecciona de nuevo la misma vía para desbloquearla.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "La búsqueda de rutas de MTR está bloqueada en esta vía.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "La búsqueda de rutas de MTR se ha restaurado en esta vía."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "La búsqueda de rutas de MTR se ha restaurado en esta vía.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "Conector de bloqueo de rutas MTA",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Selecciona ambos extremos de una vía MTR existente.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Selecciona de nuevo la misma vía para desbloquearla.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "La búsqueda de rutas de vehículos MTA está bloqueada en esta vía.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "La búsqueda de rutas de vehículos MTA se ha restaurado en esta vía."
 }

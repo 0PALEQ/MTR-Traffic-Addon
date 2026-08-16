@@ -18,7 +18,7 @@ public class RailTypeMixin {
 		}
 
 		//Do something with the goddamn color
-		if (SignalPathBlocker.isBlocked(rail)) {
+		if (SignalPathBlocker.isBlocked(rail, SignalPathBlocker.MTR_STYLE) || SignalPathBlocker.isBlocked(rail, SignalPathBlocker.MTA_STYLE)) {
 			cir.setReturnValue(SignalPathBlocker.RAIL_COLOR);
 		} else if (rail.getStyles().contains(TrafficConnectorStyles.SPAWN_STYLE)) {
 			cir.setReturnValue(TrafficConnectorStyles.SPAWN_COLOR);

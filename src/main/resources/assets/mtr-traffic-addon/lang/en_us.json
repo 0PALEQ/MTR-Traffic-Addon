@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Select both ends of an existing MTR rail.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Select the same rail again to unblock it.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "MTR pathfinding is blocked on this rail.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "MTR pathfinding is restored on this rail."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "MTR pathfinding is restored on this rail.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "MTA Path Blocker Connector",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Select both ends of an existing MTR rail.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Select the same rail again to unblock it.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "MTA vehicle pathfinding is blocked on this rail.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "MTA vehicle pathfinding is restored on this rail."
 }

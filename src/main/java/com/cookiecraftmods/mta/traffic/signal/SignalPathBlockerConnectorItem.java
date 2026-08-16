@@ -20,15 +20,20 @@ import org.mtr.mod.packet.PacketUpdateData;
 import java.util.List;
 
 public final class SignalPathBlockerConnectorItem extends ItemSignalModifier {
-	public SignalPathBlockerConnectorItem() {
+	private final String style;
+	private final String translationPath;
+
+	public SignalPathBlockerConnectorItem(String style, String translationPath) {
 		super(true, 0, new ItemSettings());
+		this.style = style;
+		this.translationPath = translationPath;
 	}
 
 	@Override
 	public void addTooltips(ItemStack itemStack, World world, List<MutableText> tooltips, TooltipContext tooltipContext) {
 		super.addTooltips(itemStack, world, tooltips, tooltipContext);
-		tooltips.add(TextHelper.translatable("tooltip.mtr-traffic-addon.signal_path_blocker_connector.select"));
-		tooltips.add(TextHelper.translatable("tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle"));
+		tooltips.add(TextHelper.translatable("tooltip.mtr-traffic-addon." + translationPath + ".select"));
+		tooltips.add(TextHelper.translatable("tooltip.mtr-traffic-addon." + translationPath + ".toggle"));
 	}
 
 	@Override
@@ -36,13 +41,13 @@ public final class SignalPathBlockerConnectorItem extends ItemSignalModifier {
 		getRail(world, pos1, pos2, player, rail -> toggleRail(world, rail, player));
 	}
 
-	private static void toggleRail(World world, Rail rail, ServerPlayerEntity player) {
-		final boolean blocked = !SignalPathBlocker.isBlocked(rail);
-		PacketUpdateData.sendDirectlyToServerRail(ServerWorld.cast(world), SignalPathBlocker.copyWithBlockedState(rail, blocked));
+	private void toggleRail(World world, Rail rail, ServerPlayerEntity player) {
+		final boolean blocked = !SignalPathBlocker.isBlocked(rail, style);
+		PacketUpdateData.sendDirectlyToServerRail(ServerWorld.cast(world), SignalPathBlocker.copyWithBlockedState(rail, style, blocked));
 		if (player != null) {
 			player.data.displayClientMessage(Component.translatable(blocked
-				? "message.mtr-traffic-addon.signal_path_blocker_connector.blocked"
-				: "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked"), true);
+				? "message.mtr-traffic-addon." + translationPath + ".blocked"
+				: "message.mtr-traffic-addon." + translationPath + ".unblocked"), true);
 		}
 	}
 }

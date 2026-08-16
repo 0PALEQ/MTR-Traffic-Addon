@@ -5,6 +5,7 @@ import com.cookiecraftmods.mta.traffic.dashboard.item.TrafficDashboardItem;
 import com.cookiecraftmods.mta.traffic.lights.item.TrafficLightsPrimaryBlockItem;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.point.connector.TrafficConnectorItem;
+import com.cookiecraftmods.mta.traffic.signal.SignalPathBlocker;
 import com.cookiecraftmods.mta.traffic.signal.SignalPathBlockerConnectorItem;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -19,7 +20,8 @@ public final class ModItems {
 
 	public static final Item TRAFFIC_SPAWN_CONNECTOR = registerItem("traffic_spawn_connector", new TrafficConnectorItem(TrafficPointType.SPAWN));
 	public static final Item TRAFFIC_DESPAWN_CONNECTOR = registerItem("traffic_despawn_connector", new TrafficConnectorItem(TrafficPointType.DESPAWN));
-	public static final Item SIGNAL_PATH_BLOCKER_CONNECTOR = registerItem("signal_path_blocker_connector", new SignalPathBlockerConnectorItem());
+	public static final Item SIGNAL_PATH_BLOCKER_CONNECTOR = registerItem("signal_path_blocker_connector", new SignalPathBlockerConnectorItem(SignalPathBlocker.MTR_STYLE, "signal_path_blocker_connector"));
+	public static final Item MTA_PATH_BLOCKER_CONNECTOR = registerItem("mta_path_blocker_connector", new SignalPathBlockerConnectorItem(SignalPathBlocker.MTA_STYLE, "mta_path_blocker_connector"));
 
 	public static final Item TRAFFIC_LIGHTS_POLE_BOTTOM = registerBlockItem("traffic_lights_pole_bottom", ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM);
 	public static final Item TRAFFIC_LIGHTS_POLE = registerBlockItem("traffic_lights_pole", ModBlocks.TRAFFIC_LIGHTS_POLE);

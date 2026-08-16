@@ -23,7 +23,7 @@ public abstract class SidingPathFinderMixin {
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private void mta$skipPathBlockedRails(Object2ObjectOpenHashMap rails, BiConsumer consumer) {
 		rails.forEach((position, value) -> {
-			if (!(value instanceof Rail rail) || !SignalPathBlocker.isBlocked(rail)) {
+			if (!(value instanceof Rail rail) || !SignalPathBlocker.isBlocked(rail, SignalPathBlocker.MTR_STYLE)) {
 				consumer.accept(position, value);
 			}
 		});

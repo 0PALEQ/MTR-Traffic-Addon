@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "请选择一段现有 MTR 轨道的两个端点。",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "再次选择同一段轨道即可解除阻断。",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "已阻断 MTR 在这段轨道上的寻路。",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "已恢复 MTR 在这段轨道上的寻路。"
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "已恢复 MTR 在这段轨道上的寻路。",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "MTA 寻路阻断连接器",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "请选择一段现有 MTR 轨道的两个端点。",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "再次选择同一段轨道即可解除阻断。",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "已阻断 MTA 车辆在这段轨道上的寻路。",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "已恢复 MTA 车辆在这段轨道上的寻路。"
 }

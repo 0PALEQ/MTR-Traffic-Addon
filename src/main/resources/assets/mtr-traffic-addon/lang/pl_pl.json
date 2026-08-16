@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Wybierz oba końce istniejącego toru MTR.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Wybierz ten sam tor ponownie, aby go odblokować.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "Wyznaczanie tras MTR zostało zablokowane na tym torze.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Wyznaczanie tras MTR zostało przywrócone na tym torze."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Wyznaczanie tras MTR zostało przywrócone na tym torze.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "Łącznik blokady tras MTA",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Wybierz oba końce istniejącego toru MTR.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Wybierz ten sam tor ponownie, aby go odblokować.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "Wyznaczanie tras pojazdów MTA zostało zablokowane na tym torze.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "Wyznaczanie tras pojazdów MTA zostało przywrócone na tym torze."
 }

@@ -11,6 +11,7 @@ public record MtrGraphEdge(
 	MtrNodeKey to,
 	double lengthMeters,
 	double speedLimitKph,
+	boolean mtaPathBlocked,
 	List<Long> signalColors,
 	List<TrafficPathPoint> path
 ) {

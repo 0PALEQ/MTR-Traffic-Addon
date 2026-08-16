@@ -40,6 +40,9 @@ public final class MtrGraphPathFinder {
 			}
 
 			for (MtrGraphEdge edge : graph.adjacency().getOrDefault(currentState.node(), List.of())) {
+				if (edge.mtaPathBlocked()) {
+					continue;
+				}
 				final PathScore nextScore = new PathScore(currentState.score().travelTimeSeconds() + edge.travelTimeSeconds(), currentState.score().hops() + 1);
 				final PathScore existingScore = bestScoreByNode.get(edge.to());
 				if (existingScore == null || nextScore.compareTo(existingScore) < 0) {

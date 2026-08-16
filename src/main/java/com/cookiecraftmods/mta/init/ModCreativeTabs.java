@@ -19,6 +19,7 @@ public final class ModCreativeTabs {
 				output.accept(ModItems.TRAFFIC_SPAWN_CONNECTOR);
 				output.accept(ModItems.TRAFFIC_DESPAWN_CONNECTOR);
 				output.accept(ModItems.SIGNAL_PATH_BLOCKER_CONNECTOR);
+				output.accept(ModItems.MTA_PATH_BLOCKER_CONNECTOR);
 				output.accept(ModItems.TRAFFIC_DASHBOARD);
 				output.accept(ModItems.TRAFFIC_LIGHTS_POLE_BOTTOM);
 				output.accept(ModItems.TRAFFIC_LIGHTS_POLE);

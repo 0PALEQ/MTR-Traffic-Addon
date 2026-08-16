@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Vyberte oba konce existující koleje MTR.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Opětovným výběrem stejné koleje blokování zrušíte.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "Vyhledávání tras MTR je na této koleji zablokováno.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Vyhledávání tras MTR je na této koleji opět povoleno."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Vyhledávání tras MTR je na této koleji opět povoleno.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "Konektor blokování tras MTA",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Vyberte oba konce existující koleje MTR.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Opětovným výběrem stejné koleje blokování zrušíte.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "Vyhledávání tras vozidel MTA je na této koleji zablokováno.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "Vyhledávání tras vozidel MTA je na této koleji opět povoleno."
 }

@@ -157,5 +157,10 @@
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.select": "Wähle beide Enden einer vorhandenen MTR-Schiene aus.",
   "tooltip.mtr-traffic-addon.signal_path_blocker_connector.toggle": "Wähle dieselbe Schiene erneut aus, um sie freizugeben.",
   "message.mtr-traffic-addon.signal_path_blocker_connector.blocked": "Die MTR-Wegfindung ist auf dieser Schiene gesperrt.",
-  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Die MTR-Wegfindung ist auf dieser Schiene wieder freigegeben."
+  "message.mtr-traffic-addon.signal_path_blocker_connector.unblocked": "Die MTR-Wegfindung ist auf dieser Schiene wieder freigegeben.",
+  "item.mtr-traffic-addon.mta_path_blocker_connector": "MTA-Streckensperrverbinder",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.select": "Wähle beide Enden einer vorhandenen MTR-Schiene aus.",
+  "tooltip.mtr-traffic-addon.mta_path_blocker_connector.toggle": "Wähle dieselbe Schiene erneut aus, um sie freizugeben.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.blocked": "Die Wegfindung für MTA-Fahrzeuge ist auf dieser Schiene gesperrt.",
+  "message.mtr-traffic-addon.mta_path_blocker_connector.unblocked": "Die Wegfindung für MTA-Fahrzeuge ist auf dieser Schiene wieder freigegeben."
 }

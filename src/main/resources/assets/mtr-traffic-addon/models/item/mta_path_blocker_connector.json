@@ -2,7 +2,7 @@
   "parent": "item/generated",
   "textures": {
     "layer0": "mtr:item/signal_connector",
-    "layer1": "mtr:item/railway_dashboard",
+    "layer1": "mtr-traffic-addon:item/traffic_dashboard",
     "layer2": "minecraft:item/barrier"
   },
   "overrides": [
