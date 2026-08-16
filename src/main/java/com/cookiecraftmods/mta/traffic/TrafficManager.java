@@ -58,7 +58,6 @@ public final class TrafficManager {
 	private static final long FULL_RAIL_GRAPH_STALE_MILLIS = 15000L;
 	private static final int MAX_VIRTUAL_DEPARTURES_PER_SPAWN_SCAN = 2048;
 	private static final int MTR_VEHICLE_OCCUPANCY_STALE_TICKS = 20;
-	private static final int PAUSED_TRAFFIC_OBSTACLE_GRACE_TICKS = 20;
 	private static final double MTR_SIGNAL_PATH_LOOKAHEAD_METERS = 256.0D;
 	private static final double MTR_SIGNAL_PATH_SAMPLE_STEP_METERS = 4.0D;
 	private static final int MTR_SIGNAL_PATH_MAX_SEGMENTS = 64;

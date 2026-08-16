@@ -1136,10 +1136,6 @@ public final class TrafficIntersectionRegistry {
 		return !contains(definition, travelFrom(travel)) && contains(definition, travelTo(travel));
 	}
 
-	private static boolean isInside(TrafficIntersectionDefinition definition, TrafficRouteSegment segment) {
-		return definition.contains(segment.startX(), segment.startY(), segment.startZ()) && definition.contains(segment.endX(), segment.endY(), segment.endZ());
-	}
-
 	private static boolean contains(TrafficIntersectionDefinition definition, MtrNodeKey node) {
 		return definition.contains(node.x(), node.y(), node.z());
 	}

@@ -73,7 +73,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private static final int C_WARN     = 0xFFFFD166;
 	private static final int C_MUTED    = 0xFFAAAAAA;
 	private static final int C_DIVIDER  = 0xFF3A3A3A;
-	private static final int C_SELECTED = 0xFF2A4870;
 
 	private final List<ClientTrafficDashboardEntry>    entries              = new ArrayList<>();
 	private final List<ClientTrafficDashboardEntry>    filteredEntries      = new ArrayList<>();
@@ -1318,13 +1317,6 @@ public class TrafficDashboardScreen extends ScreenExtension implements IGui {
 	private int vehiclePoolLeftX()     { return uiWidth() / 2 - vehiclePoolListWidth() - 20; }
 	private int vehiclePoolRightX()    { return uiWidth() / 2 + 20; }
 	private int vehiclePoolListY()     { return 76; }
-
-	private void selectConnectorIndex(int index, boolean focusMap) {
-		if (index < 0 || index >= entries.size()) {
-			return;
-		}
-		selectConnector(entries.get(index), focusMap);
-	}
 
 	private void openExternalLink(String url) {
 		ConfirmLinkScreen.confirmLinkNow(url, this, true);
