@@ -1272,7 +1272,7 @@ public final class TrafficManager {
 
 	//_________________________________________________
 	//Distance calculations
-	// these are currently resource heavy and require optimization
+	//TODO: Optimize these distance calculations; they are called frequently.
 
 	private static Double distanceOnSamePhysicalSegment(TrafficRouteSegment candidateSegment, TrafficRouteSegment otherSegment, double otherDistanceMeters) {
 		if (sameDirectedSegment(candidateSegment, otherSegment)) {
