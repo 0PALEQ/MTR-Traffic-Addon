@@ -56,7 +56,7 @@ public final class MtrGraphPathFinder {
 		return Optional.empty();
 	}
 
-	private static MtrGraphRouteResult reconstructRoute(Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode, MtrNodeKey start, MtrNodeKey goal, double totalCostSeconds) {
+	private static MtrGraphRouteResult reconstructRoute(Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode, MtrNodeKey start, MtrNodeKey goal, double travelTimeSeconds) {
 		final List<TrafficRouteSegment> reversedSegments = new ArrayList<>();
 		MtrNodeKey current = goal;
 
@@ -71,7 +71,7 @@ public final class MtrGraphPathFinder {
 		}
 
 		Collections.reverse(reversedSegments);
-		return new MtrGraphRouteResult(new TrafficRoute(reversedSegments), totalCostSeconds);
+		return new MtrGraphRouteResult(new TrafficRoute(reversedSegments), travelTimeSeconds);
 	}
 
 	private record PathState(
@@ -86,8 +86,8 @@ public final class MtrGraphPathFinder {
 	) implements Comparable<PathScore> {
 		@Override
 		public int compareTo(PathScore other) {
-			final int costComparison = Double.compare(travelTimeSeconds, other.travelTimeSeconds);
-			return costComparison == 0 ? Integer.compare(hops, other.hops) : costComparison;
+			final int timeComparison = Double.compare(travelTimeSeconds, other.travelTimeSeconds);
+			return timeComparison == 0 ? Integer.compare(hops, other.hops) : timeComparison;
 		}
 	}
 }

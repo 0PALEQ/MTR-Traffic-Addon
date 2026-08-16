@@ -1357,9 +1357,9 @@ public final class TrafficManager {
 					continue;
 				}
 
-				final double totalCostSeconds = spawnTraversal.routeCostSeconds() + middleRouteResult.get().totalCostSeconds() + despawnTraversal.routeCostSeconds();
-				if (bestResult == null || totalCostSeconds < bestResult.totalCostSeconds()) {
-					bestResult = new MtrGraphRouteResult(new TrafficRoute(segments), totalCostSeconds);
+				final double travelTimeSeconds = spawnTraversal.travelTimeSeconds() + middleRouteResult.get().travelTimeSeconds() + despawnTraversal.travelTimeSeconds();
+				if (bestResult == null || travelTimeSeconds < bestResult.travelTimeSeconds()) {
+					bestResult = new MtrGraphRouteResult(new TrafficRoute(segments), travelTimeSeconds);
 				}
 			}
 		}
@@ -1899,7 +1899,7 @@ public final class TrafficManager {
 		MtrNodeKey routeStartNode,
 		MtrNodeKey routeEndNode,
 		List<TrafficRouteSegment> routeSegments,
-		double routeCostSeconds
+		double travelTimeSeconds
 	) {
 		private ConnectorTraversal {
 			routeSegments = List.copyOf(routeSegments);
