@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "mtr_traffic_addon_road_signs",
+  "pattern": [
+    "III",
+    "PPP",
+    " I "
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "P": {
+      "item": "minecraft:paper"
+    }
+  },
+  "result": {
+    "id": "mtr-traffic-addon:road_sign",
+    "count": 2
+  },
+  "show_notification": true
+}

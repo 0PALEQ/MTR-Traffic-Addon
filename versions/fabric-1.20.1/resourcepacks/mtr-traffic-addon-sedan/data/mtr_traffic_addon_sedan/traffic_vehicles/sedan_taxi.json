@@ -1,0 +1,10 @@
+{
+  "id": "sedan_taxi",
+  "type": "car",
+  "lengthMeters": 4.2,
+  "maxSpeedKph": 70.0,
+  "accelerationMetersPerSecondSquared": 1.8,
+  "brakingMetersPerSecondSquared": 3.0,
+  "spawnWeight": 4,
+  "visualId": "mta_sedan_taxi"
+}

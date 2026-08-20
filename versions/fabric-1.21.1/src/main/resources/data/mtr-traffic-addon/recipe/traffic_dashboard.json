@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "group": "mtr_traffic_addon_tools",
+  "ingredients": [
+    {
+      "item": "mtr:dashboard"
+    },
+    {
+      "item": "minecraft:compass"
+    },
+    {
+      "item": "minecraft:lime_dye"
+    }
+  ],
+  "result": {
+    "id": "mtr-traffic-addon:traffic_dashboard"
+  }
+}

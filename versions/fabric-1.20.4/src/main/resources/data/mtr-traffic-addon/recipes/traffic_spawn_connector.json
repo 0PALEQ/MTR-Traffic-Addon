@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "group": "mtr_traffic_addon_connectors",
+  "ingredients": [
+    {
+      "item": "mtr:rail_connector_siding"
+    },
+    {
+      "item": "minecraft:lime_dye"
+    },
+    {
+      "item": "minecraft:redstone"
+    }
+  ],
+  "result": {
+    "item": "mtr-traffic-addon:traffic_spawn_connector"
+  }
+}

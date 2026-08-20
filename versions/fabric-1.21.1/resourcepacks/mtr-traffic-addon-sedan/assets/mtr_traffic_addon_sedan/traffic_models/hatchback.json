@@ -1,0 +1,18 @@
+﻿{
+    "id":  "mta_hatchback",
+    "format":  "obj",
+    "model":  "mtr_traffic_addon_sedan:models/vehicle/hatchback.obj",
+    "texture":  "mtr_traffic_addon_sedan:textures/vehicle/hatchback_primary.png",
+    "scale":  1,
+    "offset":  [
+                   0,
+                   0,
+                   0
+               ],
+    "rotation":  [
+                     0,
+                     -90,
+                     0
+                 ],
+    "color":  "FFFFFFFF"
+}

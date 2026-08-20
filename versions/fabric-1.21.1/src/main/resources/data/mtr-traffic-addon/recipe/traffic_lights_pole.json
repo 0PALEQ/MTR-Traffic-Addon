@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "mtr_traffic_addon_traffic_poles",
+  "pattern": [
+    "I",
+    "I",
+    "I"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_bars"
+    }
+  },
+  "result": {
+    "id": "mtr-traffic-addon:traffic_lights_pole",
+    "count": 4
+  },
+  "show_notification": true
+}

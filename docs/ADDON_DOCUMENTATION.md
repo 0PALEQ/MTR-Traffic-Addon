@@ -551,13 +551,14 @@ Local build with Java 21:
 ```powershell
 $env:JAVA_HOME='C:\Users\opale\.jdks\ms-21.0.8'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
+Set-Location versions\fabric-1.20.1
 .\gradlew.bat build
 ```
 
 Expected Gradle Fabric jar:
 
 ```text
-build/libs/mtr-traffic-addon-26.7.0.jar
+versions/<version>/build/libs/mtr-traffic-addon-<mod-version>.jar
 ```
 
 The sources jar is also generated:

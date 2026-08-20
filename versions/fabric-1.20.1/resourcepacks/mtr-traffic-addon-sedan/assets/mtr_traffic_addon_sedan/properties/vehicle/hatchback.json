@@ -1,0 +1,16 @@
+﻿{
+    "modelYOffset":  0,
+    "parts":  [
+                  {
+                      "names":  [
+                                    "mesh"
+                                ],
+                      "positionDefinitions":  [
+                                                  "origin"
+                                              ],
+                      "condition":  "NORMAL",
+                      "renderStage":  "EXTERIOR",
+                      "type":  "NORMAL"
+                  }
+              ]
+}

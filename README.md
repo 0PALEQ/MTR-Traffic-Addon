@@ -27,20 +27,30 @@ Addon traffic simulation runs on a dedicated wall-clock simulation thread instea
 
 Fabric Loom `1.16.1` requires Gradle to run on JDK 21 or newer. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
 
+This repository is a multi-version workspace. Version-specific Java code and Gradle builds live under `versions/`, while byte-identical assets and data files used by every version live under `shared/src/main/resources`. Each version's `src/main/resources` directory is an overlay for loader metadata and Minecraft-version-specific resources.
+
+Available builds:
+
+- `versions/fabric-1.20.1`
+- `versions/fabric-1.20.1-sinytra`
+- `versions/fabric-1.20.4`
+- `versions/fabric-1.21.1`
+
 Example local build:
 
 ```powershell
 $env:JAVA_HOME='C:\Users\opale\.jdks\ms-21.0.8'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
+Set-Location versions\fabric-1.20.1
 .\gradlew.bat build
 ```
 
 Standard Gradle artifacts:
 
-- `build/libs/mtr-traffic-addon-26.7.0.jar`
-- `build/libs/mtr-traffic-addon-26.7.0-sources.jar`
+- `versions/<version>/build/libs/mtr-traffic-addon-<mod-version>.jar`
+- `versions/<version>/build/libs/mtr-traffic-addon-<mod-version>-sources.jar`
 
-The prepared Fabric distribution copy in this workspace is named `build/libs/mta-26.7.0-fabric-1.20.1.jar`.
+The selected version directory owns all of its generated Gradle artifacts.
 
 ## Built-In Vehicle Resources
 

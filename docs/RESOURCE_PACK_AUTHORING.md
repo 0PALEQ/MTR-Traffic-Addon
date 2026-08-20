@@ -1,6 +1,6 @@
 # MTR Traffic Addon Resource Pack Authoring
 
-This project can load MTR vehicle visuals from normal Minecraft resource packs, but the preferred release setup is to embed stable addon assets directly in the mod jar under `src/main/resources`.
+This project can load MTR vehicle visuals from normal Minecraft resource packs, but the preferred release setup is to embed stable addon assets directly in the mod jar under `shared/src/main/resources`.
 
 ## Recommended Layout
 
@@ -24,8 +24,8 @@ data/
 For built-in mod resources, copy the same `assets/` and `data/` contents into:
 
 ```text
-src/main/resources/assets/...
-src/main/resources/data/...
+shared/src/main/resources/assets/...
+shared/src/main/resources/data/...
 ```
 
 Do not copy `pack.mcmeta` into the mod resources. The mod jar is already a resource container.
@@ -164,14 +164,14 @@ The built-in hatchback uses one shared OBJ mesh and per-variant default textures
 
 Once a pack is stable, embed it:
 
-1. Copy `assets/mtr/mtr_custom_resources.json` into `src/main/resources/assets/mtr/mtr_custom_resources.json`.
-2. Copy the custom asset namespace into `src/main/resources/assets/<namespace>/`.
-3. Copy traffic definitions into `src/main/resources/data/<namespace>/traffic_vehicles/`.
+1. Copy `assets/mtr/mtr_custom_resources.json` into `shared/src/main/resources/assets/mtr/mtr_custom_resources.json`.
+2. Copy the custom asset namespace into `shared/src/main/resources/assets/<namespace>/`.
+3. Copy traffic definitions into `shared/src/main/resources/data/<namespace>/traffic_vehicles/`.
 4. Build the mod jar.
 5. Verify the jar contains the embedded files:
 
 ```powershell
-jar tf build\libs\mtr-traffic-addon-26.7.0.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan|hatchback|nissan_sentra"
+jar tf versions\fabric-1.20.1\build\libs\mtr-traffic-addon-26.7.0.jar | Select-String -Pattern "mtr_custom_resources|mtr_traffic_addon_sedan|sedan|hatchback|nissan_sentra"
 ```
 
 After embedding, remove old external copies of the same pack from `.minecraft/resourcepacks`; stale external packs can override the embedded resources.

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "mtr_traffic_addon_tollgates",
+  "pattern": [
+    "WRW"
+  ],
+  "key": {
+    "W": {
+      "item": "minecraft:white_concrete"
+    },
+    "R": {
+      "item": "minecraft:red_dye"
+    }
+  },
+  "result": {
+    "item": "mtr-traffic-addon:tollgate_bar",
+    "count": 3
+  },
+  "show_notification": true
+}

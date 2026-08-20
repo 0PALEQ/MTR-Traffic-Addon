@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_traffic_lights_pole": {
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "mtr-traffic-addon:traffic_lights_pole"
+            ]
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "mtr-traffic-addon:traffic_lights_pole_bottom"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_traffic_lights_pole",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "mtr-traffic-addon:traffic_lights_pole_bottom"
+    ]
+  },
+  "sends_telemetry_event": false
+}

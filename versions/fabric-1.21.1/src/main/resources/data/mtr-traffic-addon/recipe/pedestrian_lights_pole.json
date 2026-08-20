@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "redstone",
+  "group": "mtr_traffic_addon_signal_heads",
+  "ingredients": [
+    {
+      "item": "mtr-traffic-addon:pedestrian_lights"
+    },
+    {
+      "item": "mtr-traffic-addon:traffic_lights_pole"
+    }
+  ],
+  "result": {
+    "id": "mtr-traffic-addon:pedestrian_lights_pole"
+  }
+}

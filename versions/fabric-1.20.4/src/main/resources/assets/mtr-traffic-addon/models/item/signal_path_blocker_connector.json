@@ -1,0 +1,18 @@
+
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "mtr:item/signal_connector",
+    "layer1": "mtr:item/railway_dashboard",
+    "layer2": "minecraft:item/barrier"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "mtr:selected": 1
+      },
+      "model": "mtr-traffic-addon:item/signal_path_blocker_connector_selected"
+    }
+  ]
+}
+

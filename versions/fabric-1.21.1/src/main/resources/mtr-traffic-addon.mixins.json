@@ -1,0 +1,22 @@
+{
+	"required": true,
+	"package": "com.cookiecraftmods.mta.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"RailSchemaAccessor",
+		"RailTypeMixin",
+		"SidingPathFinderMixin",
+		"SimulatorMixin",
+		"VehicleMixin",
+		"VehicleSchemaAccessor"
+	],
+	"client": [
+		"BuiltVehicleModelHolderAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

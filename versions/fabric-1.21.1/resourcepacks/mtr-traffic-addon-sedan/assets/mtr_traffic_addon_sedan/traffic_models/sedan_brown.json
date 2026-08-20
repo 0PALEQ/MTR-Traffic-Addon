@@ -1,0 +1,11 @@
+﻿{
+  "id": "mta_sedan_brown",
+  "format": "obj",
+  "model": "mtr_traffic_addon_sedan:models/vehicle/sedan.obj",
+  "texture": "mtr_traffic_addon_sedan:textures/vehicle/sedan_brown.png",
+  "scale": 1.0,
+  "offset": [0.0, 0.0, 0.0],
+  "rotation": [0.0, -90.0, 0.0],
+  "color": "FFFFFFFF"
+}
+

@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_signal_connector": {
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "mtr:signal_connector_red"
+            ]
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "mtr-traffic-addon:mta_path_blocker_connector"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_signal_connector",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "mtr-traffic-addon:mta_path_blocker_connector"
+    ]
+  },
+  "sends_telemetry_event": false
+}
