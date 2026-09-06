@@ -50,10 +50,8 @@ public final class TrafficDashboardNetworking {
 		ServerPlayNetworking.registerGlobalReceiver(REFRESH_PACKET_ID, (payload, context) -> {
 			final ServerPlayer player = context.player();
 			context.server().execute(() -> {
-				final int refreshedRoutes = TrafficManager.refreshSavedConnectorRoutesNear(player);
-				if (refreshedRoutes > 0) {
-					MTRTrafficAddon.LOGGER.info("Traffic dashboard refresh updated {} saved connector route(s) for {}", refreshedRoutes, player.getGameProfile().getName());
-				}
+				final boolean refreshRequested = TrafficManager.requestNetworkRefresh(player);
+				MTRTrafficAddon.LOGGER.info("Traffic dashboard network refresh requested by {}: {}", player.getGameProfile().getName(), refreshRequested ? "accepted" : "unavailable");
 				sendSnapshot(player);
 			});
 		});
