@@ -36,7 +36,9 @@ public abstract class VehicleMixin {
 		boolean doNotReserve,
 		CallbackInfoReturnable<Double> cir
 	) {
-		if (MagicCompat.shouldSuppressMtrTrafficBlockersForCurrentCall(additionalDistance, preReserve, doNotReserve)) {
+		final double mtrBlockedDistance = cir.getReturnValueD();
+		// MTA only returns nonnegative stop distances, so it cannot shorten an immediate stop.
+		if (mtrBlockedDistance == 0.0D) {
 			return;
 		}
 
@@ -46,8 +48,11 @@ public abstract class VehicleMixin {
 			return;
 		}
 
-		final double mtrBlockedDistance = cir.getReturnValueD();
 		if (mtrBlockedDistance < 0.0D || mtaBlockedDistance < mtrBlockedDistance) {
+			// Stack inspection is only needed when MTA would actually change the result.
+			if (MagicCompat.shouldSuppressMtrTrafficBlockersForCurrentCall(additionalDistance, preReserve, doNotReserve)) {
+				return;
+			}
 			cir.setReturnValue(mtaBlockedDistance);
 		}
 	}
