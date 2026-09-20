@@ -42,7 +42,7 @@ public final class TrafficIntersectionRegistry {
 	private static final double MIN_TRAIN_APPROACH_SPEED_KPH = 0.1D;
 	private static final double TOLLGATE_CONTROL_MARGIN_BLOCKS = 24.0D;
 	private static final int MAX_EDGE_INTERSECTION_CACHE_ENTRIES = 65_536;
-	private static final long AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS = 1500L;
+	private static final long AUTO_SIGNAL_FAIL_OPEN_STALE_TICKS = 30L;
 	private static final Map<String, AutoSignalState> AUTO_SIGNAL_STATES = new HashMap<>();
 	private static final Map<String, TrainIntersectionState> TRAIN_INTERSECTION_STATES = new HashMap<>();
 	private static final Map<EdgeIntersectionKey, Boolean> EDGE_INTERSECTION_CACHE = new ConcurrentHashMap<>();
@@ -308,7 +308,7 @@ public final class TrafficIntersectionRegistry {
 
 			activeAutoIntersectionIds.add(definition.id());
 			final AutoSignalState state = AUTO_SIGNAL_STATES.computeIfAbsent(definition.id(), ignored -> new AutoSignalState());
-			state.lastTickWallMillis = System.currentTimeMillis();
+			state.lastTick = serverTick;
 			if (state.activeGroupIndex >= groups.size()) {
 				state.activeGroupIndex = -1;
 				state.switchAtTick = Long.MAX_VALUE;
@@ -560,7 +560,7 @@ public final class TrafficIntersectionRegistry {
 
 	private static void tickTrainIntersection(TrafficIntersectionDefinition definition, MtrGraph graph, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
 		final TrainIntersectionState state = TRAIN_INTERSECTION_STATES.computeIfAbsent(definition.id(), ignored -> new TrainIntersectionState());
-		state.lastTickWallMillis = System.currentTimeMillis();
+		state.lastTick = serverTick;
 		if (trainDetectedForIntersection(definition, graph, mtrVehicles, serverTick)) {
 			state.closedUntilTick = Math.max(state.closedUntilTick, serverTick + TRAIN_GATE_RAISE_DELAY_TICKS);
 		}
@@ -568,7 +568,7 @@ public final class TrafficIntersectionRegistry {
 
 	private static boolean trainTollgatesClosed(TrafficIntersectionDefinition definition, long serverTick) {
 		final TrainIntersectionState state = TRAIN_INTERSECTION_STATES.get(definition.id());
-		return state != null && autoSignalStateIsFresh(state) && serverTick <= state.closedUntilTick;
+		return state != null && autoSignalStateIsFresh(state, serverTick) && serverTick <= state.closedUntilTick;
 	}
 
 	private static boolean trainDetectedForIntersection(TrafficIntersectionDefinition definition, MtrGraph graph, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
@@ -933,7 +933,7 @@ public final class TrafficIntersectionRegistry {
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
 			final List<TrafficIntersectionGroup> validGroups = validGroups(definition, inNumbers);
-			if (state == null || !autoSignalStateIsFresh(state)) {
+			if (state == null || !autoSignalStateIsFresh(state, serverTick)) {
 				return inNumbers;
 			}
 			if (state.activeGroupIndex < 0 || state.activeGroupIndex >= validGroups.size()) {
@@ -1004,7 +1004,7 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
-			if (state == null || !autoSignalStateIsFresh(state) || serverTick >= state.yellowUntilTick) {
+			if (state == null || !autoSignalStateIsFresh(state, serverTick) || serverTick >= state.yellowUntilTick) {
 				return List.of();
 			}
 			return state.yellowNodeNumbers.stream()
@@ -1051,12 +1051,12 @@ public final class TrafficIntersectionRegistry {
 		return List.of(phaseOrder.get((int) (tickInCycle / phaseBlockTicks)));
 	}
 
-	private static boolean autoSignalStateIsFresh(AutoSignalState state) {
-		return state.lastTickWallMillis > 0L && System.currentTimeMillis() - state.lastTickWallMillis <= AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS;
+	private static boolean autoSignalStateIsFresh(AutoSignalState state, long serverTick) {
+		return state.lastTick > 0L && serverTick - state.lastTick <= AUTO_SIGNAL_FAIL_OPEN_STALE_TICKS;
 	}
 
-	private static boolean autoSignalStateIsFresh(TrainIntersectionState state) {
-		return state.lastTickWallMillis > 0L && System.currentTimeMillis() - state.lastTickWallMillis <= AUTO_SIGNAL_FAIL_OPEN_STALE_MILLIS;
+	private static boolean autoSignalStateIsFresh(TrainIntersectionState state, long serverTick) {
+		return state.lastTick > 0L && serverTick - state.lastTick <= AUTO_SIGNAL_FAIL_OPEN_STALE_TICKS;
 	}
 
 	private static List<TrafficIntersectionGroup> effectiveGroups(TrafficIntersectionDefinition definition, List<Integer> inNumbers) {
@@ -1210,14 +1210,14 @@ public final class TrafficIntersectionRegistry {
 		private long greenSinceTick;
 		private long switchAtTick = Long.MAX_VALUE;
 		private long yellowUntilTick;
-		private long lastTickWallMillis;
+		private long lastTick;
 		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
 		private final LinkedHashSet<Integer> yellowNodeNumbers = new LinkedHashSet<>();
 	}
 
 	private static final class TrainIntersectionState {
 		private long closedUntilTick;
-		private long lastTickWallMillis;
+		private long lastTick;
 	}
 
 	private record MtrEdgeTravel(MtrGraphEdge edge, boolean forward) {

@@ -94,7 +94,7 @@ Important controls:
 
 - `Enable` / `Disable`: toggles the selected connector.
 - `Focus Map`: centers the map on the selected connector.
-- `Refresh Routes`: asks the server to refresh connector route metadata using the latest MTR graph near the player.
+- `Refresh Routes`: rebuilds the traffic network from the current full MTR rail graph, then refreshes connector routes and intersection nodes. The graph is refreshed only when this button is pressed.
 - `Clear Active`: removes currently active addon traffic vehicles.
 - Spawn interval: displayed inline as `[−]  X.Xs  [+]`; each press changes the interval by 1 second (20 ticks).
 - `Vehicle Pool`: opens the vehicle visual selection panel for spawn connectors.
@@ -114,7 +114,7 @@ Notes:
 
 - Spawn interval is clamped between `20` and `1200` ticks.
 - Spawn interval controls the virtual departure cadence for spawn connectors.
-- `maxVehicles` limits how many vehicles from a spawn connector may be materialized at the same time. It does not limit how far back the simulator scans for virtual departures that could still be travelling along the route.
+- Spawn demand is limited by local network usage. Unique routed track length supplies the available road space, while addon and MTR vehicles consume space based on vehicle length and their speed-dependent following gap. Spawn connectors that share roads therefore share the same capacity.
 - Despawn connectors do not have vehicle pools.
 
 ### Vehicle Pool
@@ -493,8 +493,8 @@ The traffic manager uses an MTR-style wall-clock simulation loop. Minecraft serv
 
 Main runtime steps:
 
-1. Refresh an MTR graph snapshot near a player at intervals.
-2. Refresh connector route metadata near the graph snapshot.
+1. When requested from the dashboard, rebuild the full MTR traffic graph.
+2. Refresh connector route metadata and intersection nodes from that graph.
 3. Build deterministic virtual route streams from enabled spawn connectors to enabled despawn connectors.
 4. Materialize only virtual vehicles whose current route position is inside player simulation distance and has enough clearance from existing addon/MTR vehicles.
 5. Remove active addon vehicles that leave every player's simulation distance or exceed the unrendered lifetime timeout.
@@ -504,7 +504,7 @@ Main runtime steps:
 9. Move materialized traffic vehicles along their route.
 10. Despawn materialized vehicles at despawn connectors.
 
-Graph request radius is `8192` blocks. Connector route pruning/repair uses a radius of `30,000` blocks, which is effectively unlimited for any practical network. This means spawn and despawn connectors that are more than 512 blocks apart now build routes correctly as long as the player is within 8192 blocks of the connector area.
+The graph is not polled or rebuilt periodically. After changing MTR rails, connector tracks, path blockers, or the road network, press `Refresh Routes` in the dashboard to apply the new network to traffic simulation.
 
 Spawn connectors prefer their saved node direction when building routes. Existing saved spawn points with the opposite node order can still fall back to the reverse traversal for compatibility.
 
@@ -639,9 +639,7 @@ Build fails with a Java version error:
 
 ## Known Limitations
 
-- Spawn density control is still basic and is based on spawn interval plus `maxVehicles`.
-- `maxVehicles` is present in data/snapshots and limits simultaneously materialized vehicles per spawn, but its dashboard controls are still not exposed.
+- Spawn intervals define requested demand; local shared-network usage limits how much of that demand can materialize safely.
 - Traffic uses MTR rail geometry, so road layout quality depends on the underlying rail graph.
 - Auto intersections depend on recent vehicle observations and graph snapshots near players.
 - Custom model support currently focuses on OBJ traffic models.
-- Routes require the player to be within 8192 blocks of the connector area for the MTR graph to be fetched. Very large networks where the player is more than 8192 blocks from one end of a route may still fail to resolve.
