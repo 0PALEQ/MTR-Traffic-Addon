@@ -23,7 +23,7 @@ final class ClientTrafficDebugTrack {
 	void update(ClientTrafficDebugSnapshot snapshot, long updatedAtNanos) {
 		final ClientTrafficDebugRenderState renderedState = interpolate(updatedAtNanos);
 		final long updateIntervalNanos = Math.max(1L, updatedAtNanos - this.updatedAtNanos);
-		correctionWindowNanos = Math.max(MIN_CORRECTION_NANOS, Math.min(MAX_CORRECTION_NANOS, updateIntervalNanos / 2L));
+		correctionWindowNanos = Math.max(MIN_CORRECTION_NANOS, Math.min(MAX_CORRECTION_NANOS, updateIntervalNanos));
 		correctionX = renderedState.x() - snapshot.x();
 		correctionY = renderedState.y() - snapshot.y();
 		correctionZ = renderedState.z() - snapshot.z();

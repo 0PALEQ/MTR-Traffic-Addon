@@ -133,8 +133,8 @@ public final class TrafficSpacingResolver {
 							continue;
 						}
 
-						if (projectsAsSpatialObstacle(nearby.position(), followingPosition)
-							&& compareSpatialConflictPriority(followingVehicle, nearby.vehicle()) < 0) {
+						if (!approachesSameMerge(followingVehicle, nearby.vehicle())
+							|| compareSpatialConflictPriority(followingVehicle, nearby.vehicle()) < 0) {
 							continue;
 						}
 
@@ -149,24 +149,6 @@ public final class TrafficSpacingResolver {
 				applyFollowingLimit(allowedSpeeds, closestObstacle.frontVehicle(), followingVehicle, closestObstacle.distanceMeters());
 			}
 		}
-	}
-
-	private static boolean projectsAsSpatialObstacle(TrafficVehiclePosition observer, TrafficVehiclePosition candidate) {
-		if (Math.abs(candidate.y() - observer.y()) > SPATIAL_VERTICAL_CLEARANCE_METERS) {
-			return false;
-		}
-
-		final double yawRadians = Math.toRadians(observer.yawDegrees());
-		final double forwardX = Math.cos(yawRadians);
-		final double forwardZ = Math.sin(yawRadians);
-		final double dx = candidate.x() - observer.x();
-		final double dz = candidate.z() - observer.z();
-		final double longitudinalDistance = dx * forwardX + dz * forwardZ;
-		if (longitudinalDistance <= 0.0D || longitudinalDistance > SPATIAL_OCCUPANCY_LOOKAHEAD_METERS) {
-			return false;
-		}
-
-		return Math.abs(-dx * forwardZ + dz * forwardX) < SPATIAL_LATERAL_CLEARANCE_METERS;
 	}
 
 	private static int compareSpatialConflictPriority(TrafficVehicle first, TrafficVehicle second) {

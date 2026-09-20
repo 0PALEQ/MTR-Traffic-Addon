@@ -62,6 +62,7 @@ public final class TrafficManager {
 	private static final int MTR_SIGNAL_PATH_MAX_POINTS = 72;
 	private static final double MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS = 256.0D;
 	private static final int MTR_SIGNAL_GEOMETRY_MAX_CACHE_WINDOWS = 4096;
+	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 250L;
 	private static final double DEFAULT_TRAFFIC_TICK_DURATION_SECONDS = 1.0D / 20.0D;
 	private static final double MATERIALIZATION_CLEARANCE_BUFFER_METERS = 2.0D;
 	private static final double SPAWN_CONNECTED_NODE_CLEARANCE_METERS = 6.0D;
@@ -99,6 +100,7 @@ public final class TrafficManager {
 	private static volatile String latestGraphDimensionId;
 	private static volatile long lastServerTick;
 	private static volatile long lastTrafficSimulationTick;
+	private static volatile long lastTrafficSimulationWallMillis;
 	private static long lastMaterializationScanSimulationMillis;
 	private static boolean fullGraphRefreshInFlight;
 	private static volatile boolean graphBuildAcceptingTasks;
@@ -371,6 +373,9 @@ public final class TrafficManager {
 			final String pathReverseId = pathData.getHexId(true);
 			final List<IndexedTrafficVehicle> indexedVehicles = trafficByConnector.getOrDefault(pathForwardId, trafficByConnector.getOrDefault(pathReverseId, List.of()));
 			for (IndexedTrafficVehicle indexedVehicle : indexedVehicles) {
+				if (!indexedVehicle.inSimulationRange()) {
+					continue;
+				}
 				final TrafficRouteSegment segment = indexedVehicle.segment();
 				final RailDirectionMatch railDirectionMatch = matchRouteRail(pathForwardId, pathReverseId, indexedVehicle);
 				if (railDirectionMatch == null) {
@@ -694,6 +699,7 @@ public final class TrafficManager {
 			requestedNetworkRefreshDimensionId = null;
 			lastServerTick = 0;
 			lastTrafficSimulationTick = 0L;
+			lastTrafficSimulationWallMillis = 0L;
 			lastMaterializationScanSimulationMillis = 0L;
 			TrafficSignalClock.reset();
 			lastSpawnDiagnosticTick = Long.MIN_VALUE / 4;
@@ -725,6 +731,7 @@ public final class TrafficManager {
 		final long signalTick = TrafficSignalClock.currentTick();
 		final long simulationMillis = simulationTick * TrafficSignalClock.TICK_MILLIS;
 		final long wallMillis = System.currentTimeMillis();
+		lastTrafficSimulationWallMillis = wallMillis;
 		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 		MTR_VEHICLE_PATH_STATES.keySet().removeIf(vehicleId -> !MTR_VEHICLE_OCCUPANCY.containsKey(vehicleId));
 		rebuildMtrOccupancyIndex();
@@ -780,7 +787,7 @@ public final class TrafficManager {
 				continue;
 			}
 			final String reverseConnectorId = railId(segment.endX(), segment.endY(), segment.endZ(), segment.startX(), segment.startY(), segment.startZ());
-			final IndexedTrafficVehicle indexedVehicle = new IndexedTrafficVehicle(segment, reverseConnectorId, vehicle.distanceOnSegmentMeters(), vehicle.definition().lengthMeters());
+			final IndexedTrafficVehicle indexedVehicle = new IndexedTrafficVehicle(segment, reverseConnectorId, vehicle.distanceOnSegmentMeters(), vehicle.definition().lengthMeters(), isVehicleInSimulationRange(vehicle));
 			mutableIndex.computeIfAbsent(segment.connectorId(), ignored -> new ArrayList<>()).add(indexedVehicle);
 			if (!reverseConnectorId.equals(segment.connectorId())) {
 				mutableIndex.computeIfAbsent(reverseConnectorId, ignored -> new ArrayList<>()).add(indexedVehicle);
@@ -1695,7 +1702,10 @@ public final class TrafficManager {
 	}
 
 	public static boolean trafficTicksAreFreshForMtr() {
-		return lastServerTick - lastTrafficSimulationTick <= MTR_VEHICLE_OCCUPANCY_STALE_TICKS;
+		final long lastTickWallMillis = lastTrafficSimulationWallMillis;
+		return lastTickWallMillis > 0L
+			&& System.currentTimeMillis() - lastTickWallMillis <= MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS
+			&& lastServerTick - lastTrafficSimulationTick <= MTR_VEHICLE_OCCUPANCY_STALE_TICKS;
 	}
 
 	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {
@@ -1777,7 +1787,7 @@ public final class TrafficManager {
 	private record DirectedMtrOccupancy(MtrVehicleOccupancy occupancy, boolean sameDirection) {
 	}
 
-	private record IndexedTrafficVehicle(TrafficRouteSegment segment, String reverseConnectorId, double distanceOnSegmentMeters, double lengthMeters) {
+	private record IndexedTrafficVehicle(TrafficRouteSegment segment, String reverseConnectorId, double distanceOnSegmentMeters, double lengthMeters, boolean inSimulationRange) {
 	}
 
 	private record VirtualRouteCandidate(
