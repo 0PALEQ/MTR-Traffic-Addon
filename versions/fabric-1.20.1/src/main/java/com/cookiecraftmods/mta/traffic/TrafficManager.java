@@ -62,9 +62,8 @@ public final class TrafficManager {
 	private static final int MTR_SIGNAL_PATH_MAX_POINTS = 72;
 	private static final double MTR_SIGNAL_GEOMETRY_CACHE_WINDOW_METERS = 256.0D;
 	private static final int MTR_SIGNAL_GEOMETRY_MAX_CACHE_WINDOWS = 4096;
-	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 1500L;
+	private static final long MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS = 250L;
 	private static final double DEFAULT_TRAFFIC_TICK_DURATION_SECONDS = 1.0D / 20.0D;
-	private static final double MAX_TRAFFIC_CATCH_UP_SECONDS = 1.0D;
 	private static final double MATERIALIZATION_CLEARANCE_BUFFER_METERS = 2.0D;
 	private static final double SPAWN_CONNECTED_NODE_CLEARANCE_METERS = 6.0D;
 	private static final double SPAWN_TRACK_MATERIALIZATION_OFFSET_METERS = 8.0D;
@@ -100,8 +99,9 @@ public final class TrafficManager {
 	private static volatile MtrGraph latestGraph;
 	private static volatile String latestGraphDimensionId;
 	private static volatile long lastServerTick;
-	private static volatile long lastTrafficTickWallMillis;
-	private static long lastMaterializationScanWallMillis;
+	private static volatile long lastTrafficSimulationTick;
+	private static volatile long lastTrafficSimulationWallMillis;
+	private static long lastMaterializationScanSimulationMillis;
 	private static boolean fullGraphRefreshInFlight;
 	private static volatile boolean graphBuildAcceptingTasks;
 	private static volatile long graphBuildGeneration;
@@ -382,6 +382,9 @@ public final class TrafficManager {
 				continue;
 			}
 			for (IndexedTrafficVehicle indexedVehicle : indexedVehicles) {
+				if (!indexedVehicle.inSimulationRange()) {
+					continue;
+				}
 				final TrafficRouteSegment segment = indexedVehicle.segment();
 				final RailDirectionMatch railDirectionMatch = matchRouteRail(pathForwardId, pathReverseId, indexedVehicle);
 				if (railDirectionMatch == null) {
@@ -704,8 +707,9 @@ public final class TrafficManager {
 			pendingFullGraphRefresh = null;
 			requestedNetworkRefreshDimensionId = null;
 			lastServerTick = 0;
-			lastTrafficTickWallMillis = System.currentTimeMillis();
-			lastMaterializationScanWallMillis = 0L;
+			lastTrafficSimulationTick = 0L;
+			lastTrafficSimulationWallMillis = 0L;
+			lastMaterializationScanSimulationMillis = 0L;
 			TrafficSignalClock.reset();
 			lastSpawnDiagnosticTick = Long.MIN_VALUE / 4;
 		}
@@ -724,22 +728,27 @@ public final class TrafficManager {
 	}
 
 	private static void simulationTick() {
-		final long nowMillis = System.currentTimeMillis();
-		final double tickDurationSeconds;
+		final long simulationTick;
 		synchronized (SIMULATION_LOCK) {
-			tickDurationSeconds = trafficTickDurationSeconds(nowMillis);
-			lastTrafficTickWallMillis = nowMillis;
+			simulationTick = lastServerTick;
+			if (simulationTick <= lastTrafficSimulationTick) {
+				return;
+			}
+			lastTrafficSimulationTick = simulationTick;
 		}
 		refreshRouteCacheIfNeeded();
 		final long signalTick = TrafficSignalClock.currentTick();
+		final long simulationMillis = simulationTick * TrafficSignalClock.TICK_MILLIS;
+		final long wallMillis = System.currentTimeMillis();
+		lastTrafficSimulationWallMillis = wallMillis;
 		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 		MTR_VEHICLE_PATH_STATES.keySet().removeIf(vehicleId -> !MTR_VEHICLE_OCCUPANCY.containsKey(vehicleId));
 		rebuildMtrOccupancyIndex();
 
-		materializeVirtualTraffic(nowMillis);
+		materializeVirtualTraffic(simulationMillis);
 
 		synchronized (SIMULATION_LOCK) {
-			removeVehiclesOutsideSimulationRangeAfterTimeout(nowMillis);
+			removeVehiclesOutsideSimulationRangeAfterTimeout(wallMillis);
 			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
@@ -750,7 +759,7 @@ public final class TrafficManager {
 			final Map<TrafficVehicle, Double> allowedSpeeds = TrafficSpacingResolver.resolveAllowedSpeeds(ACTIVE_VEHICLES);
 			TrafficIntersectionRegistry.applySignalSpeedLimits(ACTIVE_VEHICLES, allowedSpeeds, signalTick);
 			ACTIVE_VEHICLES.removeIf(vehicle -> {
-				final boolean remove = vehicle.tick(tickDurationSeconds, allowedSpeeds.getOrDefault(vehicle, 0.0D));
+				final boolean remove = vehicle.tick(DEFAULT_TRAFFIC_TICK_DURATION_SECONDS, allowedSpeeds.getOrDefault(vehicle, 0.0D));
 				if (remove) {
 					LAST_RENDERED_WALL_MILLIS.remove(vehicle.id());
 				}
@@ -787,7 +796,7 @@ public final class TrafficManager {
 				continue;
 			}
 			final String reverseConnectorId = railId(segment.endX(), segment.endY(), segment.endZ(), segment.startX(), segment.startY(), segment.startZ());
-			final IndexedTrafficVehicle indexedVehicle = new IndexedTrafficVehicle(segment, reverseConnectorId, vehicle.distanceOnSegmentMeters(), vehicle.definition().lengthMeters());
+			final IndexedTrafficVehicle indexedVehicle = new IndexedTrafficVehicle(segment, reverseConnectorId, vehicle.distanceOnSegmentMeters(), vehicle.definition().lengthMeters(), isVehicleInSimulationRange(vehicle));
 			mutableIndex.computeIfAbsent(segment.connectorId(), ignored -> new ArrayList<>()).add(indexedVehicle);
 			if (!reverseConnectorId.equals(segment.connectorId())) {
 				mutableIndex.computeIfAbsent(reverseConnectorId, ignored -> new ArrayList<>()).add(indexedVehicle);
@@ -797,18 +806,6 @@ public final class TrafficManager {
 		mutableIndex.forEach((connectorId, vehicles) -> immutableIndex.put(connectorId, List.copyOf(vehicles)));
 		activeTrafficByConnector = Map.copyOf(immutableIndex);
 		activeNetworkVehicleSnapshot = List.copyOf(networkSnapshots);
-	}
-
-	private static double trafficTickDurationSeconds(long nowMillis) {
-		if (lastTrafficTickWallMillis <= 0L) {
-			return DEFAULT_TRAFFIC_TICK_DURATION_SECONDS;
-		}
-
-		final long elapsedMillis = nowMillis - lastTrafficTickWallMillis;
-		if (elapsedMillis <= 0L) {
-			return DEFAULT_TRAFFIC_TICK_DURATION_SECONDS;
-		}
-		return Math.min(MAX_TRAFFIC_CATCH_UP_SECONDS, elapsedMillis / 1000.0D);
 	}
 
 	private static void startSimulationExecutor() {
@@ -946,11 +943,11 @@ public final class TrafficManager {
 		return TrafficIntersectionRegistry.refreshNodes(dimensionId, latestGraph);
 	}
 
-	private static void materializeVirtualTraffic(long nowMillis) {
-		if (nowMillis - lastMaterializationScanWallMillis < MATERIALIZATION_SCAN_INTERVAL_MILLIS) {
+	private static void materializeVirtualTraffic(long simulationMillis) {
+		if (simulationMillis - lastMaterializationScanSimulationMillis < MATERIALIZATION_SCAN_INTERVAL_MILLIS) {
 			return;
 		}
-		lastMaterializationScanWallMillis = nowMillis;
+		lastMaterializationScanSimulationMillis = simulationMillis;
 		final MaterializationSnapshot materialization = materializationSnapshot;
 		final MtrGraph graph = materialization.graph();
 		if (graph == null || graph.isEmpty()) {
@@ -1006,12 +1003,12 @@ public final class TrafficManager {
 			}
 
 			final long intervalMillis = Math.max(1L, spawn.effectiveSpawnIntervalTicks() * TrafficSignalClock.TICK_MILLIS);
-			final long latestDepartureIndex = Math.floorDiv(nowMillis, intervalMillis);
+			final long latestDepartureIndex = Math.floorDiv(simulationMillis, intervalMillis);
 			final int virtualVehicleCount = virtualDepartureScanCount(routeCandidates, anyDefinition.get(), intervalMillis);
 			for (long departureIndex = latestDepartureIndex; departureIndex > latestDepartureIndex - virtualVehicleCount; departureIndex--) {
 				final VirtualRouteCandidate candidate = routeCandidates.get(Math.floorMod(departureIndex, routeCandidates.size()));
 				final TrafficVehicleDefinition definition = withSpawnVehiclePoolOverride(anyDefinition.get(), spawn, departureIndex);
-				final VirtualVehicleSample sample = sampleVirtualVehicle(candidate, definition, nowMillis - departureIndex * intervalMillis);
+				final VirtualVehicleSample sample = sampleVirtualVehicle(candidate, definition, simulationMillis - departureIndex * intervalMillis);
 				if (sample == null || !isPositionInMaterializationRange(dimensionId, sample.position().x(), sample.position().z())) {
 					continue;
 				}
@@ -1027,7 +1024,7 @@ public final class TrafficManager {
 		}
 
 		pendingVehicles.sort((first, second) -> {
-			final int departureComparison = Long.compare(first.departureWallMillis(), second.departureWallMillis());
+			final int departureComparison = Long.compare(first.departureSimulationMillis(), second.departureSimulationMillis());
 			return departureComparison != 0 ? departureComparison : first.vehicleId().compareTo(second.vehicleId());
 		});
 		for (PendingVirtualVehicle pendingVehicle : pendingVehicles) {
@@ -1714,8 +1711,10 @@ public final class TrafficManager {
 	}
 
 	public static boolean trafficTicksAreFreshForMtr() {
-		final long lastTickMillis = lastTrafficTickWallMillis;
-		return lastTickMillis > 0L && System.currentTimeMillis() - lastTickMillis <= MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS;
+		final long lastTickWallMillis = lastTrafficSimulationWallMillis;
+		return lastTickWallMillis > 0L
+			&& System.currentTimeMillis() - lastTickWallMillis <= MTR_FAIL_OPEN_AFTER_NO_TRAFFIC_TICK_MILLIS
+			&& lastServerTick - lastTrafficSimulationTick <= MTR_VEHICLE_OCCUPANCY_STALE_TICKS;
 	}
 
 	public record MtrVehicleObstacle(double distanceMeters, double lengthMeters, double speedKph) {
@@ -1797,7 +1796,7 @@ public final class TrafficManager {
 	private record DirectedMtrOccupancy(MtrVehicleOccupancy occupancy, boolean sameDirection) {
 	}
 
-	private record IndexedTrafficVehicle(TrafficRouteSegment segment, String reverseConnectorId, double distanceOnSegmentMeters, double lengthMeters) {
+	private record IndexedTrafficVehicle(TrafficRouteSegment segment, String reverseConnectorId, double distanceOnSegmentMeters, double lengthMeters, boolean inSimulationRange) {
 	}
 
 	private record VirtualRouteCandidate(
@@ -1826,7 +1825,7 @@ public final class TrafficManager {
 		TrafficVehicleDefinition definition,
 		VirtualVehicleSample sample,
 		UUID vehicleId,
-		long departureWallMillis
+		long departureSimulationMillis
 	) {
 	}
 
