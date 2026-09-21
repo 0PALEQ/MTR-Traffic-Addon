@@ -26,20 +26,28 @@ class TrafficBlockerTest {
 	private final PathData path = new PathData(null, 0, 0, 0, 0, 100,
 		new Position(0, 64, 0), Angle.E, new Position(100, 64, 0), Angle.W);
 	private Object previousTraffic;
-	private Object previousTick;
+	private Object previousSimulationTick;
+	private Object previousSimulationWallMillis;
+	private Object previousServerTick;
 
 	@BeforeEach
 	void setup() throws Exception {
 		previousTraffic = field("activeTrafficByConnector").get(null);
-		previousTick = field("lastTrafficTickWallMillis").get(null);
+		previousSimulationTick = field("lastTrafficSimulationTick").get(null);
+		previousSimulationWallMillis = field("lastTrafficSimulationWallMillis").get(null);
+		previousServerTick = field("lastServerTick").get(null);
 		field("activeTrafficByConnector").set(null, Map.of());
-		field("lastTrafficTickWallMillis").set(null, System.currentTimeMillis());
+		field("lastTrafficSimulationTick").set(null, 0L);
+		field("lastTrafficSimulationWallMillis").set(null, System.currentTimeMillis());
+		field("lastServerTick").set(null, 0L);
 	}
 
 	@AfterEach
 	void restore() throws Exception {
 		field("activeTrafficByConnector").set(null, previousTraffic);
-		field("lastTrafficTickWallMillis").set(null, previousTick);
+		field("lastTrafficSimulationTick").set(null, previousSimulationTick);
+		field("lastTrafficSimulationWallMillis").set(null, previousSimulationWallMillis);
+		field("lastServerTick").set(null, previousServerTick);
 	}
 
 	@Test
@@ -56,7 +64,7 @@ class TrafficBlockerTest {
 		addTraffic(false, 25);
 		assertEquals(-1.0D, blockedDistance(50, 100));
 		assertEquals(-1.0D, blockedDistance(0, 10));
-		field("lastTrafficTickWallMillis").set(null, 0L);
+		field("lastTrafficSimulationWallMillis").set(null, 0L);
 		assertEquals(-1.0D, blockedDistance(10, 100));
 	}
 
@@ -80,9 +88,9 @@ class TrafficBlockerTest {
 		final TrafficRouteSegment segment = new TrafficRouteSegment(path.getHexId(reverse), 100, 40,
 			reverse ? 100 : 0, 64, 0, reverse ? 0 : 100, 64, 0);
 		final var constructor = Class.forName(TrafficManager.class.getName() + "$IndexedTrafficVehicle")
-			.getDeclaredConstructor(TrafficRouteSegment.class, String.class, double.class, double.class);
+			.getDeclaredConstructor(TrafficRouteSegment.class, String.class, double.class, double.class, boolean.class);
 		constructor.setAccessible(true);
-		final Object vehicle = constructor.newInstance(segment, path.getHexId(!reverse), progress, 4.0D);
+		final Object vehicle = constructor.newInstance(segment, path.getHexId(!reverse), progress, 4.0D, true);
 		field("activeTrafficByConnector").set(null, Map.of(path.getHexId(reverse), List.of(vehicle)));
 	}
 
