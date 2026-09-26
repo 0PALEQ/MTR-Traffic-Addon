@@ -369,9 +369,18 @@ public final class TrafficManager {
 				closestDistance = Math.min(closestDistance, stopDistance(railProgress, stoppingSpace, pathData.getEndDistance()));
 			}
 
+			if (trafficByConnector.isEmpty()) {
+				continue;
+			}
 			final String pathForwardId = pathData.getHexId(false);
 			final String pathReverseId = pathData.getHexId(true);
-			final List<IndexedTrafficVehicle> indexedVehicles = trafficByConnector.getOrDefault(pathForwardId, trafficByConnector.getOrDefault(pathReverseId, List.of()));
+			List<IndexedTrafficVehicle> indexedVehicles = trafficByConnector.get(pathForwardId);
+			if (indexedVehicles == null) {
+				indexedVehicles = trafficByConnector.get(pathReverseId);
+			}
+			if (indexedVehicles == null) {
+				continue;
+			}
 			for (IndexedTrafficVehicle indexedVehicle : indexedVehicles) {
 				if (!indexedVehicle.inSimulationRange()) {
 					continue;
