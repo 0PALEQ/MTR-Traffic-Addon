@@ -728,6 +728,7 @@ public final class TrafficManager {
 	}
 
 	private static void simulationTick() {
+		lastTrafficSimulationWallMillis = System.currentTimeMillis();
 		final long simulationTick;
 		synchronized (SIMULATION_LOCK) {
 			simulationTick = lastServerTick;
@@ -739,8 +740,6 @@ public final class TrafficManager {
 		refreshRouteCacheIfNeeded();
 		final long signalTick = TrafficSignalClock.currentTick();
 		final long simulationMillis = simulationTick * TrafficSignalClock.TICK_MILLIS;
-		final long wallMillis = System.currentTimeMillis();
-		lastTrafficSimulationWallMillis = wallMillis;
 		MTR_VEHICLE_OCCUPANCY.entrySet().removeIf(entry -> signalTick - entry.getValue().lastTick() > MTR_VEHICLE_OCCUPANCY_STALE_TICKS);
 		MTR_VEHICLE_PATH_STATES.keySet().removeIf(vehicleId -> !MTR_VEHICLE_OCCUPANCY.containsKey(vehicleId));
 		rebuildMtrOccupancyIndex();

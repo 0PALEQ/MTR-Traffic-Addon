@@ -37,6 +37,7 @@ public final class TrafficIntersectionRegistry {
 	private static final int CLEARANCE_TICKS = 200;
 	private static final int AUTO_SWITCH_DELAY_TICKS = 60;
 	private static final int AUTO_YELLOW_TICKS = 60;
+	private static final long AUTO_YELLOW_DURATION_MILLIS = AUTO_YELLOW_TICKS * 50L;
 	private static final int MIN_GREEN_TICKS = 300;
 	private static final int TRAIN_GATE_RAISE_DELAY_TICKS = 60;
 	private static final double MIN_TRAIN_APPROACH_SPEED_KPH = 0.1D;
@@ -314,6 +315,7 @@ public final class TrafficIntersectionRegistry {
 				state.switchAtTick = Long.MAX_VALUE;
 				state.yellowNodeNumbers.clear();
 				state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
+				state.yellowUntilMillis = Math.max(state.yellowUntilMillis, System.currentTimeMillis() + AUTO_YELLOW_DURATION_MILLIS);
 			}
 			state.queue.removeIf(index -> index < 0 || index >= groups.size());
 
@@ -495,7 +497,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static void activateNextQueuedGroup(TrafficIntersectionDefinition definition, List<TrafficIntersectionGroup> groups, AutoSignalState state, Set<Integer> demandedGroups, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, MtrGraph graph, long serverTick) {
-		if (serverTick < state.yellowUntilTick) {
+		if (System.currentTimeMillis() < state.yellowUntilMillis) {
 			return;
 		}
 		if (!intersectionIsEmpty(definition, vehicles, mtrVehicles, graph, serverTick)) {
@@ -520,6 +522,7 @@ public final class TrafficIntersectionRegistry {
 		state.switchAtTick = Long.MAX_VALUE;
 		state.yellowNodeNumbers.clear();
 		state.yellowUntilTick = 0L;
+		state.yellowUntilMillis = 0L;
 	}
 
 	private static void beginAutoYellow(List<TrafficIntersectionGroup> groups, AutoSignalState state, long serverTick) {
@@ -530,6 +533,7 @@ public final class TrafficIntersectionRegistry {
 		state.activeGroupIndex = -1;
 		state.switchAtTick = Long.MAX_VALUE;
 		state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
+		state.yellowUntilMillis = Math.max(state.yellowUntilMillis, System.currentTimeMillis() + AUTO_YELLOW_DURATION_MILLIS);
 	}
 
 	private static Integer pollNextGroupWithDemand(AutoSignalState state, Set<Integer> demandedGroups) {
@@ -1004,7 +1008,7 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
-			if (state == null || !autoSignalStateIsFresh(state, serverTick) || serverTick >= state.yellowUntilTick) {
+			if (state == null || !autoSignalStateIsFresh(state, serverTick) || System.currentTimeMillis() >= state.yellowUntilMillis) {
 				return List.of();
 			}
 			return state.yellowNodeNumbers.stream()
@@ -1210,6 +1214,7 @@ public final class TrafficIntersectionRegistry {
 		private long greenSinceTick;
 		private long switchAtTick = Long.MAX_VALUE;
 		private long yellowUntilTick;
+		private long yellowUntilMillis;
 		private long lastTick;
 		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
 		private final LinkedHashSet<Integer> yellowNodeNumbers = new LinkedHashSet<>();
