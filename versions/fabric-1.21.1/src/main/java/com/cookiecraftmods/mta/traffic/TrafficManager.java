@@ -738,7 +738,7 @@ public final class TrafficManager {
 		materializeVirtualTraffic(simulationMillis);
 
 		synchronized (SIMULATION_LOCK) {
-			removeVehiclesOutsideSimulationRangeAfterTimeout(wallMillis);
+			removeVehiclesOutsideSimulationRangeAfterTimeout(lastTrafficSimulationWallMillis);
 			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
