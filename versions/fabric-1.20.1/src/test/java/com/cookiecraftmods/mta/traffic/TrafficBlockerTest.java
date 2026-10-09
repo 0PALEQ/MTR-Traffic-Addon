@@ -105,6 +105,7 @@ class TrafficBlockerTest {
 			.filter(method -> method.getName().contains("mta$includeTrafficVehicles"))
 			.findFirst().orElseThrow();
 		handler.setAccessible(true);
+		field("lastTrafficSimulationWallMillis").set(null, System.currentTimeMillis());
 		final CallbackInfoReturnable<Double> result = new CallbackInfoReturnable<>("railBlockedDistance", true, mtrDistance);
 		handler.invoke(vehicle, 0, 10.0D, 100.0D, null, false, false, result);
 		return result.getReturnValueD();

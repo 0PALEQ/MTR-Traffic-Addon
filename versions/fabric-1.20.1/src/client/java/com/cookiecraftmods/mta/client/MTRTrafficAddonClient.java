@@ -90,7 +90,17 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				));
 			}
 
-			client.execute(() -> ClientTrafficDebugState.replace(sequence, snapshots));
+			final long simulationNanos = buffer.readableBytes() >= Long.BYTES ? buffer.readLong() : Long.MIN_VALUE;
+			client.execute(() -> ClientTrafficDebugState.replace(sequence, snapshots, simulationNanos));
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.CONNECTORS_REMOVED_PACKET_ID, (client, handler, buffer, responseSender) -> {
+			final int count = buffer.readVarInt();
+			final List<String> removed = new ArrayList<>(count);
+			for (int i = 0; i < count; i++) {
+				removed.add(buffer.readUtf());
+			}
+			client.execute(() -> TrafficDashboardClient.removeEntries(removed));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {

@@ -1,5 +1,6 @@
 package com.cookiecraftmods.mta.traffic.point.connector;
 
+import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.point.TrafficPointType;
 import com.cookiecraftmods.mta.traffic.point.TrafficSavedPointRegistry;
 import net.minecraft.server.level.ServerLevel;
@@ -41,5 +42,6 @@ public class TrafficConnectorItem extends ItemRailModifier {
 		world.setBlockState(pos2, state2.with(new Property<>(BlockNode.IS_CONNECTED.data), true));
 		PacketUpdateData.sendDirectlyToServerRail(ServerWorld.cast(world), styledRail);
 		TrafficSavedPointRegistry.createConnectorPoint((ServerLevel) ServerWorld.cast(world).data, pointType, new net.minecraft.core.BlockPos(pos1.getX(), pos1.getY(), pos1.getZ()), new net.minecraft.core.BlockPos(pos2.getX(), pos2.getY(), pos2.getZ()));
+		TrafficManager.requestNetworkRefresh(((ServerLevel) ServerWorld.cast(world).data).dimension().location().toString());
 	}
 }

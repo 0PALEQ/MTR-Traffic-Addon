@@ -4,6 +4,7 @@ package com.cookiecraftmods.mta.traffic.intersection;
 import com.cookiecraftmods.mta.traffic.TrafficManager;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge;
+import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEndpointIndex;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
 import com.cookiecraftmods.mta.traffic.lights.block.TrafficLightSignalState;
 import com.cookiecraftmods.mta.traffic.runtime.TrafficRouteSegment;
@@ -37,7 +38,6 @@ public final class TrafficIntersectionRegistry {
 	private static final int CLEARANCE_TICKS = 200;
 	private static final int AUTO_SWITCH_DELAY_TICKS = 60;
 	private static final int AUTO_YELLOW_TICKS = 60;
-	private static final long AUTO_YELLOW_DURATION_MILLIS = AUTO_YELLOW_TICKS * 50L;
 	private static final int MIN_GREEN_TICKS = 300;
 	private static final int TRAIN_GATE_RAISE_DELAY_TICKS = 60;
 	private static final double MIN_TRAIN_APPROACH_SPEED_KPH = 0.1D;
@@ -53,7 +53,7 @@ public final class TrafficIntersectionRegistry {
 	private TrafficIntersectionRegistry() {
 	}
 
-	public static void initialize() {
+	public static synchronized void initialize() {
 		if (initialized) {
 			return;
 		}
@@ -64,24 +64,26 @@ public final class TrafficIntersectionRegistry {
 		});
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
 			save(server);
-			currentServer = null;
-			DEFINITIONS.clear();
-			AUTO_SIGNAL_STATES.clear();
-			TRAIN_INTERSECTION_STATES.clear();
-			EDGE_INTERSECTION_CACHE.clear();
+			synchronized (TrafficIntersectionRegistry.class) {
+				currentServer = null;
+				DEFINITIONS.clear();
+				AUTO_SIGNAL_STATES.clear();
+				TRAIN_INTERSECTION_STATES.clear();
+				EDGE_INTERSECTION_CACHE.clear();
+			}
 		});
 		initialized = true;
 	}
 
-	public static Collection<TrafficIntersectionDefinition> getDefinitions() {
+	public static synchronized Collection<TrafficIntersectionDefinition> getDefinitions() {
 		return List.copyOf(DEFINITIONS.values());
 	}
 
-	public static Optional<TrafficIntersectionDefinition> getDefinition(String intersectionId) {
+	public static synchronized Optional<TrafficIntersectionDefinition> getDefinition(String intersectionId) {
 		return Optional.ofNullable(DEFINITIONS.get(intersectionId));
 	}
 
-	public static Optional<TrafficLightSignalState> signalState(String intersectionId, int nodeNumber, long serverTick) {
+	public static synchronized Optional<TrafficLightSignalState> signalState(String intersectionId, int nodeNumber, long serverTick) {
 		final TrafficIntersectionDefinition definition = DEFINITIONS.get(intersectionId);
 		if (definition == null || !definition.isEnabled() || definition.nodes().isEmpty() || nodeNumber <= 0) {
 			return Optional.empty();
@@ -102,7 +104,7 @@ public final class TrafficIntersectionRegistry {
 		return Optional.of(TrafficLightSignalState.RED);
 	}
 
-	public static Optional<TrafficLightSignalState> groupSignalState(String intersectionId, int groupIndex, long serverTick) {
+	public static synchronized Optional<TrafficLightSignalState> groupSignalState(String intersectionId, int groupIndex, long serverTick) {
 		final TrafficIntersectionDefinition definition = DEFINITIONS.get(intersectionId);
 		if (definition == null || !definition.isEnabled() || definition.nodes().isEmpty() || groupIndex < 0) {
 			return Optional.empty();
@@ -127,11 +129,11 @@ public final class TrafficIntersectionRegistry {
 		return Optional.of(TrafficLightSignalState.RED);
 	}
 
-	public static List<TrafficIntersectionGroup> signalGroups(TrafficIntersectionDefinition definition) {
+	public static synchronized List<TrafficIntersectionGroup> signalGroups(TrafficIntersectionDefinition definition) {
 		return List.copyOf(validGroups(definition));
 	}
 
-	public static TrafficIntersectionDefinition createIntersection(ServerLevel level, BlockPos firstCorner, BlockPos secondCorner) {
+	public static synchronized TrafficIntersectionDefinition createIntersection(ServerLevel level, BlockPos firstCorner, BlockPos secondCorner) {
 		EDGE_INTERSECTION_CACHE.clear();
 		final String dimensionId = level.dimension().location().toString();
 		final long minX = Math.min(firstCorner.getX(), secondCorner.getX());
@@ -147,7 +149,7 @@ public final class TrafficIntersectionRegistry {
 		return definition;
 	}
 
-	public static boolean applyDashboardUpdate(String intersectionId, String action, int delta, String value) {
+	public static synchronized boolean applyDashboardUpdate(String intersectionId, String action, int delta, String value) {
 		EDGE_INTERSECTION_CACHE.clear();
 		if ("delete".equals(action)) {
 			final boolean removed = DEFINITIONS.remove(intersectionId) != null;
@@ -182,21 +184,49 @@ public final class TrafficIntersectionRegistry {
 		return true;
 	}
 
-	public static int refreshNodes(String dimensionId, MtrGraph graph) {
+	public static synchronized int refreshNodes(String dimensionId, MtrGraph graph) {
+		return applyNodeRefresh(prepareNodeRefresh(dimensionId, graph));
+	}
+
+	public record NodeRefresh(TrafficIntersectionDefinition original, List<TrafficIntersectionNode> nodes) {
+		public NodeRefresh {
+			nodes = List.copyOf(nodes);
+		}
+	}
+
+	public static List<NodeRefresh> prepareNodeRefresh(String dimensionId, MtrGraph graph) {
+		if (graph == null) {
+			return List.of();
+		}
+		final List<TrafficIntersectionDefinition> definitions = getDefinitions().stream()
+			.filter(definition -> definition.dimensionId().equals(dimensionId) && definition.effectiveAutoDetectNodes())
+			.toList();
+		if (definitions.isEmpty()) {
+			return List.of();
+		}
+		final MtrGraphEndpointIndex index = new MtrGraphEndpointIndex(graph);
+		final List<NodeRefresh> refreshes = new ArrayList<>();
+		for (TrafficIntersectionDefinition definition : definitions) {
+			final List<TrafficIntersectionNode> nodes = detectBoundaryNodes(definition,
+				index.query(definition.minX(), definition.minZ(), definition.maxX(), definition.maxZ()));
+			if (!nodes.equals(definition.nodes())) {
+				refreshes.add(new NodeRefresh(definition, nodes));
+			}
+		}
+		return List.copyOf(refreshes);
+	}
+
+	public static synchronized int applyNodeRefresh(List<NodeRefresh> refreshes) {
 		EDGE_INTERSECTION_CACHE.clear();
-		if (graph == null || graph.isEmpty()) {
+		if (refreshes.isEmpty()) {
 			return 0;
 		}
 
 		int changed = 0;
-		for (TrafficIntersectionDefinition definition : List.copyOf(DEFINITIONS.values())) {
-			if (!definition.dimensionId().equals(dimensionId) || !definition.effectiveAutoDetectNodes()) {
-				continue;
-			}
-
-			final List<TrafficIntersectionNode> detectedNodes = detectBoundaryNodes(definition, graph);
-			if (!detectedNodes.equals(definition.nodes())) {
-				DEFINITIONS.put(definition.id(), definition.withNodes(detectedNodes));
+		for (NodeRefresh refresh : refreshes) {
+			final TrafficIntersectionDefinition definition = refresh.original();
+			if (definition.equals(DEFINITIONS.get(definition.id()))) {
+				DEFINITIONS.put(definition.id(), definition.withNodes(refresh.nodes()));
 				changed++;
 			}
 		}
@@ -207,7 +237,7 @@ public final class TrafficIntersectionRegistry {
 		return changed;
 	}
 
-	public static void applySignalSpeedLimits(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds, long serverTick) {
+	public static synchronized void applySignalSpeedLimits(Collection<TrafficVehicle> vehicles, Map<TrafficVehicle, Double> allowedSpeeds, long serverTick) {
 		if (DEFINITIONS.isEmpty()) {
 			return;
 		}
@@ -249,16 +279,16 @@ public final class TrafficIntersectionRegistry {
 		}
 	}
 
-	public static boolean trainTollgatesClosed(String intersectionId, long serverTick) {
+	public static synchronized boolean trainTollgatesClosed(String intersectionId, long serverTick) {
 		final TrafficIntersectionDefinition definition = DEFINITIONS.get(intersectionId);
 		return definition != null && definition.isEnabled() && definition.effectiveLevel() == TrafficIntersectionLevel.TRAIN && trainTollgatesClosed(definition, serverTick);
 	}
 
-	public static Optional<Boolean> trainTollgateStateAt(String dimensionId, long x, long y, long z, long serverTick) {
+	public static synchronized Optional<Boolean> trainTollgateStateAt(String dimensionId, long x, long y, long z, long serverTick) {
 		return trainTollgateStateNear(dimensionId, x, y, z, serverTick, 0.0D);
 	}
 
-	public static Optional<Boolean> trainTollgateStateNear(String dimensionId, long x, long y, long z, long serverTick) {
+	public static synchronized Optional<Boolean> trainTollgateStateNear(String dimensionId, long x, long y, long z, long serverTick) {
 		return trainTollgateStateNear(dimensionId, x, y, z, serverTick, TOLLGATE_CONTROL_MARGIN_BLOCKS);
 	}
 
@@ -274,7 +304,7 @@ public final class TrafficIntersectionRegistry {
 		return Optional.empty();
 	}
 
-	public static void tickAutoSignals(String dimensionId, MtrGraph graph, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
+	public static synchronized void tickAutoSignals(String dimensionId, MtrGraph graph, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, long serverTick) {
 		if (dimensionId == null || DEFINITIONS.isEmpty()) {
 			AUTO_SIGNAL_STATES.clear();
 			return;
@@ -315,7 +345,6 @@ public final class TrafficIntersectionRegistry {
 				state.switchAtTick = Long.MAX_VALUE;
 				state.yellowNodeNumbers.clear();
 				state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
-				state.yellowUntilMillis = Math.max(state.yellowUntilMillis, System.currentTimeMillis() + AUTO_YELLOW_DURATION_MILLIS);
 			}
 			state.queue.removeIf(index -> index < 0 || index >= groups.size());
 
@@ -356,7 +385,7 @@ public final class TrafficIntersectionRegistry {
 		TRAIN_INTERSECTION_STATES.keySet().removeIf(id -> !activeTrainIntersectionIds.contains(id));
 	}
 
-	public static boolean isRedMtrEntry(String dimensionId, long startX, long startY, long startZ, long endX, long endY, long endZ, long serverTick) {
+	public static synchronized boolean isRedMtrEntry(String dimensionId, long startX, long startY, long startZ, long endX, long endY, long endZ, long serverTick) {
 		if (dimensionId == null || DEFINITIONS.isEmpty() || !TrafficManager.trafficTicksAreFreshForMtr()) {
 			return false;
 		}
@@ -497,7 +526,7 @@ public final class TrafficIntersectionRegistry {
 	}
 
 	private static void activateNextQueuedGroup(TrafficIntersectionDefinition definition, List<TrafficIntersectionGroup> groups, AutoSignalState state, Set<Integer> demandedGroups, Collection<TrafficVehicle> vehicles, Collection<TrafficManager.MtrSignalVehicle> mtrVehicles, MtrGraph graph, long serverTick) {
-		if (System.currentTimeMillis() < state.yellowUntilMillis) {
+		if (serverTick < state.yellowUntilTick) {
 			return;
 		}
 		if (!intersectionIsEmpty(definition, vehicles, mtrVehicles, graph, serverTick)) {
@@ -522,7 +551,6 @@ public final class TrafficIntersectionRegistry {
 		state.switchAtTick = Long.MAX_VALUE;
 		state.yellowNodeNumbers.clear();
 		state.yellowUntilTick = 0L;
-		state.yellowUntilMillis = 0L;
 	}
 
 	private static void beginAutoYellow(List<TrafficIntersectionGroup> groups, AutoSignalState state, long serverTick) {
@@ -533,7 +561,6 @@ public final class TrafficIntersectionRegistry {
 		state.activeGroupIndex = -1;
 		state.switchAtTick = Long.MAX_VALUE;
 		state.yellowUntilTick = Math.max(state.yellowUntilTick, serverTick + AUTO_YELLOW_TICKS);
-		state.yellowUntilMillis = Math.max(state.yellowUntilMillis, System.currentTimeMillis() + AUTO_YELLOW_DURATION_MILLIS);
 	}
 
 	private static Integer pollNextGroupWithDemand(AutoSignalState state, Set<Integer> demandedGroups) {
@@ -859,9 +886,9 @@ public final class TrafficIntersectionRegistry {
 		}
 	}
 
-	private static List<TrafficIntersectionNode> detectBoundaryNodes(TrafficIntersectionDefinition definition, MtrGraph graph) {
+	private static List<TrafficIntersectionNode> detectBoundaryNodes(TrafficIntersectionDefinition definition, Collection<MtrGraphEdge> edges) {
 		final Map<String, TrafficIntersectionNode> nodesByKey = new LinkedHashMap<>();
-		for (MtrGraphEdge edge : graph.edges()) {
+		for (MtrGraphEdge edge : edges) {
 			final boolean fromInside = contains(definition, edge.from());
 			final boolean toInside = contains(definition, edge.to());
 			if (!fromInside && toInside) {
@@ -938,7 +965,7 @@ public final class TrafficIntersectionRegistry {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
 			final List<TrafficIntersectionGroup> validGroups = validGroups(definition, inNumbers);
 			if (state == null || !autoSignalStateIsFresh(state, serverTick)) {
-				return inNumbers;
+				return List.of();
 			}
 			if (state.activeGroupIndex < 0 || state.activeGroupIndex >= validGroups.size()) {
 				return List.of();
@@ -1008,7 +1035,7 @@ public final class TrafficIntersectionRegistry {
 		}
 		if (definition.effectiveSignalMode() == TrafficIntersectionSignalMode.AUTO) {
 			final AutoSignalState state = AUTO_SIGNAL_STATES.get(definition.id());
-			if (state == null || !autoSignalStateIsFresh(state, serverTick) || System.currentTimeMillis() >= state.yellowUntilMillis) {
+			if (state == null || !autoSignalStateIsFresh(state, serverTick) || serverTick >= state.yellowUntilTick) {
 				return List.of();
 			}
 			return state.yellowNodeNumbers.stream()
@@ -1214,7 +1241,6 @@ public final class TrafficIntersectionRegistry {
 		private long greenSinceTick;
 		private long switchAtTick = Long.MAX_VALUE;
 		private long yellowUntilTick;
-		private long yellowUntilMillis;
 		private long lastTick;
 		private final LinkedHashSet<Integer> queue = new LinkedHashSet<>();
 		private final LinkedHashSet<Integer> yellowNodeNumbers = new LinkedHashSet<>();
@@ -1240,7 +1266,7 @@ public final class TrafficIntersectionRegistry {
 	) {
 	}
 
-	private static void load(MinecraftServer server) {
+	private static synchronized void load(MinecraftServer server) {
 		EDGE_INTERSECTION_CACHE.clear();
 		DEFINITIONS.clear();
 		for (TrafficIntersectionDefinition definition : WorldJsonStorage.<TrafficIntersectionDefinition>loadList(server, "traffic_intersections.json", LIST_TYPE, "traffic intersections")) {
@@ -1248,7 +1274,7 @@ public final class TrafficIntersectionRegistry {
 		}
 	}
 
-	private static void save(MinecraftServer server) {
+	private static synchronized void save(MinecraftServer server) {
 		WorldJsonStorage.saveList(server, "traffic_intersections.json", DEFINITIONS.values(), "traffic intersections");
 	}
 }

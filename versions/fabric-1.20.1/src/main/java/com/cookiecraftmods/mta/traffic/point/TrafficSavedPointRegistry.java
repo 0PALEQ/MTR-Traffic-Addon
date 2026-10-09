@@ -3,33 +3,39 @@ package com.cookiecraftmods.mta.traffic.point;
 
 import com.cookiecraftmods.mta.MTRTrafficAddon;
 import com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraph;
-import com.cookiecraftmods.mta.traffic.mtr.graph.MtrNodeKey;
 import com.cookiecraftmods.mta.traffic.storage.WorldJsonStorage;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import org.mtr.core.data.Position;
+import org.mtr.core.data.TwoPositionsBase;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class TrafficSavedPointRegistry {
 	private static final Type LIST_TYPE = new TypeToken<List<TrafficPointDefinition>>() { }.getType();
 	private static final Map<String, TrafficPointDefinition> DEFINITIONS = new LinkedHashMap<>();
+	private static final Map<ConnectorKey, Set<String>> POINT_IDS_BY_RAIL = new HashMap<>();
+	private record ConnectorKey(String dimensionId, String railId) { }
 	private static boolean initialized;
 	private static MinecraftServer currentServer;
 
 	private TrafficSavedPointRegistry() {
 	}
 
-	public static void initialize() {
+	public static synchronized void initialize() {
 		if (initialized) {
 			return;
 		}
@@ -39,32 +45,35 @@ public final class TrafficSavedPointRegistry {
 			load(server);
 		});
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-			save(server);
-			currentServer = null;
-			DEFINITIONS.clear();
+			synchronized (TrafficSavedPointRegistry.class) {
+				save(server);
+				currentServer = null;
+				DEFINITIONS.clear();
+				POINT_IDS_BY_RAIL.clear();
+			}
 		});
 		initialized = true;
 	}
 
-	public static Collection<TrafficPointDefinition> getDefinitions() {
+	public static synchronized Collection<TrafficPointDefinition> getDefinitions() {
 		return List.copyOf(DEFINITIONS.values());
 	}
 
-	public static List<TrafficPointDefinition> getByTypeAndDimension(String dimensionId, TrafficPointType type) {
+	public static synchronized List<TrafficPointDefinition> getByTypeAndDimension(String dimensionId, TrafficPointType type) {
 		return DEFINITIONS.values().stream()
 			.filter(definition -> definition.id().startsWith(dimensionId + "|"))
 			.filter(definition -> definition.type() == type)
 			.toList();
 	}
 
-	public static void createConnectorPoint(ServerLevel level, TrafficPointType type, BlockPos firstNode, BlockPos secondNode) {
+	public static synchronized void createConnectorPoint(ServerLevel level, TrafficPointType type, BlockPos firstNode, BlockPos secondNode) {
 		final String dimensionId = level.dimension().location().toString();
 		final long midpointX = Math.round((firstNode.getX() + secondNode.getX()) / 2.0D);
 		final long midpointY = Math.round((firstNode.getY() + secondNode.getY()) / 2.0D);
 		final long midpointZ = Math.round((firstNode.getZ() + secondNode.getZ()) / 2.0D);
 		final String pointId = dimensionId + "|" + type.name().toLowerCase() + "|" + firstNode.asLong() + "|" + secondNode.asLong();
 
-		DEFINITIONS.put(pointId, new TrafficPointDefinition(
+		putDefinition(new TrafficPointDefinition(
 			pointId,
 			type,
 			midpointX,
@@ -84,7 +93,7 @@ public final class TrafficSavedPointRegistry {
 		save(level.getServer());
 	}
 
-	public static boolean applyUpdate(String pointId, String action, int delta) {
+	public static synchronized boolean applyUpdate(String pointId, String action, int delta) {
 		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
 		if (definition == null) {
 			return false;
@@ -103,7 +112,7 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
-	public static boolean toggleVehiclePool(String pointId, String vehicleId) {
+	public static synchronized boolean toggleVehiclePool(String pointId, String vehicleId) {
 		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
 		if (definition == null || definition.type() != TrafficPointType.SPAWN || vehicleId == null || vehicleId.isBlank()) {
 			return false;
@@ -123,7 +132,7 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
-	public static boolean replaceVehiclePool(String pointId, List<String> vehicleIds) {
+	public static synchronized boolean replaceVehiclePool(String pointId, List<String> vehicleIds) {
 		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
 		if (definition == null || definition.type() != TrafficPointType.SPAWN || vehicleIds == null) {
 			return false;
@@ -140,7 +149,7 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
-	public static boolean rename(String pointId, String name) {
+	public static synchronized boolean rename(String pointId, String name) {
 		final TrafficPointDefinition definition = DEFINITIONS.get(pointId);
 		if (definition == null) {
 			return false;
@@ -154,13 +163,12 @@ public final class TrafficSavedPointRegistry {
 		return true;
 	}
 
-	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph, long centerX, long centerZ, int radius) {
+	public static synchronized int refreshConnectorRoutes(String dimensionId, MtrGraph graph, long centerX, long centerZ, int radius) {
 		if (graph == null || graph.isEmpty()) {
 			return 0;
 		}
 
 		int changed = 0;
-		final List<String> removedDefinitionIds = new ArrayList<>();
 		for (TrafficPointDefinition definition : List.copyOf(DEFINITIONS.values())) {
 			if (!definition.id().startsWith(dimensionId + "|")) {
 				continue;
@@ -173,34 +181,14 @@ public final class TrafficSavedPointRegistry {
 			}
 
 			if (definition.hasConnectorRoute()) {
-				final MtrNodeKey start = new MtrNodeKey(definition.connectorStartX(), definition.connectorStartY(), definition.connectorStartZ());
-				final MtrNodeKey end = new MtrNodeKey(definition.connectorEndX(), definition.connectorEndY(), definition.connectorEndZ());
-				final boolean existsForward = graph.findEdge(start, end).isPresent();
-				final boolean existsBackward = graph.findEdge(end, start).isPresent();
-				if (existsForward || existsBackward) {
-					continue;
-				}
-				if (!graph.adjacency().containsKey(start) && !graph.adjacency().containsKey(end)) {
-					continue;
-				}
-				removedDefinitionIds.add(definition.id());
 				continue;
 			}
 
 			final Optional<com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge> nearestEdge = nearestEdge(graph, definition);
 			if (nearestEdge.isPresent()) {
-				DEFINITIONS.put(definition.id(), copyWithConnectorRoute(definition, nearestEdge.get()));
+				putDefinition(copyWithConnectorRoute(definition, nearestEdge.get()));
 				changed++;
 			}
-		}
-
-		for (String removedDefinitionId : removedDefinitionIds) {
-			DEFINITIONS.remove(removedDefinitionId);
-			changed++;
-		}
-
-		if (!removedDefinitionIds.isEmpty()) {
-			MTRTrafficAddon.LOGGER.info("Removed {} stale traffic connector point(s) whose rails no longer exist", removedDefinitionIds.size());
 		}
 
 		if (changed > 0 && currentServer != null) {
@@ -209,7 +197,7 @@ public final class TrafficSavedPointRegistry {
 		return changed;
 	}
 
-	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph) {
+	public static synchronized int refreshConnectorRoutes(String dimensionId, MtrGraph graph) {
 		if (graph == null || graph.isEmpty()) {
 			return 0;
 		}
@@ -226,7 +214,7 @@ public final class TrafficSavedPointRegistry {
 
 			final Optional<com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge> nearestEdge = nearestEdge(graph, definition);
 			if (nearestEdge.isPresent()) {
-				DEFINITIONS.put(definition.id(), copyWithConnectorRoute(definition, nearestEdge.get()));
+				putDefinition(copyWithConnectorRoute(definition, nearestEdge.get()));
 				repaired++;
 			}
 		}
@@ -340,16 +328,82 @@ public final class TrafficSavedPointRegistry {
 		return Math.max(min, Math.min(max, value));
 	}
 
-	private static void load(MinecraftServer server) {
-		DEFINITIONS.clear();
-		for (TrafficPointDefinition definition : WorldJsonStorage.<TrafficPointDefinition>loadList(server, "traffic_connector_points.json", LIST_TYPE, "saved traffic connector points")) {
-			DEFINITIONS.put(definition.id(), definition);
+	// The full MTR rail snapshot is authoritative, including rails with both
+	// directions disabled. A routable graph alone cannot prove a rail was deleted.
+	public static synchronized List<String> reconcileConnectorPoints(String dimensionId, Set<String> existingRailIds) {
+		final List<String> removed = new ArrayList<>();
+		for (TrafficPointDefinition definition : List.copyOf(DEFINITIONS.values())) {
+			if (definition.hasConnectorRoute() && definition.id().startsWith(dimensionId + "|")
+				&& !existingRailIds.contains(connectorKey(definition).railId())) {
+				removeDefinition(definition.id());
+				removed.add(definition.id());
+			}
+		}
+		saveRemovals(removed);
+		return List.copyOf(removed);
+	}
+
+	public static synchronized List<String> removeConnectorPoints(String dimensionId, Collection<String> railIds) {
+		final List<String> removed = new ArrayList<>();
+		for (String railId : railIds) {
+			final Set<String> pointIds = POINT_IDS_BY_RAIL.remove(new ConnectorKey(dimensionId, railId));
+			if (pointIds != null) {
+				for (String pointId : pointIds) {
+					if (DEFINITIONS.remove(pointId) != null) {
+						removed.add(pointId);
+					}
+				}
+			}
+		}
+		saveRemovals(removed);
+		return List.copyOf(removed);
+	}
+
+	private static ConnectorKey connectorKey(TrafficPointDefinition definition) {
+		return new ConnectorKey(definition.id().substring(0, definition.id().indexOf('|')),
+			TwoPositionsBase.getHexId(
+				new Position(definition.connectorStartX(), definition.connectorStartY(), definition.connectorStartZ()),
+				new Position(definition.connectorEndX(), definition.connectorEndY(), definition.connectorEndZ())));
+	}
+
+	private static void putDefinition(TrafficPointDefinition definition) {
+		removeDefinition(definition.id());
+		DEFINITIONS.put(definition.id(), definition);
+		if (definition.hasConnectorRoute()) {
+			POINT_IDS_BY_RAIL.computeIfAbsent(connectorKey(definition), ignored -> new HashSet<>()).add(definition.id());
 		}
 	}
 
-	private static void save(MinecraftServer server) {
+	private static void removeDefinition(String pointId) {
+		final TrafficPointDefinition definition = DEFINITIONS.remove(pointId);
+		if (definition != null && definition.hasConnectorRoute()) {
+			final ConnectorKey key = connectorKey(definition);
+			final Set<String> pointIds = POINT_IDS_BY_RAIL.get(key);
+			if (pointIds != null && pointIds.remove(pointId) && pointIds.isEmpty()) {
+				POINT_IDS_BY_RAIL.remove(key);
+			}
+		}
+	}
+
+	private static void saveRemovals(List<String> removed) {
+		if (!removed.isEmpty()) {
+			MTRTrafficAddon.LOGGER.info("Removed {} deleted traffic connector point(s)", removed.size());
+			if (currentServer != null) {
+				save(currentServer);
+			}
+		}
+	}
+
+	private static synchronized void load(MinecraftServer server) {
+		DEFINITIONS.clear();
+		POINT_IDS_BY_RAIL.clear();
+		for (TrafficPointDefinition definition : WorldJsonStorage.<TrafficPointDefinition>loadList(server, "traffic_connector_points.json", LIST_TYPE, "saved traffic connector points")) {
+			putDefinition(definition);
+		}
+	}
+
+	private static synchronized void save(MinecraftServer server) {
 		WorldJsonStorage.saveList(server, "traffic_connector_points.json", DEFINITIONS.values(), "traffic connector points");
 	}
 
 }
-

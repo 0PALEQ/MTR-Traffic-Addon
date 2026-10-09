@@ -58,6 +58,25 @@ test {
 	systemProperty "fabric.side", "server"
 }
 
+sourceSets {
+	trafficClientTest {
+		java.srcDir 'src/testClient/java'
+		compileClasspath = sourceSets.client.output
+		runtimeClasspath = output + compileClasspath
+	}
+}
+
+tasks.register('testClientMovement', JavaExec) {
+	group = 'verification'
+	description = 'Checks vehicle interpolation under packet jitter, stalls and buffer overflow.'
+	classpath = sourceSets.trafficClientTest.runtimeClasspath
+	mainClass = 'com.cookiecraftmods.mta.client.debug.ClientTrafficDebugTrackTest'
+}
+
+tasks.named('check') {
+	dependsOn 'testClientMovement'
+}
+
 processResources {
 	def version = project.version
 	inputs.property "version", version
@@ -68,17 +87,23 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 17
 }
 
 java {
+	toolchain.languageVersion = JavaLanguageVersion.of(17)
+
 	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
 	// if it is present.
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaExec).configureEach {
+	javaLauncher = javaToolchains.launcherFor(java.toolchain)
 }
 
 tasks.named("sourcesJar") {
