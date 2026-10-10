@@ -375,14 +375,6 @@ public final class TrafficManager {
 		deletedByDimension.forEach((dimensionId, railIds) -> {
 			final List<String> removed = TrafficSavedPointRegistry.removeConnectorPoints(dimensionId, railIds);
 			TrafficDashboardNetworking.sendConnectorRemovals(server, dimensionId, removed);
-			final boolean needsRefresh;
-			synchronized (SIMULATION_LOCK) {
-				needsRefresh = dimensionId.equals(latestGraphDimensionId) || dimensionId.equals(requestedNetworkRefreshDimensionId)
-					|| submittedRailGraphSignature != null && dimensionId.equals(submittedRailGraphSignature.dimensionId());
-			}
-			if (needsRefresh) {
-				requestNetworkRefresh(dimensionId);
-			}
 		});
 		if (!deletedByDimension.isEmpty()) {
 			updateCachedTrafficPoints();

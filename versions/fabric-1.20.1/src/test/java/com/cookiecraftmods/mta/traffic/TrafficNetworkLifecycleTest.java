@@ -71,6 +71,19 @@ class TrafficNetworkLifecycleTest {
 	}
 
 	@Test
+	void railDeletionDoesNotRequestANetworkRefresh() throws Exception {
+		field(TrafficManager.class, "requestedNetworkRefreshDimensionId").set(null, null);
+		field(TrafficManager.class, "latestGraphDimensionId").set(null, DIMENSION);
+		final long revision = field(TrafficManager.class, "graphRefreshRevision").getLong(null);
+		TrafficManager.onMtrRailsDeleted(DIMENSION, List.of(rail(0, 40).getHexId()));
+		final var method = TrafficManager.class.getDeclaredMethod("applyPendingRailDeletions", net.minecraft.server.MinecraftServer.class);
+		method.setAccessible(true);
+		method.invoke(null, new Object[]{null});
+		assertNull(field(TrafficManager.class, "requestedNetworkRefreshDimensionId").get(null));
+		assertEquals(revision, field(TrafficManager.class, "graphRefreshRevision").getLong(null));
+	}
+
+	@Test
 	void refreshDuringABuildDiscardsTheOldResultAndKeepsTheNewRequest() throws Exception {
 		final CountDownLatch release = new CountDownLatch(1);
 		executor().execute(() -> {
