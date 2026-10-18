@@ -15,7 +15,7 @@ This document is the main user and maintainer documentation for the addon. See t
 - Java `17` or newer at runtime
 - Java `21` or newer to run the current Gradle/Loom build
 
-The published mod targets Java 17 bytecode, but Fabric Loom `1.16.1` requires Gradle itself to run on Java 21 or newer.
+The Minecraft 1.20.1, 1.20.1 Sinytra, and 1.20.4 builds target Java 17 bytecode, including mixins. Their Gradle toolchains require an installed JDK 17 for compilation, tests, and development runs. Fabric Loom `1.16.1` requires Gradle itself to run on Java 21 or newer. The Minecraft 1.21.1 build requires Java 21 at runtime.
 
 The mod can run on Forge via Sinytra Connector. No extra configuration is needed beyond installing Connector and its Fabric API shim alongside the Forge-edition MTR jar.
 
@@ -94,7 +94,7 @@ Important controls:
 
 - `Enable` / `Disable`: toggles the selected connector.
 - `Focus Map`: centers the map on the selected connector.
-- `Refresh Routes`: rebuilds the traffic network from the current full MTR rail graph, then refreshes connector routes and intersection nodes. The graph is refreshed only when this button is pressed.
+- `Refresh Routes`: manually rebuilds the traffic network from the current full MTR rail graph, then refreshes connector routes and intersection nodes. The network also refreshes automatically when the server starts. Creating connectors, deleting rails or nodes, and editing rail geometry or directions require pressing this button to apply the changes to the traffic network.
 - `Clear Active`: removes currently active addon traffic vehicles.
 - Spawn interval: displayed inline as `[−]  X.Xs  [+]`; each press changes the interval by 1 second (20 ticks).
 - `Vehicle Pool`: opens the vehicle visual selection panel for spawn connectors.
@@ -194,7 +194,7 @@ Saved connector points are stored in the world folder:
 data/mtr-traffic-addon/traffic_connector_points.json
 ```
 
-If a connector's underlying rail no longer exists, route refresh may remove the stale connector point.
+Deleting a connector rail or either endpoint node removes its saved spawn/despawn entries and updates an open dashboard automatically. Startup refresh also removes stale entries saved before the last shutdown. Disabled rail directions do not count as deleted rails.
 
 ### Blocking an MTR Route Search
 
@@ -493,7 +493,7 @@ The traffic manager uses an MTR-style wall-clock simulation loop. Minecraft serv
 
 Main runtime steps:
 
-1. When requested from the dashboard, rebuild the full MTR traffic graph.
+1. On server startup, or when requested from the dashboard, rebuild the full MTR traffic graph asynchronously.
 2. Refresh connector route metadata and intersection nodes from that graph.
 3. Build deterministic virtual route streams from enabled spawn connectors to enabled despawn connectors.
 4. Materialize only virtual vehicles whose current route position is inside player simulation distance and has enough clearance from existing addon/MTR vehicles.
@@ -504,13 +504,15 @@ Main runtime steps:
 9. Move materialized traffic vehicles along their route.
 10. Despawn materialized vehicles at despawn connectors.
 
-The graph is not polled or rebuilt periodically. After changing MTR rails, connector tracks, path blockers, or the road network, press `Refresh Routes` in the dashboard to apply the new network to traffic simulation.
+The graph is refreshed automatically on startup, but is not polled or rebuilt periodically. After changing MTR rails, connector tracks, path blockers, or the road network, press `Refresh Routes` in the dashboard to apply the new network to traffic simulation.
 
 Spawn connectors prefer their saved node direction when building routes. Existing saved spawn points with the opposite node order can still fall back to the reverse traversal for compatibility.
 
 Materialization clearance checks prevent new virtual vehicles from appearing on top of active addon vehicles or recently observed MTR vehicles. Vehicles that cannot materialize safely are skipped for that virtual departure instead of retrying every simulation pass. Because a virtual vehicle may now materialize inside visible range when a player joins or moves into the middle of a route, it can appear at its wall-clock route position rather than waiting to enter from outside render distance.
 
 Traffic spacing now also limits entry into the next segment when the target segment is occupied or effectively full. Signal-section occupancy checks apply at signal entry boundaries rather than across every segment that shares the same signal color.
+
+Merge and crossing priority use one consistent ordering, including priority for vehicles whose bodies are still clearing a connector. Route leaders are ordered before their waiting followers so a leader cannot yield back to a car that needs it to move first. This prevents circular yielding. Nearby vehicle bodies are checked predictively through a spatial grid; parallel lanes and vertically separated roads remain independent. Materialization also checks oriented addon vehicle footprints across adjoining and crossing rails and reserves each accepted vehicle immediately. Segment and endpoint indexes keep clearance queries local instead of scanning all active traffic for every candidate.
 
 ## MTR Interaction and Fail-Open Behavior
 

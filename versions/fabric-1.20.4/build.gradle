@@ -63,6 +63,9 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
+	// Gradle/Loom use Java 21+, but compilation and tests must match the game runtime.
+	toolchain.languageVersion = JavaLanguageVersion.of(17)
+
 	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
 	// if it is present.
 	// If you remove this line, sources will not be generated.
@@ -70,6 +73,10 @@ java {
 
 	sourceCompatibility = JavaVersion.VERSION_17
 	targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaExec).configureEach {
+	javaLauncher = javaToolchains.launcherFor(java.toolchain)
 }
 
 tasks.named("sourcesJar") {

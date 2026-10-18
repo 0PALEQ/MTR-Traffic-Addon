@@ -44,16 +44,14 @@ import java.util.List;
 public class MTRTrafficAddonClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		// INICJALIZACJA SYSTEMÓW RENDEROWANIA
-		ClientMtrVehicleResourceRegistry.initialize();     // Zasoby pojazdów z MTR
-		CustomTrafficModelRegistry.initialize();            // Niestandardowe modele pojazdów
-		TrafficLightEmissiveRenderer.initialize();          // Renderowanie emitowanych świateł
+		ClientMtrVehicleResourceRegistry.initialize();
+		CustomTrafficModelRegistry.initialize();
+		TrafficLightEmissiveRenderer.initialize();
 		TollgateRenderer.initialize();
 		RoadSignBaseRegistry.initialize();
 		RoadSignImageRegistry.initialize();
 		RoadSignRenderer.initialize();
 
-		// USTAWIENIA RENDER LAYERS - które bloki są przezroczyste
 		BlockRenderLayerMap.INSTANCE.putBlocks(
 			RenderType.cutout(),
 			ModBlocks.TRAFFIC_LIGHTS_POLE_BOTTOM,
@@ -67,15 +65,11 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			ModBlocks.ROAD_SIGN
 		);
 
-		// WŁAŚCIWOŚCI ITEMÓW - zmienia visual state na podstawie tagu NBT
-		// Connector zmienia wygląd gdy ma zapisaną pozycję
 		ItemProperties.register(ModItems.TRAFFIC_SPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.TRAFFIC_DESPAWN_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.SIGNAL_PATH_BLOCKER_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 		ItemProperties.register(ModItems.MTA_PATH_BLOCKER_CONNECTOR, new ResourceLocation("mtr", "selected"), (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().contains("pos") ? 1.0F : 0.0F);
 
-		// NETWORK PACKET LISTENERS - odbieranie danych z serwera
-		// Debug snapshot - pozycje pojazdów dla debugowania
 		ClientPlayNetworking.registerGlobalReceiver(TrafficNetworking.DEBUG_SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final long sequence = buffer.readLong();
 			final int count = buffer.readVarInt();
@@ -96,10 +90,19 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 				));
 			}
 
-			client.execute(() -> ClientTrafficDebugState.replace(sequence, snapshots));
+			final long simulationNanos = buffer.readableBytes() >= Long.BYTES ? buffer.readLong() : Long.MIN_VALUE;
+			client.execute(() -> ClientTrafficDebugState.replace(sequence, snapshots, simulationNanos));
 		});
 
-		// DASHBOARD PACKET - informacje o punktach spawn i skrzyżowaniach
+		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.CONNECTORS_REMOVED_PACKET_ID, (client, handler, buffer, responseSender) -> {
+			final int count = buffer.readVarInt();
+			final List<String> removed = new ArrayList<>(count);
+			for (int i = 0; i < count; i++) {
+				removed.add(buffer.readUtf());
+			}
+			client.execute(() -> TrafficDashboardClient.removeEntries(removed));
+		});
+
 		ClientPlayNetworking.registerGlobalReceiver(TrafficDashboardNetworking.SNAPSHOT_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final int count = buffer.readVarInt();
 			final List<ClientTrafficDashboardEntry> entries = new ArrayList<>(count);
@@ -193,7 +196,6 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			client.execute(() -> TrafficDashboardClient.openOrUpdate(entries, intersections));
 		});
 
-		// LIGHT BINDING MENU PACKET - otwarcie menu bindowania świateł
 		ClientPlayNetworking.registerGlobalReceiver(TrafficLightBindingNetworking.OPEN_MENU_PACKET_ID, (client, handler, buffer, responseSender) -> {
 			final BlockPos blockPos = buffer.readBlockPos();
 			final int intersectionCount = buffer.readVarInt();
@@ -250,7 +252,6 @@ public class MTRTrafficAddonClient implements ClientModInitializer {
 			client.execute(() -> client.setScreen(new RoadSignEditScreen(blockPos, baseId, lines, textColor, signWidth, signHeight, backgroundColor, edgeColor, imageId)));
 		});
 
-		// EVENT LISTENERY - czyszczenie przy rozłączeniu i renderowanie
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientTrafficDebugState.clear();
 			TrafficDashboardClient.clear();

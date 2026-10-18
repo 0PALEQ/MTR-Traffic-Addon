@@ -25,7 +25,7 @@ Addon traffic simulation runs on a dedicated wall-clock simulation thread instea
 
 ## Build
 
-Fabric Loom `1.16.1` requires Gradle to run on JDK 21 or newer. The mod still targets Java 17 bytecode for Minecraft 1.20.1 runtime compatibility.
+Fabric Loom `1.16.1` requires Gradle to run on JDK 21 or newer. Install JDK 17 as well: the Minecraft 1.20.1, 1.20.1 Sinytra, and 1.20.4 builds select it through Gradle toolchains for compilation, tests, and development runs. These builds target Java 17 bytecode, including mixins, so players can use Java 17. Minecraft 1.21.1 requires Java 21.
 
 This repository is a multi-version workspace. Version-specific Java code and Gradle builds live under `versions/`, while byte-identical assets and data files used by every version live under `shared/src/main/resources`. Each version's `src/main/resources` directory is an overlay for loader metadata and Minecraft-version-specific resources.
 

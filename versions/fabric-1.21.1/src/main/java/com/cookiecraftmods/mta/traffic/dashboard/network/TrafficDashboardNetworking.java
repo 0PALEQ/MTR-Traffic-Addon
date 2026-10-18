@@ -19,13 +19,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.MinecraftServer;
 
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public final class TrafficDashboardNetworking {
 	public static final CustomPacketPayload.Type<MtaPacketPayload> SNAPSHOT_PACKET_ID = MtaPacketPayload.type("traffic_dashboard_snapshot");
+	public static final CustomPacketPayload.Type<MtaPacketPayload> CONNECTORS_REMOVED_PACKET_ID = MtaPacketPayload.type("traffic_connectors_removed");
 	public static final CustomPacketPayload.Type<MtaPacketPayload> UPDATE_PACKET_ID = MtaPacketPayload.type("traffic_dashboard_update");
 	public static final CustomPacketPayload.Type<MtaPacketPayload> INTERSECTION_UPDATE_PACKET_ID = MtaPacketPayload.type("traffic_dashboard_intersection_update");
 	public static final CustomPacketPayload.Type<MtaPacketPayload> INTERSECTION_CREATE_PACKET_ID = MtaPacketPayload.type("traffic_dashboard_intersection_create");
@@ -41,6 +44,7 @@ public final class TrafficDashboardNetworking {
 			return;
 		}
 		MtaPacketPayload.registerS2C(SNAPSHOT_PACKET_ID);
+		MtaPacketPayload.registerS2C(CONNECTORS_REMOVED_PACKET_ID);
 		MtaPacketPayload.registerC2S(UPDATE_PACKET_ID);
 		MtaPacketPayload.registerC2S(INTERSECTION_UPDATE_PACKET_ID);
 		MtaPacketPayload.registerC2S(INTERSECTION_CREATE_PACKET_ID);
@@ -107,6 +111,26 @@ public final class TrafficDashboardNetworking {
 		});
 
 		initialized = true;
+	}
+
+	public static void sendConnectorRemovals(MinecraftServer server, String dimensionId, Collection<String> pointIds) {
+		if (pointIds.isEmpty()) {
+			return;
+		}
+		final List<String> removed = List.copyOf(pointIds);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (dimensionId.equals(player.level().dimension().location().toString())
+				&& ServerPlayNetworking.canSend(player, CONNECTORS_REMOVED_PACKET_ID)) {
+				for (int offset = 0; offset < removed.size(); offset += 256) {
+					final List<String> batch = removed.subList(offset, Math.min(removed.size(), offset + 256));
+					final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+					buffer.writeVarInt(batch.size());
+					batch.forEach(buffer::writeUtf);
+					ServerPlayNetworking.send(player, MtaPacketPayload.fromBuffer(CONNECTORS_REMOVED_PACKET_ID, buffer));
+					buffer.release();
+				}
+			}
+		}
 	}
 
 	public static void sendSnapshot(ServerPlayer player) {

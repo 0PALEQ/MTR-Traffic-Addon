@@ -3,6 +3,8 @@
 	"package": "com.cookiecraftmods.mta.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
+		"DeleteDataRequestMixin",
+		"DeleteDataResponseAccessor",
 		"RailSchemaAccessor",
 		"RailTypeMixin",
 		"SidingPathFinderMixin",

@@ -28,6 +28,7 @@ public final class AsyncSnapshotFilter {
 		List<TrafficNetworkVehicleSnapshot> vehicles,
 		double maxDistanceBlocks,
 		long sequence,
+		long simulationNanos,
 		long lifecycleGeneration
 	) {
 	}
@@ -48,6 +49,16 @@ public final class AsyncSnapshotFilter {
 		double maxDistanceBlocks,
 		long sequence
 	) {
+		submitAsync(players, vehicles, maxDistanceBlocks, sequence, System.nanoTime());
+	}
+
+	public static synchronized void submitAsync(
+		Collection<PlayerViewSnapshot> players,
+		Collection<TrafficNetworkVehicleSnapshot> vehicles,
+		double maxDistanceBlocks,
+		long sequence,
+		long simulationNanos
+	) {
 		if (!acceptingTasks) {
 			return;
 		}
@@ -55,7 +66,7 @@ public final class AsyncSnapshotFilter {
 		for (PlayerViewSnapshot player : immutablePlayers) {
 			PLAYER_SNAPSHOTS.computeIfAbsent(player.playerId(), ignored -> new PlayerSnapshotCache());
 		}
-		PENDING_JOB.set(new SnapshotJob(immutablePlayers, List.copyOf(vehicles), maxDistanceBlocks, sequence, lifecycleGeneration));
+		PENDING_JOB.set(new SnapshotJob(immutablePlayers, List.copyOf(vehicles), maxDistanceBlocks, sequence, simulationNanos, lifecycleGeneration));
 		scheduleDrain();
 	}
 
@@ -128,6 +139,8 @@ public final class AsyncSnapshotFilter {
 					vehicleIds.add(vehicle.id());
 				}
 
+				// Optional trailing field preserves decoding by older clients.
+				buffer.writeLong(job.simulationNanos());
 				final byte[] encoded = new byte[buffer.readableBytes()];
 				buffer.getBytes(buffer.readerIndex(), encoded);
 				final SnapshotResult previousSnapshot = cache.snapshot;

@@ -3,6 +3,8 @@ package com.cookiecraftmods.mta.client.dashboard;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 
 public final class TrafficDashboardClient {
@@ -22,6 +24,14 @@ public final class TrafficDashboardClient {
 			trafficDashboardScreen.updateEntries(entries, intersections);
 		} else {
 			minecraft.setScreen(new TrafficDashboardScreen(entries, intersections));
+		}
+	}
+
+	public static void removeEntries(Collection<String> pointIds) {
+		final var removedIds = new HashSet<>(pointIds);
+		ENTRIES.removeIf(entry -> removedIds.contains(entry.id()));
+		if (Minecraft.getInstance().screen instanceof TrafficDashboardScreen screen) {
+			screen.updateEntries(List.copyOf(ENTRIES), List.copyOf(INTERSECTIONS));
 		}
 	}
 

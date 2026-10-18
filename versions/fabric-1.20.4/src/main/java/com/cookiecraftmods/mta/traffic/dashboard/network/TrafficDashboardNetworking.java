@@ -18,13 +18,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.MinecraftServer;
 
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public final class TrafficDashboardNetworking {
 	public static final ResourceLocation SNAPSHOT_PACKET_ID = new ResourceLocation(MTRTrafficAddon.MOD_ID, "traffic_dashboard_snapshot");
+	public static final ResourceLocation CONNECTORS_REMOVED_PACKET_ID = new ResourceLocation(MTRTrafficAddon.MOD_ID, "traffic_connectors_removed");
 	public static final ResourceLocation UPDATE_PACKET_ID = new ResourceLocation(MTRTrafficAddon.MOD_ID, "traffic_dashboard_update");
 	public static final ResourceLocation INTERSECTION_UPDATE_PACKET_ID = new ResourceLocation(MTRTrafficAddon.MOD_ID, "traffic_dashboard_intersection_update");
 	public static final ResourceLocation INTERSECTION_CREATE_PACKET_ID = new ResourceLocation(MTRTrafficAddon.MOD_ID, "traffic_dashboard_intersection_create");
@@ -92,6 +95,25 @@ public final class TrafficDashboardNetworking {
 		});
 
 		initialized = true;
+	}
+
+	public static void sendConnectorRemovals(MinecraftServer server, String dimensionId, Collection<String> pointIds) {
+		if (pointIds.isEmpty()) {
+			return;
+		}
+		final List<String> removed = List.copyOf(pointIds);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (dimensionId.equals(player.level().dimension().location().toString())
+				&& ServerPlayNetworking.canSend(player, CONNECTORS_REMOVED_PACKET_ID)) {
+				for (int offset = 0; offset < removed.size(); offset += 256) {
+					final List<String> batch = removed.subList(offset, Math.min(removed.size(), offset + 256));
+					final FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+					buffer.writeVarInt(batch.size());
+					batch.forEach(buffer::writeUtf);
+					ServerPlayNetworking.send(player, CONNECTORS_REMOVED_PACKET_ID, buffer);
+				}
+			}
+		}
 	}
 
 	public static void sendSnapshot(ServerPlayer player) {

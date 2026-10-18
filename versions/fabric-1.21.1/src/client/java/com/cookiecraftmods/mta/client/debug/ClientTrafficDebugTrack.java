@@ -1,73 +1,99 @@
 package com.cookiecraftmods.mta.client.debug;
 
 final class ClientTrafficDebugTrack {
-	private static final long DEFAULT_CORRECTION_NANOS = 125_000_000L;
-	private static final long MIN_CORRECTION_NANOS = 50_000_000L;
-	private static final long MAX_CORRECTION_NANOS = 250_000_000L;
-	private static final long MAX_EXTRAPOLATION_NANOS = 350_000_000L;
-	private ClientTrafficDebugSnapshot currentSnapshot;
-	private long updatedAtNanos;
-	private long correctionWindowNanos = DEFAULT_CORRECTION_NANOS;
-	private double correctionX;
-	private double correctionY;
-	private double correctionZ;
-	private float correctionYaw;
-	private float correctionPitch;
-	private double correctionSpeedKph;
+	private static final int MAX_SAMPLES = 32;
+	private static final long MAX_INTERPOLATION_GAP_NANOS = 250_000_000L;
+	private final Sample[] samples = new Sample[MAX_SAMPLES];
+	private int head;
+	private int size;
 
-	ClientTrafficDebugTrack(ClientTrafficDebugSnapshot snapshot, long updatedAtNanos) {
-		this.currentSnapshot = snapshot;
-		this.updatedAtNanos = updatedAtNanos;
+	private record Sample(ClientTrafficDebugSnapshot snapshot, long timeNanos) { }
+
+	ClientTrafficDebugTrack(ClientTrafficDebugSnapshot snapshot, long simulationNanos) {
+		samples[size++] = new Sample(snapshot, simulationNanos);
+	}
+
+	boolean hasSampleAt(long playbackNanos) {
+		return sample(0).timeNanos() <= playbackNanos;
 	}
 
 	void update(ClientTrafficDebugSnapshot snapshot, long updatedAtNanos) {
-		final ClientTrafficDebugRenderState renderedState = interpolate(updatedAtNanos);
-		final long updateIntervalNanos = Math.max(1L, updatedAtNanos - this.updatedAtNanos);
-		correctionWindowNanos = Math.max(MIN_CORRECTION_NANOS, Math.min(MAX_CORRECTION_NANOS, updateIntervalNanos));
-		correctionX = renderedState.x() - snapshot.x();
-		correctionY = renderedState.y() - snapshot.y();
-		correctionZ = renderedState.z() - snapshot.z();
-		correctionYaw = angleDelta(snapshot.yawDegrees(), renderedState.yawDegrees());
-		correctionPitch = renderedState.pitchDegrees() - snapshot.pitchDegrees();
-		correctionSpeedKph = renderedState.speedKph() - snapshot.speedKph();
-		currentSnapshot = snapshot;
-		this.updatedAtNanos = updatedAtNanos;
+		final Sample latest = sample(size - 1);
+		if (updatedAtNanos <= latest.timeNanos()) {
+			return;
+		}
+		if (size == MAX_SAMPLES) {
+			samples[head] = null;
+			head = (head + 1) % MAX_SAMPLES;
+			size--;
+		}
+		samples[(head + size++) % MAX_SAMPLES] = new Sample(snapshot, updatedAtNanos);
 	}
 
-	ClientTrafficDebugRenderState interpolate(long nowNanos) {
-		final long elapsedNanos = Math.max(0L, nowNanos - updatedAtNanos);
-		final double correctionFactor = 1.0D - Math.min(1.0D, (double) elapsedNanos / Math.max(1L, correctionWindowNanos));
-		final double extrapolationSeconds = Math.min(MAX_EXTRAPOLATION_NANOS, elapsedNanos) / 1_000_000_000.0D;
-		final float renderedYaw = currentSnapshot.yawDegrees() + correctionYaw * (float) correctionFactor;
-		final float renderedPitch = currentSnapshot.pitchDegrees() + correctionPitch * (float) correctionFactor;
-		final double renderedSpeedKph = Math.max(0.0D, currentSnapshot.speedKph() + correctionSpeedKph * correctionFactor);
-		final double distanceMeters = renderedSpeedKph / 3.6D * extrapolationSeconds;
-		final double yawRadians = Math.toRadians(renderedYaw);
-		final double pitchRadians = Math.toRadians(renderedPitch);
-		final double horizontalDistance = Math.cos(pitchRadians) * distanceMeters;
-		final double x = currentSnapshot.x() + Math.cos(yawRadians) * horizontalDistance + correctionX * correctionFactor;
-		final double y = currentSnapshot.y() + Math.sin(pitchRadians) * distanceMeters + correctionY * correctionFactor;
-		final double z = currentSnapshot.z() + Math.sin(yawRadians) * horizontalDistance + correctionZ * correctionFactor;
+	ClientTrafficDebugRenderState interpolate(long playbackNanos) {
+		while (size > 1 && sample(1).timeNanos() <= playbackNanos) {
+			samples[head] = null;
+			head = (head + 1) % MAX_SAMPLES;
+			size--;
+		}
+		final Sample first = sample(0);
+		final Sample next = size > 1 ? sample(1) : first;
+		final Sample second = next.timeNanos() - first.timeNanos() <= MAX_INTERPOLATION_GAP_NANOS ? next : first;
+		final double progress = second == first ? 0.0D : Math.max(0.0D, Math.min(1.0D,
+			(double) (playbackNanos - first.timeNanos()) / (second.timeNanos() - first.timeNanos())));
+		final ClientTrafficDebugSnapshot from = first.snapshot();
+		final ClientTrafficDebugSnapshot to = second.snapshot();
+		final double seconds = (second.timeNanos() - first.timeNanos()) / 1_000_000_000.0D;
+		final double fromYaw = Math.toRadians(from.yawDegrees());
+		final double toYaw = Math.toRadians(to.yawDegrees());
+		final double fromPitch = Math.toRadians(from.pitchDegrees());
+		final double toPitch = Math.toRadians(to.pitchDegrees());
+		final double fromDistance = Math.max(0, from.speedKph()) / 3.6D * seconds;
+		final double toDistance = Math.max(0, to.speedKph()) / 3.6D * seconds;
 		return new ClientTrafficDebugRenderState(
-			currentSnapshot.id(),
-			currentSnapshot.visualId(),
-			currentSnapshot.vehicleType(),
-			currentSnapshot.lengthMeters(),
-			x,
-			y,
-			z,
-			renderedYaw,
-			renderedPitch,
-			renderedSpeedKph
+			to.id(), to.visualId(), to.vehicleType(), to.lengthMeters(),
+			smoothPosition(from.x(), to.x(), Math.cos(fromYaw) * Math.cos(fromPitch) * fromDistance, Math.cos(toYaw) * Math.cos(toPitch) * toDistance, progress),
+			smoothPosition(from.y(), to.y(), Math.sin(fromPitch) * fromDistance, Math.sin(toPitch) * toDistance, progress),
+			smoothPosition(from.z(), to.z(), Math.sin(fromYaw) * Math.cos(fromPitch) * fromDistance, Math.sin(toYaw) * Math.cos(toPitch) * toDistance, progress),
+			from.yawDegrees() + angleDelta(from.yawDegrees(), to.yawDegrees()) * (float) progress,
+			(float) lerp(from.pitchDegrees(), to.pitchDegrees(), progress),
+			lerp(from.speedKph(), to.speedKph(), progress)
 		);
 	}
 
-	private static float angleDelta(float start, float end) {
-		float delta = end - start;
-		while (delta > 180.0F) {
-			delta -= 360.0F;
+	// Cubic endpoint velocities smooth acceleration and turns. Limit tangents
+	// per axis so inconsistent headings or a stop cannot overshoot either sample.
+	private static double smoothPosition(double from, double to, double fromTangent, double toTangent, double t) {
+		final double delta = to - from;
+		if (Math.abs(delta) < 1.0E-9D) {
+			return from;
 		}
-		while (delta < -180.0F) {
+		double a = Math.max(0.0D, fromTangent / delta);
+		double b = Math.max(0.0D, toTangent / delta);
+		final double magnitude = Math.hypot(a, b);
+		if (magnitude > 3.0D) {
+			a *= 3.0D / magnitude;
+			b *= 3.0D / magnitude;
+		}
+		final double t2 = t * t;
+		final double t3 = t2 * t;
+		return from + delta * ((-2 * t3 + 3 * t2)
+			+ (t3 - 2 * t2 + t) * a + (t3 - t2) * b);
+	}
+
+	private Sample sample(int index) {
+		return samples[(head + index) % MAX_SAMPLES];
+	}
+
+	private static double lerp(double from, double to, double progress) {
+		return from + (to - from) * progress;
+	}
+
+	private static float angleDelta(float start, float end) {
+		float delta = (end - start) % 360.0F;
+		if (delta > 180.0F) {
+			delta -= 360.0F;
+		} else if (delta < -180.0F) {
 			delta += 360.0F;
 		}
 		return delta;

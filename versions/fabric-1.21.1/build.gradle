@@ -43,6 +43,25 @@ loom {
 
 sourceSets.main.resources.srcDir rootProject.file("../../shared/src/main/resources")
 
+sourceSets {
+	trafficClientTest {
+		java.srcDir 'src/testClient/java'
+		compileClasspath = sourceSets.client.output
+		runtimeClasspath = output + compileClasspath
+	}
+}
+
+tasks.register('testClientMovement', JavaExec) {
+	group = 'verification'
+	description = 'Checks vehicle interpolation, timeline lifecycle and buffer overflow.'
+	classpath = sourceSets.trafficClientTest.runtimeClasspath
+	mainClass = 'com.cookiecraftmods.mta.client.debug.ClientTrafficDebugTrackTest'
+}
+
+tasks.named('check') {
+	dependsOn 'testClientMovement'
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings loom.officialMojangMappings()
