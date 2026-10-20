@@ -8,53 +8,66 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
+import java.util.Set;
 
 public final class MtrGraphPathFinder {
 	private MtrGraphPathFinder() {
 	}
 
 	public static Optional<MtrGraphRouteResult> findFastestRoute(MtrGraph graph, MtrNodeKey start, MtrNodeKey goal) {
-		if (start.equals(goal)) {
-			return Optional.of(new MtrGraphRouteResult(new TrafficRoute(List.of()), 0.0D));
+		return new Search(graph, start).find(goal);
+	}
+
+	public static final class Search {
+		private final MtrGraph graph;
+		private final MtrNodeKey start;
+		private final PriorityQueue<PathState> openSet = new PriorityQueue<>(Comparator.comparing(PathState::score));
+		private final Map<MtrNodeKey, PathScore> bestScoreByNode = new HashMap<>();
+		private final Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode = new HashMap<>();
+		private final Set<MtrNodeKey> settled = new HashSet<>();
+
+		public Search(MtrGraph graph, MtrNodeKey start) {
+			this.graph = graph;
+			this.start = start;
+			openSet.add(new PathState(start, new PathScore(0.0D, 0)));
+			bestScoreByNode.put(start, new PathScore(0.0D, 0));
 		}
 
-		final PriorityQueue<PathState> openSet = new PriorityQueue<>(Comparator.comparing(PathState::score));
-		final Map<MtrNodeKey, PathScore> bestScoreByNode = new HashMap<>();
-		final Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode = new HashMap<>();
-
-		openSet.add(new PathState(start, new PathScore(0.0D, 0)));
-		bestScoreByNode.put(start, new PathScore(0.0D, 0));
-
-		while (!openSet.isEmpty()) {
-			final PathState currentState = openSet.poll();
-			final PathScore bestKnownScore = bestScoreByNode.get(currentState.node());
-			if (bestKnownScore != null && currentState.score().compareTo(bestKnownScore) > 0) {
-				continue;
+		public Optional<MtrGraphRouteResult> find(MtrNodeKey goal) {
+			if (start.equals(goal)) {
+				return Optional.of(new MtrGraphRouteResult(new TrafficRoute(List.of()), 0.0D));
 			}
-
-			if (currentState.node().equals(goal)) {
-				return Optional.of(reconstructRoute(previousEdgeByNode, start, goal, currentState.score().travelTimeSeconds()));
-			}
-
-			for (MtrGraphEdge edge : graph.adjacency().getOrDefault(currentState.node(), List.of())) {
-				if (edge.mtaPathBlocked()) {
+			while (!settled.contains(goal) && !openSet.isEmpty()) {
+				final PathState currentState = openSet.poll();
+				final PathScore bestKnownScore = bestScoreByNode.get(currentState.node());
+				if (bestKnownScore != null && currentState.score().compareTo(bestKnownScore) > 0) {
 					continue;
 				}
-				final PathScore nextScore = new PathScore(currentState.score().travelTimeSeconds() + edge.travelTimeSeconds(), currentState.score().hops() + 1);
-				final PathScore existingScore = bestScoreByNode.get(edge.to());
-				if (existingScore == null || nextScore.compareTo(existingScore) < 0) {
-					bestScoreByNode.put(edge.to(), nextScore);
-					previousEdgeByNode.put(edge.to(), edge);
-					openSet.add(new PathState(edge.to(), nextScore));
+
+				settled.add(currentState.node());
+				for (MtrGraphEdge edge : graph.adjacency().getOrDefault(currentState.node(), List.of())) {
+					if (edge.mtaPathBlocked()) {
+						continue;
+					}
+					final PathScore nextScore = new PathScore(currentState.score().travelTimeSeconds() + edge.travelTimeSeconds(), currentState.score().hops() + 1);
+					final PathScore existingScore = bestScoreByNode.get(edge.to());
+					if (existingScore == null || nextScore.compareTo(existingScore) < 0) {
+						bestScoreByNode.put(edge.to(), nextScore);
+						previousEdgeByNode.put(edge.to(), edge);
+						openSet.add(new PathState(edge.to(), nextScore));
+					}
 				}
 			}
-		}
 
-		return Optional.empty();
+			return settled.contains(goal)
+				? Optional.of(reconstructRoute(previousEdgeByNode, start, goal, bestScoreByNode.get(goal).travelTimeSeconds()))
+				: Optional.empty();
+		}
 	}
 
 	private static MtrGraphRouteResult reconstructRoute(Map<MtrNodeKey, MtrGraphEdge> previousEdgeByNode, MtrNodeKey start, MtrNodeKey goal, double travelTimeSeconds) {

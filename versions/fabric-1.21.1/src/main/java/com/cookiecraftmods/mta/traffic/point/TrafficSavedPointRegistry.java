@@ -198,13 +198,15 @@ public final class TrafficSavedPointRegistry {
 		return changed;
 	}
 
-	public static synchronized int refreshConnectorRoutes(String dimensionId, MtrGraph graph) {
+	public record ConnectorRepair(TrafficPointDefinition original, TrafficPointDefinition replacement) { }
+
+	public static List<ConnectorRepair> prepareConnectorRepairs(String dimensionId, MtrGraph graph) {
 		if (graph == null || graph.isEmpty()) {
-			return 0;
+			return List.of();
 		}
 
-		int repaired = 0;
-		for (TrafficPointDefinition definition : List.copyOf(DEFINITIONS.values())) {
+		final List<ConnectorRepair> repairs = new ArrayList<>();
+		for (TrafficPointDefinition definition : getDefinitions()) {
 			if (!definition.id().startsWith(dimensionId + "|")) {
 				continue;
 			}
@@ -215,13 +217,33 @@ public final class TrafficSavedPointRegistry {
 
 			final Optional<com.cookiecraftmods.mta.traffic.mtr.graph.MtrGraphEdge> nearestEdge = nearestEdge(graph, definition);
 			if (nearestEdge.isPresent()) {
-				putDefinition(copyWithConnectorRoute(definition, nearestEdge.get()));
+				repairs.add(new ConnectorRepair(definition, copyWithConnectorRoute(definition, nearestEdge.get())));
+			}
+		}
+		return List.copyOf(repairs);
+	}
+
+	public static synchronized int applyConnectorRepairs(List<ConnectorRepair> repairs) {
+		int repaired = 0;
+		for (ConnectorRepair repair : repairs) {
+			if (DEFINITIONS.get(repair.original().id()) == repair.original()) {
+				putDefinition(repair.replacement());
 				repaired++;
 			}
 		}
+		return repaired;
+	}
 
-		if (repaired > 0 && currentServer != null) {
+	public static synchronized void saveConnectorRepairs() {
+		if (currentServer != null) {
 			save(currentServer);
+		}
+	}
+
+	public static int refreshConnectorRoutes(String dimensionId, MtrGraph graph) {
+		final int repaired = applyConnectorRepairs(prepareConnectorRepairs(dimensionId, graph));
+		if (repaired > 0) {
+			saveConnectorRepairs();
 		}
 		return repaired;
 	}

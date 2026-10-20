@@ -57,13 +57,39 @@ public final class MtrGraphBuilder {
 	}
 
 	public static MtrGraph buildFromRailSnapshots(Collection<RailSnapshot> rails) {
+		return buildFromRailSnapshots(rails, Map.of(), new LinkedHashMap<>());
+	}
+
+	public static final class GeometryCache {
+		private Map<GeometryKey, RailPath> previous = Map.of();
+
+		public synchronized MtrGraph build(Collection<RailSnapshot> rails) {
+			final Map<GeometryKey, RailPath> next = new LinkedHashMap<>();
+			final MtrGraph graph = buildFromRailSnapshots(rails, previous, next);
+			previous = next;
+			return graph;
+		}
+	}
+
+	private static MtrGraph buildFromRailSnapshots(Collection<RailSnapshot> rails, Map<GeometryKey, RailPath> previous, Map<GeometryKey, RailPath> next) {
 		final Map<MtrNodeKey, List<MtrGraphEdge>> adjacency = new LinkedHashMap<>();
 		final List<MtrGraphEdge> edges = new ArrayList<>();
 
 		for (RailSnapshot rail : rails) {
 			final MtrNodeKey position1 = new MtrNodeKey(rail.x1(), rail.y1(), rail.z1());
 			final MtrNodeKey position2 = new MtrNodeKey(rail.x2(), rail.y2(), rail.z2());
-			final RailPath railPath = createRailPath(rail);
+			if (rail.speedLimit1() <= 0 && rail.speedLimit2() <= 0) {
+				continue;
+			}
+			final GeometryKey key = new GeometryKey(rail.x1(), rail.y1(), rail.z1(), rail.angle1(),
+				rail.x2(), rail.y2(), rail.z2(), rail.angle2(), rail.shape(), rail.verticalRadius(),
+				rail.tiltPoints(), rail.tiltAngleDegrees1(), rail.tiltAngleDistance1a(),
+				rail.tiltAngleDegrees1a(), rail.tiltAngleDegrees1b(), rail.tiltAngleDistance1b(),
+				rail.tiltAngleDegreesMiddle(), rail.tiltAngleDistance2b(), rail.tiltAngleDegrees2b(),
+				rail.tiltAngleDegrees2a(), rail.tiltAngleDistance2a(), rail.tiltAngleDegrees2());
+			final RailPath cached = previous.get(key);
+			final RailPath railPath = cached == null ? createRailPath(rail) : cached;
+			next.put(key, railPath);
 
 			if (rail.speedLimit1() > 0) {
 				addEdge(adjacency, edges, position1, position2, railPath.lengthMeters(), rail.speedLimit1(), rail.mtaPathBlocked(), rail.signalColors(), railPath.points());
@@ -211,7 +237,17 @@ public final class MtrGraphBuilder {
 	}
 
 	private record RailPath(double lengthMeters, List<TrafficPathPoint> points) {
+		private RailPath {
+			points = List.copyOf(points);
+		}
 	}
+
+	private record GeometryKey(long x1, long y1, long z1, String angle1, long x2, long y2, long z2,
+		String angle2, String shape, double verticalRadius,
+		int tiltPoints, double tiltAngleDegrees1, double tiltAngleDistance1a,
+		double tiltAngleDegrees1a, double tiltAngleDegrees1b, double tiltAngleDistance1b,
+		double tiltAngleDegreesMiddle, double tiltAngleDistance2b, double tiltAngleDegrees2b,
+		double tiltAngleDegrees2a, double tiltAngleDistance2a, double tiltAngleDegrees2) { }
 
 	public record RailSnapshot(
 		long x1,

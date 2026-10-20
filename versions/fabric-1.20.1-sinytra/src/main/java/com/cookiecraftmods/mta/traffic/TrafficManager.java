@@ -79,6 +79,10 @@ public final class TrafficManager {
 	private static final long MATERIALIZATION_SCAN_INTERVAL_MILLIS = 250L;
 	private static final long NETWORK_REFRESH_DEBOUNCE_NANOS = 200_000_000L;
 	private static final Object SIMULATION_LOCK = new Object();
+	private static final Object GRAPH_REFRESH_LOCK = new Object();
+	private static final int CONNECTOR_REPAIRS_PER_TICK = 64;
+	private static final long CONNECTOR_REPAIR_BUDGET_NANOS = 2_000_000L;
+	private static ConnectorRepairBatch connectorRepairBatch;
 	private static final List<TrafficVehicle> ACTIVE_VEHICLES = new ArrayList<>();
 	private static volatile List<TrafficVehicle> activeVehicleSnapshot = List.of();
 	public record NetworkFrame(List<TrafficNetworkVehicleSnapshot> vehicles, long simulationNanos) { }
@@ -97,6 +101,7 @@ public final class TrafficManager {
 	private static final Set<UUID> SKIPPED_VIRTUAL_VEHICLE_IDS = ConcurrentHashMap.newKeySet();
 	private static ScheduledExecutorService simulationExecutor;
 	private static ExecutorService graphBuildExecutor;
+	private static volatile MtrGraphBuilder.GeometryCache graphGeometryCache = new MtrGraphBuilder.GeometryCache();
 	private static volatile List<SimulationPlayerSnapshot> playerSnapshots = List.of();
 	private static volatile MaterializationSnapshot materializationSnapshot = new MaterializationSnapshot(null, null, List.of(), List.of());
 	private static final Map<String, List<VirtualRouteCandidate>> ROUTE_CANDIDATES_BY_SPAWN_ID = new HashMap<>();
@@ -219,7 +224,7 @@ public final class TrafficManager {
 
 		final long buildGeneration;
 		final long refreshRevision;
-		synchronized (SIMULATION_LOCK) {
+		synchronized (GRAPH_REFRESH_LOCK) {
 			if (!graphBuildAcceptingTasks) {
 				return;
 			}
@@ -233,6 +238,7 @@ public final class TrafficManager {
 			refreshRevision = graphRefreshRevision;
 		}
 
+		final long snapshotStarted = System.nanoTime();
 		final List<MtrGraphBuilder.RailSnapshot> railSnapshots;
 		try {
 			railSnapshots = MtrGraphBuilder.snapshotRails(rails);
@@ -242,7 +248,8 @@ public final class TrafficManager {
 			return;
 		}
 		final RailGraphSignature signature = railGraphSignature(normalizedDimensionId, railSnapshots);
-		synchronized (SIMULATION_LOCK) {
+		final long snapshotNanos = System.nanoTime() - snapshotStarted;
+		synchronized (GRAPH_REFRESH_LOCK) {
 			if (buildGeneration != graphBuildGeneration || refreshRevision != graphRefreshRevision) {
 				if (buildGeneration == graphBuildGeneration) {
 					fullGraphRefreshInFlight = false;
@@ -257,7 +264,8 @@ public final class TrafficManager {
 		}
 
 		try {
-			graphBuildExecutor().execute(() -> buildFullGraphAsync(buildGeneration, refreshRevision, signature, railSnapshots));
+			final MtrGraphBuilder.GeometryCache geometryCache = graphGeometryCache;
+			graphBuildExecutor().execute(() -> buildFullGraphAsync(buildGeneration, refreshRevision, signature, railSnapshots, snapshotNanos, geometryCache));
 		} catch (RejectedExecutionException e) {
 			retryFullGraphRefresh(buildGeneration, refreshRevision, normalizedDimensionId);
 			MTRTrafficAddon.LOGGER.debug("Full MTR graph build was rejected during shutdown", e);
@@ -273,7 +281,7 @@ public final class TrafficManager {
 			return false;
 		}
 
-		synchronized (SIMULATION_LOCK) {
+		synchronized (GRAPH_REFRESH_LOCK) {
 			if (!graphBuildAcceptingTasks) {
 				return false;
 			}
@@ -286,31 +294,40 @@ public final class TrafficManager {
 		}
 	}
 
-	private static void buildFullGraphAsync(long buildGeneration, long refreshRevision, RailGraphSignature signature, List<MtrGraphBuilder.RailSnapshot> railSnapshots) {
+	private static void buildFullGraphAsync(long buildGeneration, long refreshRevision, RailGraphSignature signature, List<MtrGraphBuilder.RailSnapshot> railSnapshots, long snapshotNanos, MtrGraphBuilder.GeometryCache geometryCache) {
 		try {
-			synchronized (SIMULATION_LOCK) {
+			synchronized (GRAPH_REFRESH_LOCK) {
 				if (buildGeneration != graphBuildGeneration || refreshRevision != graphRefreshRevision || !graphBuildAcceptingTasks) {
 					return;
 				}
 			}
-			final MtrGraph fullGraph = MtrGraphBuilder.buildFromRailSnapshots(railSnapshots);
+			final long buildStarted = System.nanoTime();
+			final MtrGraph fullGraph = geometryCache.build(railSnapshots);
+			final long buildNanos = System.nanoTime() - buildStarted;
 			final Set<String> railIds = new HashSet<>();
 			for (MtrGraphBuilder.RailSnapshot rail : railSnapshots) {
 				railIds.add(TwoPositionsBase.getHexId(new Position(rail.x1(), rail.y1(), rail.z1()),
 					new Position(rail.x2(), rail.y2(), rail.z2())));
 			}
+			final long repairsStarted = System.nanoTime();
+			final List<TrafficSavedPointRegistry.ConnectorRepair> repairs = TrafficSavedPointRegistry.prepareConnectorRepairs(signature.dimensionId(), fullGraph);
+			final long repairsNanos = System.nanoTime() - repairsStarted;
+			final long nodesStarted = System.nanoTime();
 			final List<TrafficIntersectionRegistry.NodeRefresh> nodes = TrafficIntersectionRegistry.prepareNodeRefresh(signature.dimensionId(), fullGraph);
-			synchronized (SIMULATION_LOCK) {
+			final long nodesNanos = System.nanoTime() - nodesStarted;
+			final PendingFullGraphRefresh refresh = new PendingFullGraphRefresh(signature, fullGraph, Set.copyOf(railIds), nodes, refreshRevision,
+				repairs, snapshotNanos, buildNanos, repairsNanos, nodesNanos);
+			synchronized (GRAPH_REFRESH_LOCK) {
 				if (buildGeneration != graphBuildGeneration || refreshRevision != graphRefreshRevision || !graphBuildAcceptingTasks) {
 					return;
 				}
-				pendingFullGraphRefresh = new PendingFullGraphRefresh(signature, fullGraph, Set.copyOf(railIds), nodes, refreshRevision);
+				pendingFullGraphRefresh = refresh;
 			}
 		} catch (Exception e) {
 			MTRTrafficAddon.LOGGER.warn("Could not build full MTR traffic graph from immutable rail snapshot", e);
 			retryFullGraphRefresh(buildGeneration, refreshRevision, signature.dimensionId());
 		} finally {
-			synchronized (SIMULATION_LOCK) {
+			synchronized (GRAPH_REFRESH_LOCK) {
 				if (buildGeneration == graphBuildGeneration) {
 					fullGraphRefreshInFlight = false;
 				}
@@ -319,7 +336,7 @@ public final class TrafficManager {
 	}
 
 	private static void retryFullGraphRefresh(long generation, long revision, String dimensionId) {
-		synchronized (SIMULATION_LOCK) {
+		synchronized (GRAPH_REFRESH_LOCK) {
 			if (generation == graphBuildGeneration && revision == graphRefreshRevision && graphBuildAcceptingTasks) {
 				requestedNetworkRefreshDimensionId = dimensionId;
 				networkRefreshNotBeforeNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
@@ -337,7 +354,10 @@ public final class TrafficManager {
 			return;
 		}
 
-		synchronized (SIMULATION_LOCK) {
+		final long applyStarted = System.nanoTime();
+		final long lockAcquired;
+		synchronized (GRAPH_REFRESH_LOCK) {
+			lockAcquired = System.nanoTime();
 			if (pendingFullGraphRefresh != pendingRefresh || pendingRefresh.revision() != graphRefreshRevision) {
 				return;
 			}
@@ -345,16 +365,68 @@ public final class TrafficManager {
 			latestGraphDimensionId = pendingRefresh.signature().dimensionId();
 			latestGraph = pendingRefresh.graph();
 			appliedRailGraphSignature = pendingRefresh.signature();
-			MTRTrafficAddon.LOGGER.info("MTR traffic network refreshed for {}: {} nodes, {} edges", latestGraphDimensionId, latestGraph.adjacency().size(), latestGraph.edges().size());
-			MTR_PATH_GEOMETRY_CACHE.clear();
 			routeCacheGraphVersion++;
 		}
+		MTR_PATH_GEOMETRY_CACHE.clear();
 		final String dimensionId = pendingRefresh.signature().dimensionId();
+		final long reconcileStarted = System.nanoTime();
 		final List<String> removed = TrafficSavedPointRegistry.reconcileConnectorPoints(dimensionId, pendingRefresh.railIds());
-		TrafficSavedPointRegistry.refreshConnectorRoutes(dimensionId, pendingRefresh.graph());
+		final long reconcileNanos = System.nanoTime() - reconcileStarted;
+		finishConnectorRepairs();
+		connectorRepairBatch = new ConnectorRepairBatch(pendingRefresh);
+		final long nodesStarted = System.nanoTime();
 		TrafficIntersectionRegistry.applyNodeRefresh(pendingRefresh.nodes());
+		final long nodesNanos = System.nanoTime() - nodesStarted;
 		TrafficDashboardNetworking.sendConnectorRemovals(server, dimensionId, removed);
 		updateCachedTrafficPoints();
+		MTRTrafficAddon.LOGGER.info("MTR traffic graph published for {}: {} nodes, {} edges; snapshot={}ms, build={}ms, connector preparation={}ms, intersection preparation={}ms, refresh lock wait={}ms, reconcile={}ms, intersections={}ms, server apply={}ms; {} connector repairs queued",
+			dimensionId, pendingRefresh.graph().adjacency().size(), pendingRefresh.graph().edges().size(),
+			millis(pendingRefresh.snapshotNanos()), millis(pendingRefresh.buildNanos()), millis(pendingRefresh.repairsNanos()), millis(pendingRefresh.nodesNanos()),
+			millis(lockAcquired - applyStarted), millis(reconcileNanos), millis(nodesNanos), millis(System.nanoTime() - applyStarted), pendingRefresh.repairs().size());
+	}
+
+	private static double millis(long nanos) {
+		return nanos / 1_000_000.0D;
+	}
+
+	private static void applyPendingConnectorRepairs() {
+		final ConnectorRepairBatch batch = connectorRepairBatch;
+		if (batch == null) {
+			return;
+		}
+		final long started = System.nanoTime();
+		final boolean stale;
+		synchronized (GRAPH_REFRESH_LOCK) {
+			stale = batch.refresh.revision() != graphRefreshRevision;
+		}
+		if (!stale) {
+			int processed = 0;
+			while (batch.next < batch.refresh.repairs().size() && processed++ < CONNECTOR_REPAIRS_PER_TICK) {
+				batch.changed += TrafficSavedPointRegistry.applyConnectorRepairs(List.of(batch.refresh.repairs().get(batch.next++)));
+				if (System.nanoTime() - started >= CONNECTOR_REPAIR_BUDGET_NANOS) {
+					break;
+				}
+			}
+		}
+		batch.applyNanos += System.nanoTime() - started;
+		if (stale || batch.next == batch.refresh.repairs().size()) {
+			finishConnectorRepairs();
+			updateCachedTrafficPoints();
+		}
+	}
+
+	private static void finishConnectorRepairs() {
+		final ConnectorRepairBatch batch = connectorRepairBatch;
+		if (batch == null) {
+			return;
+		}
+		connectorRepairBatch = null;
+		final long saveStarted = System.nanoTime();
+		if (batch.changed > 0) {
+			TrafficSavedPointRegistry.saveConnectorRepairs();
+		}
+		MTRTrafficAddon.LOGGER.info("MTR connector repair finished for {}: {}/{} processed, {} changed, apply={}ms, save={}ms",
+			batch.refresh.signature().dimensionId(), batch.next, batch.refresh.repairs().size(), batch.changed, millis(batch.applyNanos), millis(System.nanoTime() - saveStarted));
 	}
 
 	public static void onMtrRailsDeleted(String dimensionId, Collection<String> railIds) {
@@ -780,6 +852,7 @@ public final class TrafficManager {
 	private static void onServerTick(MinecraftServer server) {
 		applyPendingRailDeletions(server);
 		applyPendingFullGraphRefresh(server);
+		applyPendingConnectorRepairs();
 		lastServerTick = server.getTickCount();
 		updatePlayerSnapshots(server);
 		if (server.getTickCount() % TRAFFIC_POINT_CACHE_REFRESH_INTERVAL_TICKS == 0) {
@@ -811,7 +884,13 @@ public final class TrafficManager {
 
 		synchronized (SIMULATION_LOCK) {
 			removeVehiclesOutsideSimulationRangeAfterTimeout(lastTrafficSimulationWallMillis);
-			TrafficIntersectionRegistry.tickAutoSignals(latestGraphDimensionId, latestGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
+			final MtrGraph signalGraph;
+			final String signalDimension;
+			synchronized (GRAPH_REFRESH_LOCK) {
+				signalGraph = latestGraph;
+				signalDimension = latestGraphDimensionId;
+			}
+			TrafficIntersectionRegistry.tickAutoSignals(signalDimension, signalGraph, ACTIVE_VEHICLES, mtrSignalVehicles(), signalTick);
 			vehicleSimulationNanos += SIMULATION_INTERVAL_MILLIS * 1_000_000L;
 
 			if (ACTIVE_VEHICLES.isEmpty()) {
@@ -920,14 +999,22 @@ public final class TrafficManager {
 	}
 
 	private static synchronized void startGraphBuildExecutor() {
-		graphBuildGeneration++;
-		graphBuildAcceptingTasks = true;
+		synchronized (GRAPH_REFRESH_LOCK) {
+			graphBuildGeneration++;
+			graphGeometryCache = new MtrGraphBuilder.GeometryCache();
+			graphBuildAcceptingTasks = true;
+		}
 		graphBuildExecutor();
 	}
 
 	private static synchronized void stopGraphBuildExecutor() {
-		graphBuildAcceptingTasks = false;
-		graphBuildGeneration++;
+		synchronized (GRAPH_REFRESH_LOCK) {
+			graphBuildAcceptingTasks = false;
+			graphBuildGeneration++;
+			pendingFullGraphRefresh = null;
+		}
+		connectorRepairBatch = null;
+		graphGeometryCache = new MtrGraphBuilder.GeometryCache();
 		final ExecutorService executor = graphBuildExecutor;
 		graphBuildExecutor = null;
 		if (executor != null) {
@@ -1355,12 +1442,13 @@ public final class TrafficManager {
 		}
 
 		final List<VirtualRouteCandidate> candidates = new ArrayList<>();
+		final Map<MtrNodeKey, MtrGraphPathFinder.Search> searches = new HashMap<>();
 		for (TrafficPointDefinition despawn : enabledDespawns) {
 			if (despawn.id().equals(spawn.id()) || !despawn.hasConnectorRoute()) {
 				continue;
 			}
 
-			buildConnectorAwareRoute(graph, spawn, despawn)
+			buildConnectorAwareRoute(graph, spawn, despawn, searches)
 				.ifPresent(result -> candidates.add(new VirtualRouteCandidate(spawn, despawn, result.route())));
 		}
 
@@ -1371,6 +1459,11 @@ public final class TrafficManager {
 	}
 
 	private static Optional<MtrGraphRouteResult> buildConnectorAwareRoute(MtrGraph graph, TrafficPointDefinition spawn, TrafficPointDefinition despawn) {
+		return buildConnectorAwareRoute(graph, spawn, despawn, new HashMap<>());
+	}
+
+	private static Optional<MtrGraphRouteResult> buildConnectorAwareRoute(MtrGraph graph, TrafficPointDefinition spawn, TrafficPointDefinition despawn,
+		Map<MtrNodeKey, MtrGraphPathFinder.Search> searches) {
 		final List<ConnectorTraversal> spawnTraversals = connectorTraversals(graph, spawn);
 		final List<ConnectorTraversal> despawnTraversals = connectorTraversals(graph, despawn);
 		if (spawnTraversals.isEmpty() || despawnTraversals.isEmpty()) {
@@ -1380,11 +1473,9 @@ public final class TrafficManager {
 
 		for (ConnectorTraversal spawnTraversal : spawnTraversals) {
 			for (ConnectorTraversal despawnTraversal : despawnTraversals) {
-				final Optional<MtrGraphRouteResult> middleRouteResult = MtrGraphPathFinder.findFastestRoute(
-					graph,
-					spawnTraversal.routeEndNode(),
-					despawnTraversal.routeStartNode()
-				);
+				final Optional<MtrGraphRouteResult> middleRouteResult = searches
+					.computeIfAbsent(spawnTraversal.routeEndNode(), start -> new MtrGraphPathFinder.Search(graph, start))
+					.find(despawnTraversal.routeStartNode());
 
 				if (middleRouteResult.isEmpty()) {
 					continue;
@@ -1903,7 +1994,19 @@ public final class TrafficManager {
 	}
 
 	private record PendingFullGraphRefresh(RailGraphSignature signature, MtrGraph graph, Set<String> railIds,
-		List<TrafficIntersectionRegistry.NodeRefresh> nodes, long revision) {
+		List<TrafficIntersectionRegistry.NodeRefresh> nodes, long revision,
+		List<TrafficSavedPointRegistry.ConnectorRepair> repairs, long snapshotNanos, long buildNanos, long repairsNanos, long nodesNanos) {
+	}
+
+	private static final class ConnectorRepairBatch {
+		private final PendingFullGraphRefresh refresh;
+		private int next;
+		private int changed;
+		private long applyNanos;
+
+		private ConnectorRepairBatch(PendingFullGraphRefresh refresh) {
+			this.refresh = refresh;
+		}
 	}
 
 	private record RailDeletion(long generation, String dimensionId, Set<String> railIds) {
