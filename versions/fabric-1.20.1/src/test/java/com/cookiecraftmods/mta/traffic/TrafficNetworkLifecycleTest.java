@@ -57,6 +57,67 @@ class TrafficNetworkLifecycleTest {
 	}
 
 	@Test
+	void refreshRequestAndGraphBuildDoNotWaitForTheVehicleSimulationMonitor() throws Exception {
+		final var caller = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			synchronized (field(TrafficManager.class, "SIMULATION_LOCK").get(null)) {
+				assertTrue(caller.submit(() -> TrafficManager.requestNetworkRefresh(DIMENSION)).get(2, TimeUnit.SECONDS));
+				field(TrafficManager.class, "networkRefreshNotBeforeNanos").setLong(null, 0);
+				caller.submit(() -> TrafficManager.updateFullMtrRailGraph(DIMENSION, List.of(rail(0, 40)))).get(2, TimeUnit.SECONDS);
+				flushGraphWorker();
+				assertNotNull(field(TrafficManager.class, "pendingFullGraphRefresh").get(null));
+			}
+		} finally {
+			caller.shutdownNow();
+		}
+	}
+
+	@Test
+	void connectorRepairsPreserveEditsAndDeletionsAndApplyAcrossTicks() throws Exception {
+		for (int i = 0; i < 130; i++) {
+			putPoint(new TrafficPointDefinition(DIMENSION + "|spawn|" + i, TrafficPointType.SPAWN,
+				5, 64, 0, true, 40, null, null, null, null, null, null, "original", List.of("taxi")));
+		}
+		requestNow();
+		TrafficManager.updateFullMtrRailGraph(DIMENSION, List.of(rail(0, 40)));
+		flushGraphWorker();
+		final Object pending = field(TrafficManager.class, "pendingFullGraphRefresh").get(null);
+		final var repairsMethod = pending.getClass().getDeclaredMethod("repairs");
+		repairsMethod.setAccessible(true);
+		@SuppressWarnings("unchecked")
+		final var repairs = (List<TrafficSavedPointRegistry.ConnectorRepair>) repairsMethod.invoke(pending);
+		assertEquals(130, repairs.size());
+		putPoint(point(repairs.get(0).original().id(), TrafficPointType.SPAWN, true));
+		((Map<?, ?>) field(TrafficSavedPointRegistry.class, "DEFINITIONS").get(null)).remove(repairs.get(1).original().id());
+		final Class<?> batchType = Class.forName(TrafficManager.class.getName() + "$ConnectorRepairBatch");
+		final var constructor = batchType.getDeclaredConstructor(pending.getClass());
+		constructor.setAccessible(true);
+		final Object batch = constructor.newInstance(pending);
+		field(TrafficManager.class, "connectorRepairBatch").set(null, batch);
+		invokeManager("applyPendingConnectorRepairs");
+		final int processed = field(batchType, "next").getInt(batch);
+		assertTrue(processed > 0 && processed <= 64);
+		assertNotNull(field(TrafficManager.class, "connectorRepairBatch").get(null));
+		for (int i = 0; i < 130 && field(TrafficManager.class, "connectorRepairBatch").get(null) != null; i++) {
+			invokeManager("applyPendingConnectorRepairs");
+		}
+		assertNull(field(TrafficManager.class, "connectorRepairBatch").get(null));
+		assertEquals(128, field(batchType, "changed").getInt(batch));
+		assertEquals(129, TrafficSavedPointRegistry.getDefinitions().size());
+		assertTrue(TrafficSavedPointRegistry.getDefinitions().stream().allMatch(TrafficPointDefinition::hasConnectorRoute));
+
+		// A newer request must discard even an already-published batch's remaining work.
+		putPoint(repairs.get(2).original());
+		final Object staleBatch = constructor.newInstance(pending);
+		field(TrafficManager.class, "connectorRepairBatch").set(null, staleBatch);
+		requestNow();
+		invokeManager("applyPendingConnectorRepairs");
+		assertNull(field(TrafficManager.class, "connectorRepairBatch").get(null));
+		assertEquals(0, field(batchType, "next").getInt(staleBatch));
+		assertTrue(TrafficSavedPointRegistry.getDefinitions().stream().anyMatch(point -> !point.hasConnectorRoute()));
+	}
+
+	@Test
 	void startupSelectsTheSavedTrafficDimensionAndBuildsWithoutAPlayer() throws Exception {
 		assertEquals(DIMENSION, TrafficManager.initialNetworkDimension(DIMENSION));
 		putPoint(point("example:city|spawn|one", TrafficPointType.SPAWN, false));
