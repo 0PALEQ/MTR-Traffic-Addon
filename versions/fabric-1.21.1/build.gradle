@@ -69,12 +69,22 @@ dependencies {
 
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	modImplementation "maven.modrinth:minecraft-transit-railway:${project.mtr_modrinth_version}"
+
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+	testImplementation platform("org.junit:junit-bom:5.11.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 	// Loom removes MTR's nested-jar declarations while remapping it for the dev runtime.
 	// Add the exact libraries bundled by MTR 4.1 so runClient matches a normal installation.
 	modRuntimeOnly("gg.essential:universalcraft-1.21-fabric:497") { transitive = false }
 	modRuntimeOnly("gg.essential:elementa:743") { transitive = false }
 	runtimeOnly("org.jetbrains.kotlin:kotlin-stdlib:2.4.20-Beta1") { transitive = false }
 	
+}
+
+test {
+	useJUnitPlatform()
+	systemProperty "fabric.side", "server"
 }
 
 processResources {
